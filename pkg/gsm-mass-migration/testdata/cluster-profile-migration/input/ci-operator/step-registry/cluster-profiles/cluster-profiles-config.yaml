@@ -1,0 +1,26 @@
+cluster_profiles:
+- name: osd-ephemeral
+  secret: cluster-secrets-osd-ephemeral
+- name: azure4
+  secret: cluster-secrets-azure4
+- name: azure-arm64
+  secret: cluster-secrets-azure-arm64
+- name: packet
+  secret: cluster-secrets-packet
+- name: vsphere-multizone-2
+  secret: cluster-secrets-vsphere
+- name: vsphere-connected-2
+  secret: cluster-secrets-vsphere
+- name: vsphere-dis-2
+  secret: cluster-secrets-vsphere
+- name: vsphere-elastic
+  secret: cluster-secrets-vsphere
+- name: openstack-ppc64le
+  secret: cluster-secrets-openstack-ppc64le
+- name: ibmcloud-qe-2
+  secret: cluster-secrets-ibmcloud-qe-2
+- name: openshift-org-aws
+  lease_type: openshift-org-aws-quota-slice
+  set_members:
+  - aws
+  - aws-2

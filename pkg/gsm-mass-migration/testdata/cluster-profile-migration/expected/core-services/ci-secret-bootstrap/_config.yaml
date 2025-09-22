@@ -1,0 +1,115 @@
+cluster_groups:
+  bastion:
+  - build01
+  - build02
+  build_farm:
+  - app.ci
+  - build01
+  - build02
+  - build03
+  - build04
+  - build05
+  - build06
+  - build07
+  - build08
+  - build09
+  - build10
+  - build11
+  - build12
+  - core-ci
+  - vsphere02
+  managed_clusters:
+  - app.ci
+  - build01
+  - build02
+  - build03
+  - build04
+  - build05
+  - build06
+  - build07
+  - build08
+  - build09
+  - build10
+  - build11
+  - build12
+  - core-ci
+  - hosted-mgmt
+  non_app_ci:
+  - build01
+  - build02
+  - build03
+  - build04
+  - build05
+  - build06
+  - build07
+  - build08
+  - build09
+  - build10
+  - build11
+  - build12
+  - core-ci
+  - vsphere02
+  openshift_config_pull_secret:
+  - build01
+  - build02
+  - build03
+  - build04
+  - build05
+  - build06
+  - build07
+  - build08
+  - build09
+  - build10
+  - build11
+  - build12
+  - core-ci
+  - hosted-mgmt
+  - vsphere02
+secret_configs:
+- from:
+    ops-mirror.pem:
+      field: cert-key.pem
+      item: mirror.openshift.com
+    rh-cdn.pem:
+      field: rh-cdn.pem
+      item: rh-cdn
+  to:
+  - cluster_groups:
+    - build_farm
+    name: mirror.openshift.com
+    namespace: ocp
+- from:
+    insights-live.yaml:
+      field: insights-live.yaml
+      item: insights-ci-account
+    pull-secret:
+      dockerconfigJSON:
+      - auth_field: token_image-puller_app.ci_reg_auth_value.txt
+        item: build_farm
+        registry_url: registry.ci.openshift.org
+    ssh-privatekey:
+      field: ssh-privatekey
+      item: openstack
+  to:
+  - cluster_groups:
+    - non_app_ci
+    name: cluster-secrets-openstack-vexxhost
+    namespace: some-random-ns
+user_secrets_target_clusters:
+- app.ci
+- build01
+- build02
+- build03
+- build04
+- build05
+- build06
+- build07
+- build08
+- build09
+- build10
+- build11
+- build12
+- core-ci
+- hosted-mgmt
+- vsphere02
+vault_dptp_prefix: dptp

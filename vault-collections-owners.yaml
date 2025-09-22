@@ -1,0 +1,2906 @@
+# Vault Self-Service Collections with Current Owners
+# Generated on: 2026-04-08 08:38:34 UTC
+#
+# Instructions:
+# 1. For each collection, assign ROVER group email(s) to 'rover-groups'
+# 2. ROVER groups will be granted access to the GSM secret collection
+# 3. Current 'owners' are listed for reference (Vault group members)
+
+vault_collections:
+  3scale-test-image:
+    owners:
+      - caevans
+      - dfrazzet
+      - cchetna
+      - oharan
+      - mdunn
+    rover-groups: []
+  aao-aws-credentials:
+    owners:
+      - mstratto
+      - maschulz
+      - avulaj
+      - fbergman
+      - rajdchau
+    rover-groups: []
+  acm-mce:
+    owners:
+      - liangli
+    rover-groups: []
+  acm-qe:
+    owners:
+      - vboulos
+      - dhuynh
+      - caevans
+      - ascerra
+      - dfrazzet
+      - oharan
+      - btejado
+    rover-groups: []
+  addon-operator-secrets:
+    owners:
+      - nschiede
+      - asegundo
+      - jgwosdz
+      - akonarde
+      - asnaraya
+    rover-groups: []
+  ai-edge:
+    owners:
+      - mwinkler
+      - llasmith
+      - mmacik
+    rover-groups: []
+  alebedev:
+    owners:
+      - alebedev
+    rover-groups: []
+  alibaba:
+    owners:
+      - jcallen
+      - rvanderp
+      - ffranz
+      - ngirard
+      - mrbraga
+    rover-groups: []
+  amd-ci:
+    owners:
+      - tnewman
+    rover-groups: []
+  ansible-qe:
+    owners:
+      - fasta
+      - liswang
+      - olebaran
+      - btejado
+    rover-groups: []
+  aos-qe-logging:
+    owners:
+      - qitang
+      - ikanse
+      - anli
+    rover-groups: []
+  arcconformance-secrets:
+    owners:
+      - decarr
+      - bbarcaro
+      - jcallen
+      - rvanderp
+      - ffranz
+      - mrbraga
+    rover-groups: []
+  arm:
+    owners:
+      - jcallen
+      - rvanderp
+      - ffranz
+      - ngirard
+      - cglombek
+    rover-groups: []
+  aro-ci:
+    owners:
+      - lranjbar
+      - msluiter
+      - tsatam
+    rover-groups: []
+  aro-classic-prow-e2e:
+    owners:
+      - adenton
+      - goberlec
+      - bvesel
+    rover-groups: []
+  arohcppullsecrets:
+    owners:
+      - mgahagan
+    rover-groups: []
+  art-vault:
+    owners:
+      - pruan
+    rover-groups: []
+  assisted-chat-test-credentials:
+    owners:
+      - aantal
+      - ncarboni
+      - zszabo
+      - jhernand
+      - otuchfel
+    rover-groups: []
+  autoscaling:
+    owners:
+      - jkyros
+    rover-groups: []
+  autoscaling-team-bot-credentials:
+    owners:
+      - jkyros
+    rover-groups: []
+  aws-devfile:
+    owners:
+      - jcollier
+      - mvaldron
+    rover-groups: []
+  aws-load-balancer-operator:
+    owners:
+      - alebedev
+      - mmasters
+    rover-groups: []
+  aws-managed-cspi-qe:
+    owners:
+      - myakove
+      - caevans
+      - ascerra
+      - rushinde
+      - rnetser
+      - cchetna
+      - bpratt
+      - btejado
+    rover-groups: []
+  aws-managed-osd-rhoai-qe-collection:
+    owners:
+      - liswang
+      - apodhrad
+      - bdattoma
+      - obarhaim
+    rover-groups: []
+  aws-managed-rosa-rhoai-qe-collection:
+    owners:
+      - liswang
+      - apodhrad
+      - rnetser
+      - bdattoma
+      - obarhaim
+    rover-groups: []
+  aws-osp-qe:
+    owners:
+      - sselvan
+    rover-groups: []
+  aws-outpost:
+    owners:
+      - ashoshan
+    rover-groups: []
+  aws-ovn-perfscale:
+    owners:
+      - dceara
+      - krvoora
+      - jtaleric
+    rover-groups: []
+  aws-perfscale:
+    owners:
+      - mukrishn
+      - krvoora
+      - vchalla
+      - jtaleric
+    rover-groups: []
+  aws-perfscale-okd:
+    owners:
+      - sahshah
+      - jlema
+      - mukrishn
+      - qili
+      - mcornea
+      - msheth
+      - vchalla
+      - rsevilla
+      - smalleni
+      - vkommadi
+      - liqcui
+      - jtaleric
+      - nelluri
+    rover-groups: []
+  aws-pipelines-performance:
+    owners:
+      - ysubrama
+      - sira
+      - jhutar
+      - pmacik
+    rover-groups: []
+  aws-rhdh-performance:
+    owners:
+      - ysubrama
+      - jhutar
+      - pmacik
+      - skestwal
+    rover-groups: []
+  aws-rhtap-performance:
+    owners:
+      - ysubrama
+      - jhutar
+      - pmacik
+    rover-groups: []
+  azure:
+    owners:
+      - ljakubow
+      - bbarcaro
+      - mjudeiki
+      - pkotas
+      - mradchuk
+    rover-groups: []
+  azure-capz-credentials:
+    owners:
+      - rcap
+      - mveber
+      - mzazrive
+    rover-groups: []
+  azure-cnv-devops:
+    owners:
+      - dkeler
+      - lbednar
+      - ryasharz
+    rover-groups: []
+  backstage-performance:
+    owners:
+      - ysubrama
+      - jhutar
+      - pmacik
+      - skestwal
+    rover-groups: []
+  baremetal:
+    owners:
+      - stbenjam
+      - bbarcaro
+      - hpokorny
+      - aguclu
+      - asalkeld
+      - afasano
+      - dhiggins
+    rover-groups: []
+  baremetal-qe-packet:
+    owners:
+      - lwan
+      - pamoedom
+      - jhajyahy
+      - adistefa
+      - jhou
+      - mhans
+      - nkononov
+      - sgoveas
+    rover-groups: []
+  bitbucket:
+    owners:
+      - oshmarai
+      - abazko
+    rover-groups: []
+  bmctest-ci:
+    owners:
+      - tdomnesc
+      - dhiggins
+    rover-groups: []
+  brew-registry-pullsecret:
+    owners:
+      - mmehra
+      - asergien
+      - nmarsell
+    rover-groups: []
+  build-api-secrets:
+    owners:
+      - apjagtap
+      - bbarcaro
+      - sabiswas
+      - adkaplan
+    rover-groups: []
+  certification-pipeline:
+    owners:
+      - mhillsma
+      - acornett
+    rover-groups: []
+  che-plugin-registry:
+    owners:
+      - iokhrime
+    rover-groups: []
+  ci-claude-code:
+    owners:
+      - stbenjam
+      - brcox
+      - jupierce
+    rover-groups: []
+  cincinnati-ci:
+    owners:
+      - faguiard
+      - dhurta
+      - pmuller
+      - hongkliu
+      - wking
+      - pmahajan
+    rover-groups: []
+  cincinnati-ci-public:
+    owners:
+      - faguiard
+      - dhurta
+      - pmuller
+      - hongkliu
+      - wking
+      - pmahajan
+    rover-groups: []
+  cloud-governance:
+    owners:
+      - athiruma
+      - krvoora
+    rover-groups: []
+  cloud-team-rebase-bot-creds:
+    owners:
+      - mfedosin
+    rover-groups: []
+  cluster-secrets-aws-chaos:
+    owners:
+      - sahshah
+      - pmendezh
+      - mkatta
+      - prubenda
+      - nelluri
+    rover-groups: []
+  cluster-secrets-aws-telco:
+    owners:
+      - sshnaidm
+      - sandyada
+      - ykashtan
+    rover-groups: []
+  cluster-secrets-che-aws:
+    owners:
+      - dnochevn
+    rover-groups: []
+  cluster-secrets-devsandboxci-aws:
+    owners:
+      - alkazako
+      - mjobanek
+      - fmuntean
+      - rsoaresd
+    rover-groups: []
+  cluster-secrets-gcp-telco:
+    owners:
+      - sshnaidm
+      - sandyada
+    rover-groups: []
+  cluster-secrets-gitops-aws:
+    owners:
+      - vab
+    rover-groups: []
+  cluster-secrets-nutanix:
+    owners:
+      - mfedosin
+      - jcallen
+      - rvanderp
+      - ialeksee
+      - jimccann
+      - sgao
+    rover-groups: []
+  cluster-secrets-odf-aws:
+    owners:
+      - nladha
+      - muagarwa
+      - mparida
+      - nigoyal
+      - uchapaga
+    rover-groups: []
+  cluster-secrets-openshift-virtualization:
+    owners:
+      - dhiller
+      - bbarcaro
+    rover-groups: []
+  cluster-secrets-osl-gcp:
+    owners:
+      - prkumar
+    rover-groups: []
+  cluster-secrets-rosa-regional-platform-int:
+    owners:
+      - jmelisba
+      - cbusse
+      - kbater
+      - cdoan
+      - bsmit
+      - psavage
+    rover-groups: []
+  cnv-aws-credentials:
+    owners:
+      - dholler
+      - ryasharz
+      - ocohen
+      - nunnatsa
+    rover-groups: []
+  cnv-ci-secrets:
+    owners:
+      - dhiller
+      - bbarcaro
+    rover-groups: []
+  cnv-nightly-channel:
+    owners:
+      - ocohen
+    rover-groups: []
+  cnv-qe:
+    owners:
+      - svishwak
+      - liswang
+      - ryasharz
+      - btejado
+    rover-groups: []
+  cnv-tests:
+    owners:
+      - dshchedr
+    rover-groups: []
+  collection:
+    owners:
+      - dgemoli
+      - jguzik
+    rover-groups: []
+  collection1:
+    owners:
+      - jinqi
+    rover-groups: []
+  common-templates-secrets:
+    owners:
+      - ksimon
+    rover-groups: []
+  confidential-qe:
+    owners:
+      - jnaucke
+      - demeng
+      - yalzhang
+      - fjin
+    rover-groups: []
+  console-storage-plugin:
+    owners:
+      - badhikar
+      - afrahman
+    rover-groups: []
+  core-installer:
+    owners:
+      - anarayan
+      - jstuever
+      - padillon
+    rover-groups: []
+  coreos:
+    owners:
+      - travier
+      - jlebon
+      - walters
+      - mnguyen
+      - dmabe
+    rover-groups: []
+  coverage-ran:
+    owners:
+      - saskari
+    rover-groups: []
+  crc-bundle-secret:
+    owners:
+      - bbarcaro
+      - prkumar
+    rover-groups: []
+  crt:
+    owners:
+      - brawilli
+      - apavel
+      - jupierce
+      - ehoxha
+    rover-groups: []
+  crw-ci-secrets:
+    owners:
+      - tdancs
+      - bbarcaro
+      - flacatus
+      - mhamzy
+    rover-groups: []
+  crw-qe:
+    owners:
+      - rhopp
+    rover-groups: []
+  cryostat-prod:
+    owners:
+      - ebaron
+    rover-groups: []
+  cspi-interop-watcher-bot:
+    owners:
+      - svishwak
+      - sgill
+      - caevans
+      - chaclark
+      - dfrazzet
+      - etirtara
+      - oharan
+      - vshakya
+      - mpruitt
+    rover-groups: []
+  cspi-qe:
+    owners:
+      - svishwak
+      - sgill
+      - ryasharz
+      - chaclark
+      - dfrazzet
+      - etirtara
+      - oharan
+      - vshakya
+      - ftan
+      - mpruitt
+    rover-groups: []
+  cspi-qe-firewatch:
+    owners:
+      - svishwak
+      - sgill
+      - caevans
+      - chaclark
+      - dfrazzet
+      - etirtara
+      - oharan
+      - vshakya
+      - mpruitt
+    rover-groups: []
+  cvp:
+    owners:
+      - mmehra
+      - asergien
+      - nmarsell
+    rover-groups: []
+  cvp-cluster-pool:
+    owners:
+      - mmehra
+      - asergien
+      - nmarsell
+    rover-groups: []
+  debjyoti-collection:
+    owners:
+      - dpandit
+    rover-groups: []
+  deploy-konflux-operator:
+    owners:
+      - jcaamano
+    rover-groups: []
+  dev-azure:
+    owners:
+      - oshmarai
+      - abazko
+    rover-groups: []
+  devprod:
+    owners:
+      - caevans
+      - ascerra
+      - flacatus
+      - psturc
+    rover-groups: []
+  dfrazzet-vault-ci-operator:
+    owners:
+      - dfrazzet
+    rover-groups: []
+  distributed-tracing:
+    owners:
+      - ikanse
+    rover-groups: []
+  divyam-ci-pull-secret:
+    owners:
+      - dpateriy
+    rover-groups: []
+  dno-tools:
+    owners:
+      - caevans
+    rover-groups: []
+  docker-openstack-k8s-operators-secrets:
+    owners:
+      - ldenny
+      - chkumar
+      - rlandy
+      - dviroel
+      - pabrodri
+    rover-groups: []
+  dpf:
+    owners:
+      - szigmon
+      - wabouham
+    rover-groups: []
+  dptp-demo-collection:
+    owners:
+      - pmuller
+    rover-groups: []
+  dynamic-plugin-sdk:
+    owners:
+      - khala
+      - bflorkie
+    rover-groups: []
+  e2e-rhoai:
+    owners:
+      - cpompeia
+    rover-groups: []
+  edge-group:
+    owners:
+      - yschwamm
+      - rpiccoli
+      - tnewman
+      - ybrodsky
+      - fdupont
+      - eerez
+      - cgament
+      - lgamliel
+      - wabouham
+      - ybettan
+      - eifrach
+      - vemporop
+      - ovishlit
+      - agentil
+      - dmanor
+    rover-groups: []
+  edttj--vault--ci-operator:
+    owners:
+      - etirtara
+    rover-groups: []
+  equinix-edge-enablement:
+    owners:
+      - tdomnesc
+      - pfontani
+      - sakbas
+      - ehila
+      - jeroche
+      - vmauro
+      - jpoulin
+    rover-groups: []
+  equinix-ocp-metal:
+    owners:
+      - tdomnesc
+      - rpittau
+      - hpokorny
+      - aguclu
+      - afasano
+      - agentil
+      - dmanor
+      - dhiggins
+    rover-groups: []
+  external-dns-operator:
+    owners:
+      - alebedev
+      - gspence
+      - mmasters
+      - cholman
+      - amcdermo
+    rover-groups: []
+  external-dns-operator-infoblox-credentials:
+    owners:
+      - alebedev
+      - mmasters
+    rover-groups: []
+  firewatch-tool:
+    owners:
+      - sgill
+      - caevans
+      - rushinde
+      - rnetser
+      - chaclark
+      - etirtara
+      - smatula
+      - oharan
+      - mpruitt
+      - btejado
+    rover-groups: []
+  foo-qe:
+    owners:
+      - smongiar
+    rover-groups: []
+  ftan-test:
+    owners:
+      - ftan
+    rover-groups: []
+  fxie:
+    owners:
+      - liangli
+      - xiuwang
+      - kewang
+      - wewang
+      - heli
+      - mgencur
+      - jiezhao
+      - fxie
+    rover-groups: []
+  g11n-qe-odyssey:
+    owners:
+      - kkrothap
+    rover-groups: []
+  gcp-hcp-hypershift-ci:
+    owners:
+      - asegundo
+      - cveiga
+      - patmarti
+    rover-groups: []
+  gitea:
+    owners:
+      - oshmarai
+      - abazko
+    rover-groups: []
+  github:
+    owners:
+      - oshmarai
+      - abazko
+    rover-groups: []
+  gitlab:
+    owners:
+      - oshmarai
+      - abazko
+    rover-groups: []
+  gitlab-update-googlespreadsheet:
+    owners:
+      - lzhan
+    rover-groups: []
+  gitops-aws-credentials:
+    owners:
+      - vab
+    rover-groups: []
+  gitops-operator-codecov:
+    owners:
+      - asaleh
+    rover-groups: []
+  gitops-operator-secret:
+    owners:
+      - vab
+    rover-groups: []
+  gitops-service-tests-e2e:
+    owners:
+      - trdoyle
+      - jonwest
+    rover-groups: []
+  gsm-e2e-test:
+    owners:
+      - psalajov
+      - dgemoli
+    rover-groups: []
+  hac-core:
+    owners:
+      - khala
+      - bflorkie
+      - aballant
+    rover-groups: []
+  hac-dev:
+    owners:
+      - kkanova
+      - skhileri
+      - jrichter
+      - msawood
+      - rorai
+    rover-groups: []
+  hac-infra-secrets:
+    owners:
+      - yapei
+    rover-groups: []
+  hcm-aro:
+    owners:
+      - sclarkso
+      - jboll
+      - wehe
+      - goberlec
+      - rvazquez
+      - rgarciaa
+      - mmazur
+      - hbhushan
+      - imani
+      - deads
+      - asnaraya
+      - mgahagan
+      - ves
+      - bvesel
+    rover-groups: []
+  hcm-cluster-service:
+    owners:
+      - deads
+    rover-groups: []
+  hcm-ocp-ci:
+    owners:
+      - stbenjam
+      - bpratt
+    rover-groups: []
+  hive:
+    owners:
+      - mold
+      - sumehta
+      - efried
+      - jstuever
+      - mworthin
+    rover-groups: []
+  hongkliu-test:
+    owners:
+      - hongkliu
+    rover-groups: []
+  hvidosil:
+    owners:
+      - hvidosil
+    rover-groups: []
+  hyperfleet:
+    owners:
+      - xueli
+      - yingzhan
+      - amarin
+      - croche
+      - yasun
+    rover-groups: []
+  hypershift-agent-ibmz-credentials:
+    owners:
+      - nmishra
+      - rphaneen
+      - dveerabh
+      - tvardema
+      - jpoulin
+      - jpattara
+      - mtahoor
+    rover-groups: []
+  hypershift-ibm-managed:
+    owners:
+      - hsueki
+    rover-groups: []
+  hypershift-on-power:
+    owners:
+      - neyadav
+      - amshriva
+      - tvardema
+      - bkhadars
+      - abhsriva
+      - sgokul
+      - dravicha
+      - jpoulin
+      - mkumatag
+    rover-groups: []
+  hypershift-team:
+    owners:
+      - alesross
+      - agarcial
+      - liangli
+      - cewong
+      - sjenning
+      - lgao
+      - bclement
+      - mraee
+      - jparrill
+      - ema
+      - aabdelre
+      - brcox
+      - asegurap
+    rover-groups: []
+  hypershiftqe:
+    owners:
+      - zfeng
+      - liangli
+      - lgao
+      - xiuwang
+      - kewang
+      - ema
+      - wewang
+      - heli
+      - mgencur
+      - jiezhao
+    rover-groups: []
+  ibmcloud-ci:
+    owners:
+      - cschaefe
+    rover-groups: []
+  ibmcloud-gpu:
+    owners:
+      - harpatil
+    rover-groups: []
+  ibmcloud-multi-creds:
+    owners:
+      - ksmolin
+      - chonzhan
+      - chinchen
+      - tvardema
+      - dwerle
+      - sgokul
+      - jpoulin
+      - pbastide
+    rover-groups: []
+  ibmcloud-rhoai-qe-collection:
+    owners:
+      - liswang
+      - apodhrad
+      - bdattoma
+      - obarhaim
+    rover-groups: []
+  ibmz-ci-creds:
+    owners:
+      - ikanse
+      - mtahoor
+    rover-groups: []
+  ibu:
+    owners:
+      - mresvani
+      - sakbas
+      - ehila
+      - jeroche
+    rover-groups: []
+  idp-secrets:
+    owners:
+      - raharris
+      - dschmidt
+      - gbuchana
+      - amcnamar
+      - cahl
+    rover-groups: []
+  ieng--chaos-g11n--ci-operator:
+    owners:
+      - liliu
+      - etirtara
+      - lijli
+    rover-groups: []
+  ieng--interop--ci-operator:
+    owners:
+      - chaclark
+      - etirtara
+      - oharan
+    rover-groups: []
+  ieng--lab--ci-operator:
+    owners:
+      - liliu
+      - etirtara
+    rover-groups: []
+  insights-operator:
+    owners:
+      - rluders
+    rover-groups: []
+  insights-operator-secrets:
+    owners:
+      - jfula
+      - ijimeno
+      - bazhou
+    rover-groups: []
+  insights-qa:
+    owners:
+      - dmisharo
+    rover-groups: []
+  insights-qe:
+    owners:
+      - liswang
+      - caevans
+      - dfrazzet
+      - oharan
+      - btejado
+      - mdunn
+    rover-groups: []
+  installer-ci-azurestack:
+    owners:
+      - anarayan
+      - jstuever
+      - padillon
+    rover-groups: []
+  installer-ci-metal:
+    owners:
+      - anarayan
+      - jstuever
+      - padillon
+    rover-groups: []
+  installer-ci-steps-metal:
+    owners:
+      - anarayan
+      - jstuever
+      - padillon
+    rover-groups: []
+  integr8ly:
+    owners:
+      - vmogilev
+      - trepel
+    rover-groups: []
+  interop-jira-slack-bot:
+    owners:
+      - dfrazzet
+      - vshakya
+    rover-groups: []
+  interop-qe:
+    owners:
+      - lbednar
+      - ryasharz
+      - dshchedr
+    rover-groups: []
+  intersmash-e2e:
+    owners:
+      - msimka
+      - fburzigo
+    rover-groups: []
+  ironic-bot:
+    owners:
+      - tdomnesc
+      - rpittau
+      - hpokorny
+      - dhiggins
+    rover-groups: []
+  isc-qe:
+    owners:
+      - xiyuan
+    rover-groups: []
+  jbieren:
+    owners:
+      - bbarcaro
+      - jbieren
+    rover-groups: []
+  joeg-pro-secrets:
+    owners:
+      - jgdaniec
+    rover-groups: []
+  jws-qe:
+    owners:
+      - vshakya
+      - btejado
+    rover-groups: []
+  kam:
+    owners:
+      - bbarcaro
+      - arout
+    rover-groups: []
+  kam-secrets:
+    owners:
+      - vab
+    rover-groups: []
+  kernel-module-management:
+    owners:
+      - cprocter
+      - rfreiman
+      - fdupont
+      - bthurber
+      - ebelarte
+      - ybettan
+      - qbarrand
+      - yshnaidm
+    rover-groups: []
+  konflux-ci-konflux-ci:
+    owners:
+      - flacatus
+      - amisstea
+      - yherzog
+      - psturc
+    rover-groups: []
+  konveyor:
+    owners:
+      - hitpatel
+      - alpatel
+      - whayutin
+      - rjohnson
+      - jmatthew
+      - ernelson
+      - dzager
+      - jmontleo
+    rover-groups: []
+  ksan-operator:
+    owners:
+      - sakbas
+      - jeroche
+    rover-groups: []
+  kubevirt-ipi-provider:
+    owners:
+      - bbarcaro
+      - dbarda
+    rover-groups: []
+  kv:
+    owners:
+      - mdulko
+    rover-groups: []
+  kvellalo-secrets:
+    owners:
+      - kvellalo
+      - bbarcaro
+    rover-groups: []
+  legacy-apici-secrets:
+    owners:
+      - bbarcaro
+      - hongkliu
+      - nmoraiti
+    rover-groups: []
+  libvirt-ppc64le:
+    owners:
+      - mturek
+      - tvardema
+      - sgokul
+      - mhamzy
+      - jpoulin
+      - pbastide
+    rover-groups: []
+  libvirt-ppc64le-s2s:
+    owners:
+      - karumuga
+      - tvardema
+      - sgokul
+      - pbastide
+    rover-groups: []
+  libvirt-s390x:
+    owners:
+      - ksmolin
+      - chinchen
+      - tvardema
+      - dwerle
+      - jpoulin
+    rover-groups: []
+  libvirt-s390x-1:
+    owners:
+      - tvardema
+    rover-groups: []
+  libvirt-s390x-2:
+    owners:
+      - tvardema
+    rover-groups: []
+  libvirt-s390x-vpn:
+    owners:
+      - tvardema
+      - telpelt
+    rover-groups: []
+  lijli:
+    owners:
+      - lijli
+    rover-groups: []
+  lmilbaum-secrets:
+    owners:
+      - lmilbaum
+      - bbarcaro
+    rover-groups: []
+  local-zones:
+    owners:
+      - rvanderp
+      - mrbraga
+    rover-groups: []
+  logging-test-qitang:
+    owners:
+      - qitang
+    rover-groups: []
+  loki-ci:
+    owners:
+      - ptsiraki
+      - bbarcaro
+      - dgoodwin
+      - vrutkovs
+    rover-groups: []
+  lvms:
+    owners:
+      - sakbas
+      - ehila
+      - jeroche
+      - pacevedo
+    rover-groups: []
+  lwan-aws-creds:
+    owners:
+      - lwan
+    rover-groups: []
+  maas:
+    owners:
+      - ehernand
+      - chkulkar
+    rover-groups: []
+  maistra-dev-prow:
+    owners:
+      - fbrychta
+      - dgrimm
+      - frherrer
+      - jwendell
+      - yuaxu
+    rover-groups: []
+  managed-odh:
+    owners:
+      - bbarcaro
+      - croberts
+    rover-groups: []
+  manual-oidc:
+    owners:
+      - adahiya
+      - bbarcaro
+    rover-groups: []
+  mcg-ms-console-e2e:
+    owners:
+      - skatiyar
+      - anbehl
+      - almartin
+      - prasriva
+    rover-groups: []
+  mcg-osd:
+    owners:
+      - skatiyar
+      - almartin
+      - prasriva
+    rover-groups: []
+  mco-team-jira-token:
+    owners:
+      - djoshy
+    rover-groups: []
+  medik8s-ci:
+    owners:
+      - abeekhof
+      - msluiter
+      - mshitrit
+    rover-groups: []
+  metal-perfscale-jetlag:
+    owners:
+      - mkaliyam
+      - rsahukar
+      - hnhan
+      - sahshah
+      - svetsa
+      - jlema
+      - mukrishn
+      - qili
+      - mcornea
+      - krvoora
+      - msheth
+      - vchalla
+      - rsevilla
+      - vkommadi
+      - jtaleric
+      - prubenda
+      - akrzos
+    rover-groups: []
+  metal-perfscale-osp:
+    owners:
+      - mkaliyam
+      - sahshah
+      - svetsa
+      - jlema
+      - mukrishn
+      - qili
+      - mcornea
+      - msheth
+      - vchalla
+      - rsevilla
+      - smalleni
+      - vkommadi
+      - liqcui
+      - jtaleric
+    rover-groups: []
+  metal-perfscale-selfsched:
+    owners:
+      - rsahukar
+      - hnhan
+      - sahshah
+      - svetsa
+      - jlema
+      - mukrishn
+      - sejug
+      - qili
+      - mcornea
+      - krvoora
+      - msheth
+      - vchalla
+      - rsevilla
+      - vkommadi
+      - jtaleric
+      - prubenda
+      - akrzos
+    rover-groups: []
+  metal-perfscale-telco:
+    owners:
+      - rsahukar
+      - hnhan
+      - sahshah
+      - svetsa
+      - jlema
+      - mukrishn
+      - qili
+      - mcornea
+      - krvoora
+      - sferlinr
+      - msheth
+      - vchalla
+      - rsevilla
+      - vkommadi
+      - jtaleric
+      - prubenda
+      - akrzos
+    rover-groups: []
+  microshift:
+    owners:
+      - majopela
+      - jcope
+    rover-groups: []
+  microshift-rhsm-creds:
+    owners:
+      - rcook
+    rover-groups: []
+  mirror-basic-auth:
+    owners:
+      - jupierce
+    rover-groups: []
+  mirror-registry-creds:
+    owners:
+      - jima
+    rover-groups: []
+  mmoltras-test-secrets:
+    owners:
+      - mmoltras
+    rover-groups: []
+  mpiit-dr-creds:
+    owners:
+      - svishwak
+      - sgill
+      - chaclark
+      - dfrazzet
+      - etirtara
+      - oharan
+      - vshakya
+      - ftan
+      - mpruitt
+    rover-groups: []
+  mpiit-interop-aws-reporter:
+    owners:
+      - oharan
+    rover-groups: []
+  mpiit-report-portal:
+    owners:
+      - svishwak
+      - sgill
+      - chaclark
+      - dfrazzet
+      - etirtara
+      - oharan
+      - vshakya
+      - ftan
+      - mpruitt
+    rover-groups: []
+  mpryc:
+    owners:
+      - mpryc
+    rover-groups: []
+  msp-secrets:
+    owners:
+      - mmehra
+      - asergien
+      - apodhrad
+      - nmarsell
+    rover-groups: []
+  msp-test-secrets:
+    owners:
+      - mmehra
+      - asergien
+      - apodhrad
+      - nmarsell
+    rover-groups: []
+  muller:
+    owners:
+      - pmuller
+    rover-groups: []
+  multiarch:
+    owners:
+      - tvardema
+    rover-groups: []
+  multiarch-qe:
+    owners:
+      - lwan
+      - adistefa
+    rover-groups: []
+  multiarch2:
+    owners:
+      - psundara
+      - adistefa
+    rover-groups: []
+  must-gather-operator:
+    owners:
+      - swghosh
+      - nkumari
+      - smuley
+      - pravekum
+      - jitli
+    rover-groups: []
+  networking-console-plugin:
+    owners:
+      - upalatuc
+    rover-groups: []
+  nid-ossm-token:
+    owners:
+      - shudili
+      - iamin
+      - hongli
+      - alebedev
+      - mmasters
+      - cholman
+    rover-groups: []
+  nmagnezi:
+    owners:
+      - nmagnezi
+    rover-groups: []
+  node-observability-operator:
+    owners:
+      - alebedev
+      - bhb
+      - skhoury
+      - luzuccar
+    rover-groups: []
+  nutanix-assisted-installer-ci:
+    owners:
+      - rpiccoli
+      - eerez
+      - lgamliel
+      - vrutkovs
+      - eifrach
+      - agentil
+      - dmanor
+    rover-groups: []
+  oadler:
+    owners:
+      - oadler
+    rover-groups: []
+  oadp-credentials:
+    owners:
+      - akarol
+      - whayutin
+      - mnadeem
+      - talayan
+      - dymurray
+      - tkaovila
+    rover-groups: []
+  oape-ci:
+    owners:
+      - yuewu
+    rover-groups: []
+  obs-openshift-installer:
+    owners:
+      - aconway
+      - jcantril
+      - cahartma
+    rover-groups: []
+  observability-ci-cluster:
+    owners:
+      - jitensin
+    rover-groups: []
+  oc-mirror:
+    owners:
+      - aflom
+      - jharmiso
+    rover-groups: []
+  oci:
+    owners:
+      - bmanzari
+    rover-groups: []
+  oci-agent:
+    owners:
+      - mhans
+    rover-groups: []
+  ocm-acm-sre-secrets:
+    owners:
+      - qiding
+    rover-groups: []
+  ocm-app-secrets:
+    owners:
+      - tflower
+      - sahare
+      - vbirsan
+    rover-groups: []
+  ocm-app-ui-secrets:
+    owners:
+      - sahare
+      - kcormier
+      - fxiang
+      - magchen
+      - raharris
+      - rpiyasir
+      - vbirsan
+    rover-groups: []
+  ocm-clc-secrets:
+    owners:
+      - jiazhu
+    rover-groups: []
+  ocm-fvt-credentials:
+    owners:
+      - jfrazier
+      - bmeng
+      - lponce
+      - gbranco
+    rover-groups: []
+  ocm-grc-secrets:
+    owners:
+      - dhaiduce
+      - gparvin
+      - jkulikau
+      - jalaw
+    rover-groups: []
+  ocm-hub-of-hubs-secrets:
+    owners:
+      - lcao
+      - chuyang
+      - myan
+    rover-groups: []
+  ocm-installer-secrets:
+    owners:
+      - raharris
+    rover-groups: []
+  ocm-mgdsvcs-secrets:
+    owners:
+      - vnambiar
+      - rbobbitt
+      - tpouyer
+      - gbuchana
+      - cahl
+    rover-groups: []
+  ocm-obs-china-secrets:
+    owners:
+      - lcao
+      - bbarcaro
+      - soli
+      - chuyang
+    rover-groups: []
+  ocm-observability-usa-secrets:
+    owners:
+      - jpadilla
+      - smcavey
+    rover-groups: []
+  ocm-secrets:
+    owners:
+      - erinmurp
+      - markande
+      - kbempah
+      - dschmidt
+      - emmacdon
+      - jgdaniec
+      - gbuchana
+    rover-groups: []
+  ocm-sf-secrets:
+    owners:
+      - jiazhu
+    rover-groups: []
+  ocp-perfscale:
+    owners:
+      - dsanzmor
+    rover-groups: []
+  ocp-perfscale-cpt:
+    owners:
+      - hnhan
+      - sahshah
+      - jlema
+      - mukrishn
+      - ebattat
+      - qili
+      - mcornea
+      - athiruma
+      - krvoora
+      - msheth
+      - vchalla
+      - sandyada
+      - rsevilla
+      - smalleni
+      - mbhalodi
+      - vkommadi
+      - liqcui
+      - jtaleric
+      - prubenda
+      - akrzos
+      - nelluri
+    rover-groups: []
+  ocp-sustaining:
+    owners:
+      - prdhamdh
+      - ayadav
+      - sjagtap
+      - sghai
+      - rjagadal
+      - atshinde
+      - spoole
+      - yajgaonk
+    rover-groups: []
+  ocp-sustaining-admins:
+    owners:
+      - sjagtap
+      - ppostler
+      - namsharm
+      - sghai
+      - ppalepu
+      - gparente
+      - spoole
+    rover-groups: []
+  ocp-sustaining-arc:
+    owners:
+      - vsunku
+      - sjagtap
+      - akhatavk
+      - spoole
+    rover-groups: []
+  ocp-sustaining-bot:
+    owners:
+      - sghai
+      - ppalepu
+    rover-groups: []
+  ocp-sustaining-qe:
+    owners:
+      - kmemane
+      - sanchaud
+      - prdhamdh
+      - ayadav
+      - rjagadal
+      - akhatavk
+      - sbiradar
+      - tdavidso
+      - atshinde
+      - mbasim
+    rover-groups: []
+  odf-console-e2e:
+    owners:
+      - skatiyar
+      - almartin
+      - badhikar
+      - vbadrina
+      - prasriva
+    rover-groups: []
+  odf-console-secret:
+    owners:
+      - anbehl
+      - badhikar
+      - vbadrina
+      - afrahman
+    rover-groups: []
+  odo-secrets:
+    owners:
+      - bbarcaro
+      - arout
+      - moahmed
+    rover-groups: []
+  ods-ci:
+    owners:
+      - bdattoma
+    rover-groups: []
+  oex-qe:
+    owners:
+      - yuwan
+      - jkeyne
+    rover-groups: []
+  ofcir:
+    owners:
+      - tdomnesc
+      - rpittau
+      - afasano
+      - agentil
+      - dmanor
+      - dhiggins
+    rover-groups: []
+  ofer:
+    owners:
+      - obochan
+    rover-groups: []
+  oink:
+    owners:
+      - bmanzari
+    rover-groups: []
+  olm:
+    owners:
+      - cmacedo
+    rover-groups: []
+  olm-sync-automation:
+    owners:
+      - tflannag
+    rover-groups: []
+  ols-load-generator-creds:
+    owners:
+      - ptisnovs
+      - vchalla
+      - xdharmai
+      - jowilson
+    rover-groups: []
+  opendatahub-cluster-pool:
+    owners:
+      - dmaruboe
+      - dmoskale
+    rover-groups: []
+  opendatahub-io:
+    owners:
+      - rgeada
+      - svelosol
+      - llasmith
+      - riprasad
+      - dchouras
+      - aasthana
+      - ckodama
+    rover-groups: []
+  opendatahub-io-vllm:
+    owners:
+      - dtrifiro
+      - spryor
+    rover-groups: []
+  openshift-appsvc:
+    owners:
+      - pmacik
+      - ansadler
+    rover-groups: []
+  openshift-builds:
+    owners:
+      - sabiswas
+    rover-groups: []
+  openshift-docs-github:
+    owners:
+      - rohennes
+      - bscott
+      - aireilly
+      - mbridges
+      - ganelson
+      - jdohmann
+    rover-groups: []
+  openshift-docs-netlify:
+    owners:
+      - bscott
+      - aireilly
+      - mbridges
+      - ganelson
+      - jdohmann
+    rover-groups: []
+  openshift-docs-vale-github:
+    owners:
+      - rohennes
+      - bscott
+      - aireilly
+      - mbridges
+      - ganelson
+      - jdohmann
+    rover-groups: []
+  openshift-installer-ci:
+    owners:
+      - sdasu
+      - gpei
+      - jiwei
+      - jialiu
+      - yunjiang
+      - anarayan
+      - jima
+      - padillon
+    rover-groups: []
+  openshift-knative:
+    owners:
+      - msimka
+      - lberk
+      - ksuszyns
+      - maschmid
+    rover-groups: []
+  openshift-kueue:
+    owners:
+      - skunkerk
+    rover-groups: []
+  openshift-lightspeed-service-creds:
+    owners:
+      - jfula
+      - bparees
+      - blublins
+      - ometelka
+      - vchalla
+      - xdharmai
+      - jowilson
+    rover-groups: []
+  openshift-logging:
+    owners:
+      - aconway
+      - jcantril
+      - vimalkum
+    rover-groups: []
+  openshift-networking:
+    owners:
+      - mkowalsk
+    rover-groups: []
+  openshift-observability:
+    owners:
+      - jfula
+      - ikanse
+      - mwringe
+      - anli
+      - tremes
+      - cahartma
+    rover-groups: []
+  openshift-online-access-transparency-service:
+    owners:
+      - gbranco
+      - tiwillia
+      - rblake
+    rover-groups: []
+  openshift-online-platform-eng:
+    owners:
+      - erinmurp
+      - bsquizza
+      - emmacdon
+      - gbuchana
+    rover-groups: []
+  openshift-pipelines:
+    owners:
+      - sselvan
+    rover-groups: []
+  openshift-pipelines-perfscale:
+    owners:
+      - ysubrama
+      - sira
+      - rashetty
+      - jhutar
+      - pmacik
+    rover-groups: []
+  openshift-pipelines-team:
+    owners:
+      - vdemeest
+      - diagrawa
+    rover-groups: []
+  openshift-qe:
+    owners:
+      - liangli
+      - yuwan
+      - gpei
+      - jiwei
+      - lwan
+      - qili
+      - jialiu
+      - yunjiang
+      - lxia
+      - jiazha
+      - kbharti
+      - kuiwang
+      - anli
+      - heli
+      - yasun
+      - jima
+      - sgao
+      - maxu
+      - prubenda
+    rover-groups: []
+  openshift-qe-auto-release:
+    owners:
+      - tdavid
+      - rioliu
+      - minl
+    rover-groups: []
+  openshift-qe-mco-test:
+    owners:
+      - sregidor
+      - ptalgulk
+      - rioliu
+    rover-groups: []
+  openshift-service-mesh:
+    owners:
+      - fbrychta
+      - dgrimm
+      - frherrer
+      - jwendell
+      - yuaxu
+    rover-groups: []
+  openshift-tests-private:
+    owners:
+      - xiyuan
+      - jiazha
+      - kuiwang
+      - rioliu
+    rover-groups: []
+  openshift-virtualization-tests:
+    owners:
+      - lbednar
+      - ryasharz
+    rover-groups: []
+  openshiftanalytics:
+    owners:
+      - rzalavad
+    rover-groups: []
+  openshiftoperatorframeworkgithub:
+    owners:
+      - ankithom
+    rover-groups: []
+  openstack-k8s-operators-hive-secrets:
+    owners:
+      - ldenny
+      - dsmigiel
+      - mandreou
+      - chkumar
+      - rlandy
+      - dviroel
+      - pabrodri
+    rover-groups: []
+  openstack-k8s-operators-internal:
+    owners:
+      - ldenny
+      - dsmigiel
+      - mandreou
+      - chkumar
+      - rlandy
+      - dviroel
+      - pabrodri
+    rover-groups: []
+  openstack-k8s-operators-secrets:
+    owners:
+      - ldenny
+      - dsmigiel
+      - mandreou
+      - chkumar
+      - rlandy
+      - dviroel
+      - pabrodri
+    rover-groups: []
+  openstack-lightspeed:
+    owners:
+      - mtembo
+    rover-groups: []
+  openstack-rhoai-qe-collection:
+    owners:
+      - liswang
+      - apodhrad
+      - obarhaim
+    rover-groups: []
+  operator-pipelines:
+    owners:
+      - mhillsma
+      - acornett
+    rover-groups: []
+  osac-installer-aap:
+    owners:
+      - trwest
+    rover-groups: []
+  osd-hive-control-cluster:
+    owners:
+      - hongkliu
+      - jupierce
+    rover-groups: []
+  osde2e-example:
+    owners:
+      - cdoan
+    rover-groups: []
+  osde2e-ocs-consumer-addon-onboarding:
+    owners:
+      - rohgupta
+      - almartin
+      - akkhanna
+      - dbindra
+    rover-groups: []
+  osde2e-secrets:
+    owners:
+      - vkadapar
+      - mmazur
+      - dsantama
+      - milei
+      - yiqzhang
+      - rmundhe
+      - bpratt
+      - cmancini
+    rover-groups: []
+  osde2e-stage-aws-addon-connectors-addon:
+    owners:
+      - tplevko
+      - asmigala
+    rover-groups: []
+  osde2e-stage-aws-addon-dbaas-operator:
+    owners:
+      - olavtar
+      - jary
+      - tohughes
+      - ahameed
+      - bmozaffa
+      - jianrzha
+    rover-groups: []
+  osl-snyk-token:
+    owners:
+      - prkumar
+    rover-groups: []
+  ovirt:
+    owners:
+      - jpasztor
+      - mengel
+      - eslutsky
+      - bbarcaro
+      - mnecas
+      - mskrivan
+    rover-groups: []
+  ovirt-acm:
+    owners:
+      - jpasztor
+      - mengel
+      - eslutsky
+      - gbuchana
+    rover-groups: []
+  ovms-entitlements:
+    owners:
+      - spryor
+    rover-groups: []
+  ovms-quay:
+    owners:
+      - spryor
+    rover-groups: []
+  ovnk-secrets:
+    owners:
+      - jluhrsen
+    rover-groups: []
+  pacevedo-secret:
+    owners:
+      - pacevedo
+    rover-groups: []
+  packet-metal:
+    owners:
+      - rpiccoli
+      - eerez
+      - lgamliel
+      - eifrach
+      - agentil
+      - dmanor
+      - sdayan
+    rover-groups: []
+  perfci:
+    owners:
+      - arpsharm
+    rover-groups: []
+  performance-scale:
+    owners:
+      - athiruma
+    rover-groups: []
+  perfscale-creds:
+    owners:
+      - sboyapal
+      - mukrishn
+      - krvoora
+      - vchalla
+      - rsevilla
+      - jtaleric
+    rover-groups: []
+  perfscale-metal-bastion:
+    owners:
+      - mkaliyam
+      - rsahukar
+      - hnhan
+      - sahshah
+      - svetsa
+      - jlema
+      - mukrishn
+      - qili
+      - mcornea
+      - krvoora
+      - msheth
+      - vchalla
+      - rsevilla
+      - vkommadi
+      - jtaleric
+      - prubenda
+      - akrzos
+    rover-groups: []
+  pipeline-secrets:
+    owners:
+      - bbarcaro
+      - jbreza
+    rover-groups: []
+  powervc-ipi-cicd-secrets:
+    owners:
+      - mhamzy
+    rover-groups: []
+  powervs:
+    owners:
+      - skuznets
+      - rsene
+    rover-groups: []
+  powervs-ipi-cicd-secrets:
+    owners:
+      - vvinnako
+      - dmistry
+      - mturek
+      - tvardema
+      - sgokul
+      - mhamzy
+      - jpoulin
+      - pbastide
+    rover-groups: []
+  powervs-multi-ibmcloud:
+    owners:
+      - chonzhan
+      - tvardema
+      - sgokul
+      - jpoulin
+      - pbastide
+    rover-groups: []
+  powervs-rhr-creds:
+    owners:
+      - mhossain
+      - aghatwal
+      - pmurkute
+    rover-groups: []
+  ppc64le-openstack-secrets:
+    owners:
+      - bbarcaro
+      - mhamzy
+    rover-groups: []
+  ppc64le-osuosl-ci:
+    owners:
+      - bbarcaro
+      - mhamzy
+    rover-groups: []
+  provider-certification-tool:
+    owners:
+      - rvanderp
+      - rbost
+      - mrbraga
+    rover-groups: []
+  prucek:
+    owners:
+      - prucek
+    rover-groups: []
+  psalajov:
+    owners:
+      - psalajov
+    rover-groups: []
+  psap:
+    owners:
+      - avasilev
+      - kpouget
+      - npalaska
+      - memehta
+      - aperdomo
+    rover-groups: []
+  psap-qe:
+    owners:
+      - wabouham
+    rover-groups: []
+  quay:
+    owners:
+      - lbragsta
+      - bdettelb
+      - wenshen
+      - wsato
+    rover-groups: []
+  quay-io-openshiftci:
+    owners:
+      - stbenjam
+      - fbabcock
+      - lmeyer
+      - kenzhang
+      - pmuller
+      - sgoeddel
+    rover-groups: []
+  quay-tests:
+    owners:
+      - dyan
+      - lzha
+      - szhao
+      - whu
+    rover-groups: []
+  ran-telco5g-kpi-results:
+    owners:
+      - sskeard
+    rover-groups: []
+  rdoquay-openstack-k8s-operators-ci-robot:
+    owners:
+      - ldenny
+      - dsmigiel
+      - mandreou
+      - chkumar
+      - rlandy
+      - dviroel
+      - pabrodri
+    rover-groups: []
+  rebasebot-credentials:
+    owners:
+      - tbarberb
+      - mbooth
+      - nbrubake
+      - yanyang
+      - ddonati
+      - rmanak
+      - raryan
+      - jspeed
+    rover-groups: []
+  red-hat-data-services:
+    owners:
+      - rgeada
+      - svelosol
+      - llasmith
+      - riprasad
+      - dchouras
+      - aasthana
+      - ckodama
+    rover-groups: []
+  redhat-appstudio-qe:
+    owners:
+      - jinqi
+      - kkanova
+      - djodha
+      - rhopp
+      - damoreno
+      - shebert
+      - susdas
+      - kalem
+      - dbaez
+      - tnevrlka
+      - xjiang
+      - ascerra
+      - sdouglas
+      - flacatus
+      - eisraeli
+      - chagrawa
+      - jkopriva
+      - pmacik
+      - jrichter
+      - abarbaro
+      - ravarghe
+      - msawood
+      - psturc
+    rover-groups: []
+  redhat-et:
+    owners:
+      - pmatusza
+      - eslutsky
+      - ggiguash
+      - fzdarsky
+      - pacevedo
+      - jcope
+      - thalenar
+    rover-groups: []
+  redhatqe:
+    owners:
+      - svishwak
+      - kkrothap
+      - sgill
+      - dfrazzet
+      - oharan
+      - vshakya
+      - ftan
+      - mpruitt
+    rover-groups: []
+  reference-addon-credentials:
+    owners:
+      - nschiede
+      - asegundo
+      - jgwosdz
+      - akonarde
+      - asnaraya
+    rover-groups: []
+  registry-liveness-probe:
+    owners:
+      - jupierce
+    rover-groups: []
+  registry-push-credentials-quayio-redhat-chaos:
+    owners:
+      - sahshah
+      - prubenda
+      - nelluri
+    rover-groups: []
+  rfreiman:
+    owners:
+      - rfreiman
+    rover-groups: []
+  rh-ecosystem-edge-neuron:
+    owners:
+      - ybrodsky
+    rover-groups: []
+  rh-nhe-secrets:
+    owners:
+      - wizhao
+      - dwinship
+      - vpunj
+      - bnemeth
+      - thaller
+    rover-groups: []
+  rhacs-ms-e2e-tests:
+    owners:
+      - lcleroux
+      - akurlov
+      - dahouse
+      - jmalsam
+      - sbaumer
+      - idegtiar
+      - dhaus
+      - mclasmei
+      - aruklets
+      - gjefferi
+      - shesselm
+      - ykovalev
+      - blugo
+      - vbologa
+      - tmartens
+      - sbostick
+    rover-groups: []
+  rhacs-ms-push:
+    owners:
+      - mclasmei
+    rover-groups: []
+  rhcos:
+    owners:
+      - travier
+      - jlebon
+      - walters
+      - mnguyen
+      - dmabe
+    rover-groups: []
+  rhcos-devel-secrets:
+    owners:
+      - smilner
+      - walters
+      - zzlotnik
+    rover-groups: []
+  rhdh-aws-credentials:
+    owners:
+      - psrna
+      - zdrapela
+      - skhileri
+    rover-groups: []
+  rhdh-pai-qe:
+    owners:
+      - jrichter
+    rover-groups: []
+  rhdh-plugin-export-overlays:
+    owners:
+      - fndlovu
+      - psrna
+      - cjerolim
+      - jkoops
+      - spathak
+      - dfestal
+      - joskim
+      - pknight
+      - mpolasko
+      - asoro
+      - zdrapela
+      - yicai
+      - ssaikia
+      - dsantra
+      - hushaik
+      - gliraesi
+      - skhileri
+      - oaljalju
+      - jrichter
+      - abarbaro
+      - kmittal
+      - jhe
+      - dzemanov
+      - mhild
+      - tkral
+      - nboldt
+      - rorai
+    rover-groups: []
+  rhdh-qe:
+    owners:
+      - fndlovu
+      - psrna
+      - cjerolim
+      - jkoops
+      - spathak
+      - joskim
+      - pknight
+      - mpolasko
+      - asoro
+      - zdrapela
+      - yicai
+      - ssaikia
+      - dsantra
+      - hushaik
+      - gliraesi
+      - skhileri
+      - oaljalju
+      - jrichter
+      - abarbaro
+      - kmittal
+      - jhe
+      - dzemanov
+      - nboldt
+    rover-groups: []
+  rhdh-test-instance:
+    owners:
+      - gazarenk
+      - psrna
+      - dfestal
+      - asoro
+      - zdrapela
+      - pabel
+      - gforde
+      - skhileri
+      - abarbaro
+      - kmittal
+      - mhild
+      - tkral
+    rover-groups: []
+  rhecoedge-nvidia-ci:
+    owners:
+      - fdupont
+      - sdayan
+    rover-groups: []
+  rhoai-qe-collection:
+    owners:
+      - liswang
+      - apodhrad
+      - rnetser
+      - bdattoma
+      - obarhaim
+    rover-groups: []
+  rhobs-obo:
+    owners:
+      - yunjiang
+      - hongyli
+    rover-groups: []
+  rhoda-test:
+    owners:
+      - rravi
+    rover-groups: []
+  rhtap:
+    owners:
+      - sselvan
+      - rhopp
+      - dbaez
+      - xjiang
+      - ascerra
+      - flacatus
+      - smatula
+      - pkumari
+      - chagrawa
+      - jkopriva
+      - cchetna
+      - ravarghe
+      - jsmid
+      - psturc
+    rover-groups: []
+  rhtap-load-test:
+    owners:
+      - zxiong
+      - cmusali
+      - lrios
+      - rashetty
+      - jhutar
+      - pmacik
+    rover-groups: []
+  roks-release:
+    owners:
+      - cewong
+    rover-groups: []
+  rosa:
+    owners:
+      - gbranco
+      - rblake
+      - croche
+      - dle
+    rover-groups: []
+  rosa-e2e:
+    owners:
+      - jfrazier
+      - bmeng
+      - drow
+      - tiwillia
+      - travi
+    rover-groups: []
+  rosa-regional-platform:
+    owners:
+      - cdoan
+    rover-groups: []
+  sail-operator-test:
+    owners:
+      - dgrimm
+      - jwendell
+      - asmigala
+    rover-groups: []
+  sandbox:
+    owners:
+      - rsoaresd
+      - msawood
+    rover-groups: []
+  sandbox-secrets:
+    owners:
+      - alkazako
+      - mjobanek
+      - fmuntean
+      - rsoaresd
+    rover-groups: []
+  sandboxed-containers-operator:
+    owners:
+      - wmoschet
+      - ldoktor
+      - tbuskey
+      - pezhang
+      - vvoronko
+    rover-groups: []
+  sandboxed-containers-operator-ci-secrets:
+    owners:
+      - tbuskey
+    rover-groups: []
+  sd-sre-secrets:
+    owners:
+      - jaharrin
+      - sakbas
+      - bmeng
+      - drow
+      - cblecker
+      - chcollin
+      - mdewald
+      - achvatal
+      - haowang
+    rover-groups: []
+  sean-test:
+    owners:
+      - szhao
+      - whu
+    rover-groups: []
+  shiftstack-secrets:
+    owners:
+      - eshulman
+      - pprinett
+      - rdobosz
+      - dlawton
+      - stephenfin
+      - dchilder
+      - maandre
+      - ekuris
+    rover-groups: []
+  slack-hooks:
+    owners:
+      - tdomnesc
+      - rpittau
+      - hpokorny
+      - dhiggins
+    rover-groups: []
+  sno-on-power:
+    owners:
+      - chonzhan
+      - tvardema
+      - sgokul
+      - dravicha
+      - jpoulin
+      - mkumatag
+    rover-groups: []
+  snyk:
+    owners:
+      - jinqi
+    rover-groups: []
+  splat:
+    owners:
+      - jcallen
+      - rvanderp
+      - ffranz
+      - ngirard
+      - mrbraga
+    rover-groups: []
+  sselvan:
+    owners:
+      - sselvan
+    rover-groups: []
+  stackrox-automation-flavors:
+    owners:
+      - dahouse
+      - rtannenb
+      - gjefferi
+      - blugo
+      - tmartens
+      - sbostick
+    rover-groups: []
+  stackrox-ci-ibmcloudz-creds:
+    owners:
+      - lzhan
+    rover-groups: []
+  stackrox-cluster-pool:
+    owners:
+      - dahouse
+      - gjefferi
+      - blugo
+      - tmartens
+    rover-groups: []
+  stackrox-cluster-profile:
+    owners:
+      - dahouse
+      - gjefferi
+      - blugo
+      - tmartens
+    rover-groups: []
+  stackrox-ibmcloudz-automation-flavor:
+    owners:
+      - dafu
+      - lzhan
+      - jdao
+      - gjefferi
+    rover-groups: []
+  stackrox-perfscale-elasticsearch:
+    owners:
+      - dahouse
+      - blugo
+      - tmartens
+    rover-groups: []
+  stackrox-scanner-secrets:
+    owners:
+      - dahouse
+      - cgorman
+      - jvmartin
+      - rcochran
+      - dcaravel
+      - rtannenb
+      - gjefferi
+      - blugo
+      - tmartens
+      - sbostick
+    rover-groups: []
+  stackrox-stackrox-e2e-tests:
+    owners:
+      - dahouse
+      - ddolgov
+      - gualvare
+      - dafu
+      - lzhan
+      - dhaus
+      - mclasmei
+      - aruklets
+      - rcochran
+      - dcaravel
+      - rtannenb
+      - jdao
+      - gjefferi
+      - mmoltras
+      - tjanisze
+      - shesselm
+      - ykovalev
+      - blugo
+      - mowsiany
+      - tmartens
+      - pmurkute
+    rover-groups: []
+  stackrox-stackrox-initial:
+    owners:
+      - dahouse
+      - ddolgov
+      - nchander
+      - dhaus
+      - mclasmei
+      - aruklets
+      - rcochran
+      - rtannenb
+      - gjefferi
+      - tjanisze
+      - shesselm
+      - ykovalev
+      - blugo
+      - mowsiany
+      - tmartens
+    rover-groups: []
+  stolostron-capi-tests:
+    owners:
+      - rcap
+      - mveber
+      - mzazrive
+    rover-groups: []
+  stolostron-engine-secrets:
+    owners:
+      - markande
+      - jgdaniec
+      - gbuchana
+    rover-groups: []
+  sustaining-ocp-slack:
+    owners:
+      - sjagtap
+      - akhatavk
+      - ppalepu
+      - yajgaonk
+    rover-groups: []
+  tcarneir:
+    owners:
+      - tcarneir
+    rover-groups: []
+  team-winc:
+    owners:
+      - mankulka
+      - ssoto
+      - aliryan
+      - rteague
+      - jvaldes
+    rover-groups: []
+  technical-release-team:
+    owners:
+      - stbenjam
+      - fbabcock
+      - lmeyer
+      - kenzhang
+      - pmuller
+      - dgoodwin
+      - sgoeddel
+    rover-groups: []
+  tekton-tasks-secrets:
+    owners:
+      - dhiller
+      - ksimon
+    rover-groups: []
+  telco-v10n-ipa:
+    owners:
+      - ccardeno
+    rover-groups: []
+  telco-verification-slcm:
+    owners:
+      - cplacani
+      - skisa
+      - ccardeno
+    rover-groups: []
+  telco5g:
+    owners:
+      - sshnaidm
+      - sandyada
+      - ykashtan
+    rover-groups: []
+  telco5g-opensearch:
+    owners:
+      - apalanis
+    rover-groups: []
+  telcov10n:
+    owners:
+      - cplacani
+      - makovgan
+      - mkochano
+      - rdiscala
+      - sobarzan
+      - nafridma
+      - skisa
+      - tmamyshe
+      - prod-telcov10n-ci
+      - eifrach
+      - nkononov
+      - ccardeno
+      - micosta
+      - rdiazcam
+    rover-groups: []
+  telcov10n-ci:
+    owners:
+      - cplacani
+      - makovgan
+      - mkochano
+      - rdiscala
+      - sobarzan
+      - nafridma
+      - skisa
+      - tmamyshe
+      - prod-telcov10n-ci
+      - eifrach
+      - nkononov
+      - ccardeno
+      - micosta
+      - rdiazcam
+    rover-groups: []
+  telcov10n-ipa-automation:
+    owners:
+      - mkochano
+    rover-groups: []
+  test:
+    owners:
+      - jiajliu
+    rover-groups: []
+  test-12:
+    owners:
+      - ascerra
+    rover-groups: []
+  test-aidan:
+    owners:
+      - aireilly
+    rover-groups: []
+  test-external:
+    owners:
+      - ascerra
+    rover-groups: []
+  test-external-cluster:
+    owners:
+      - sgill
+    rover-groups: []
+  test-jmoller:
+    owners:
+      - jmoller
+    rover-groups: []
+  test-konflux:
+    owners:
+      - psturc
+    rover-groups: []
+  test-odh-nb-credentials:
+    owners:
+      - atheodor
+    rover-groups: []
+  test-reportportal-ocp:
+    owners:
+      - jiazha
+      - kuiwang
+      - rioliu
+    rover-groups: []
+  test-secret:
+    owners:
+      - jinqi
+      - psturc
+    rover-groups: []
+  testing:
+    owners:
+      - rsahukar
+    rover-groups: []
+  testtest:
+    owners:
+      - mseckar
+    rover-groups: []
+  tnb:
+    owners:
+      - smongiar
+    rover-groups: []
+  trigger:
+    owners:
+      - wizhao
+      - vpunj
+    rover-groups: []
+  trt-disruption-automation:
+    owners:
+      - stbenjam
+      - dperique
+      - ehila
+      - dgoodwin
+    rover-groups: []
+  validated-patterns-qe:
+    owners:
+      - yuqchen
+    rover-groups: []
+  validatedpatterns-docs-github:
+    owners:
+      - ganelson
+    rover-groups: []
+  validatedpatterns-docs-netlify:
+    owners:
+      - ganelson
+    rover-groups: []
+  vega-secrets:
+    owners:
+      - nmoraiti
+    rover-groups: []
+  virtualization-secrets:
+    owners:
+      - dholler
+      - ryasharz
+      - ocohen
+      - nunnatsa
+    rover-groups: []
+  vj-test-collection:
+    owners:
+      - vvinnako
+    rover-groups: []
+  vj-test2-collection:
+    owners:
+      - vvinnako
+    rover-groups: []
+  vsphere:
+    owners:
+      - gpei
+      - jcallen
+      - rvanderp
+      - jialiu
+      - wwei
+      - ngirard
+      - jimccann
+      - jima
+      - sgao
+    rover-groups: []
+  vsphere-assisted-installer-ci:
+    owners:
+      - rpiccoli
+      - rvanderp
+      - eerez
+      - lgamliel
+      - vrutkovs
+      - eifrach
+      - agentil
+      - dmanor
+    rover-groups: []
+  vsphere-vmc:
+    owners:
+      - gpei
+      - jcallen
+      - rvanderp
+      - jialiu
+      - wwei
+      - ffranz
+      - ngirard
+      - jimccann
+      - cglombek
+      - jima
+      - sgao
+    rover-groups: []
+  weiliu--vault--ci-operator:
+    owners:
+      - weiliu
+    rover-groups: []
+  wildfly-charts-secrets:
+    owners:
+      - ehugonne
+    rover-groups: []
+  windows:
+    owners:
+      - aravindh
+    rover-groups: []
+  wwei:
+    owners:
+      - wwei
+    rover-groups: []
+  yanhli:
+    owners:
+      - yanhli
+    rover-groups: []
+  zhuje-collection:
+    owners:
+      - jezhu
+    rover-groups: []
+  zniu:
+    owners:
+      - zniu
+    rover-groups: []
+
+# Collections without Vault groups (not managed by vault-secret-collection-manager)
+# These may need special handling during migration
+collections_without_groups:
+  - ibm-gate-secrets
+  - ibmz-eco

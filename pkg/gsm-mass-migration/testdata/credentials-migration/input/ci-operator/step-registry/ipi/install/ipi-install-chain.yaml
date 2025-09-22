@@ -1,0 +1,8 @@
+chain:
+  as: ipi-install
+  steps:
+  - ref: openshift-cluster-bot-rbac
+  - ref: ipi-install-hosted-loki
+  - ref: ipi-install-install
+  documentation: |-
+    The IPI install step chain contains all the individual steps necessary to install an OpenShift cluster.

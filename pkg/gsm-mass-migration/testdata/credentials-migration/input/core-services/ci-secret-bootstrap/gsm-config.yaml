@@ -1,0 +1,96 @@
+cluster_groups:
+  build_farm:
+    - app.ci
+    - build01
+    - build02
+    - build03
+    - build04
+    - build05
+    - build06
+    - build07
+    - build08
+    - build09
+    - build10
+    - build11
+    - build12
+    - core-ci
+    - vsphere02
+  managed_clusters:
+    - app.ci
+    - build01
+    - build02
+    - build03
+    - build04
+    - build05
+    - build06
+    - build07
+    - build08
+    - build09
+    - build10
+    - build11
+    - build12
+    - core-ci
+    - hosted-mgmt
+  non_app_ci:
+    - build01
+    - build02
+    - build03
+    - build04
+    - build05
+    - build06
+    - build07
+    - build08
+    - build09
+    - build10
+    - build11
+    - build12
+    - core-ci
+    - vsphere02
+  standard_build_clusters:
+    - build01
+    - build02
+    - build03
+    - build04
+    - build05
+    - build06
+    - build07
+    - build08
+    - build09
+    - build10
+    - build11
+    - build12
+  user_secrets_target_clusters:
+    - app.ci
+    - build01
+    - build02
+    - build03
+    - build04
+    - build05
+    - build06
+    - build07
+    - build08
+    - build09
+    - build10
+    - build11
+    - build12
+    - core-ci
+    - hosted-mgmt
+    - vsphere02
+
+dptp_collection: test-platform-infra
+
+bundles:
+  - name: hive-hive-credentials
+    gsm_secrets:
+        - collection: test-platform-infra
+          group: build_farm
+          fields:
+            - name: sa--dot--hive--dot--hosted-mgmt--dot--config
+              as: kubeconfig
+            - name: sa--dot--hive--dot--hosted-mgmt--dot--token--dot--txt
+    sync_to_cluster: true
+    targets:
+      - cluster_groups: [ non_app_ci ]
+        namespace: ci
+      - cluster_groups: [ non_app_ci ]
+        namespace: test-credentials
