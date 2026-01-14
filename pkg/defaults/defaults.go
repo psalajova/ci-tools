@@ -10,8 +10,10 @@ import (
 	"strings"
 	"time"
 
+	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/api/option"
 
 	coreapi "k8s.io/api/core/v1"
 	kapierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,6 +35,7 @@ import (
 	"github.com/openshift/ci-tools/pkg/api"
 	"github.com/openshift/ci-tools/pkg/api/configresolver"
 	"github.com/openshift/ci-tools/pkg/dockerfile"
+	gsm "github.com/openshift/ci-tools/pkg/gsm-secrets"
 	"github.com/openshift/ci-tools/pkg/kubernetes"
 	"github.com/openshift/ci-tools/pkg/labeledclient"
 	"github.com/openshift/ci-tools/pkg/lease"
@@ -81,6 +84,8 @@ func FromConfig(
 	integratedStreams map[string]*configresolver.IntegratedStream,
 	injectedTest bool,
 	enableSecretsStoreCSIDriver bool,
+	gsmSecretsConfig *api.GSMConfig,
+	gsmCredentialsFile string,
 	metricsAgent *metrics.MetricsAgent,
 	skippedImages sets.Set[string],
 ) ([]api.Step, []api.Step, error) {
@@ -120,7 +125,30 @@ func FromConfig(
 	httpClient := retryablehttp.NewClient()
 	httpClient.Logger = nil
 
-	return fromConfig(ctx, config, graphConf, jobSpec, templates, paramFile, promote, client, buildClient, templateClient, podClient, leaseClient, hiveClient, httpClient.StandardClient(), requiredTargets, cloneAuthConfig, pullSecret, pushSecret, api.NewDeferredParameters(nil), censor, nodeName, targetAdditionalSuffix, nodeArchitectures, integratedStreams, injectedTest, enableSecretsStoreCSIDriver, metricsAgent, skippedImages)
+	// Initialize GSM configuration if CSI driver is enabled
+	var gsmConfig *multi_stage.GSMConfiguration
+	if enableSecretsStoreCSIDriver {
+		gsmProjectConfig, err := gsm.GetConfigFromEnv()
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GSM project config from environment: %w", err)
+		}
+		var opts []option.ClientOption
+		if gsmCredentialsFile != "" {
+			opts = append(opts, option.WithCredentialsFile(gsmCredentialsFile))
+		}
+		gsmClient, err := secretmanager.NewClient(ctx, opts...)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to initialize GSM client: %w", err)
+		}
+		gsmConfig = &multi_stage.GSMConfiguration{
+			Config:          gsmSecretsConfig,
+			CredentialsFile: gsmCredentialsFile,
+			ProjectConfig:   gsmProjectConfig,
+			Client:          gsmClient,
+		}
+	}
+
+	return fromConfig(ctx, config, graphConf, jobSpec, templates, paramFile, promote, client, buildClient, templateClient, podClient, leaseClient, hiveClient, httpClient.StandardClient(), requiredTargets, cloneAuthConfig, pullSecret, pushSecret, api.NewDeferredParameters(nil), censor, nodeName, targetAdditionalSuffix, nodeArchitectures, integratedStreams, injectedTest, enableSecretsStoreCSIDriver, gsmConfig, metricsAgent, skippedImages)
 }
 
 func fromConfig(
@@ -149,6 +177,7 @@ func fromConfig(
 	integratedStreams map[string]*configresolver.IntegratedStream,
 	injectedTest bool,
 	enableSecretsStoreCSIDriver bool,
+	gsmConfig *multi_stage.GSMConfiguration,
 	metricsAgent *metrics.MetricsAgent,
 	skippedImages sets.Set[string],
 ) ([]api.Step, []api.Step, error) {
@@ -161,6 +190,7 @@ func fromConfig(
 	params.Add("JOB_NAME_SAFE", func() (string, error) { return strings.Replace(jobSpec.Job, "_", "-", -1), nil })
 	params.Add("UNIQUE_HASH", func() (string, error) { return jobSpec.UniqueHash(), nil })
 	params.Add("NAMESPACE", func() (string, error) { return jobSpec.Namespace(), nil })
+
 	inputImages := make(inputImageSet)
 	var overridableSteps []api.Step
 	var buildSteps []api.Step
@@ -177,7 +207,7 @@ func fromConfig(
 
 	for _, rawStep := range rawSteps {
 		if testStep := rawStep.TestStepConfiguration; testStep != nil {
-			steps, err := stepForTest(config, params, podClient, leaseClient, templateClient, client, hiveClient, jobSpec, inputImages, testStep, &imageConfigs, pullSecret, censor, nodeName, targetAdditionalSuffix, enableSecretsStoreCSIDriver, metricsAgent)
+			steps, err := stepForTest(config, params, podClient, leaseClient, templateClient, client, hiveClient, jobSpec, inputImages, testStep, &imageConfigs, pullSecret, censor, nodeName, targetAdditionalSuffix, enableSecretsStoreCSIDriver, gsmConfig, metricsAgent)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -458,6 +488,7 @@ func stepForTest(
 	nodeName string,
 	targetAdditionalSuffix string,
 	enableSecretsStoreCSIDriver bool,
+	gsmConfig *multi_stage.GSMConfiguration,
 	metricsAgent *metrics.MetricsAgent,
 ) ([]api.Step, error) {
 	if test := c.MultiStageTestConfigurationLiteral; test != nil {
@@ -467,7 +498,7 @@ func stepForTest(
 			params = api.NewDeferredParameters(params)
 		}
 		var ret []api.Step
-		step := multi_stage.MultiStageTestStep(*c, config, params, podClient, jobSpec, leases, nodeName, targetAdditionalSuffix, nil, enableSecretsStoreCSIDriver)
+		step := multi_stage.MultiStageTestStep(*c, config, params, podClient, jobSpec, leases, nodeName, targetAdditionalSuffix, nil, enableSecretsStoreCSIDriver, gsmConfig)
 		if ipPoolLease.ResourceType != "" {
 			step = steps.IPPoolStep(leaseClient, podClient, ipPoolLease, step, params, jobSpec.Namespace, metricsAgent)
 		}
