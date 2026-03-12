@@ -378,7 +378,7 @@ func (d *Detector) getAffectedToolsByBinaryInputs(alreadyAffected sets.Set[strin
 		return affected
 	}
 
-	for _, image := range d.config.Images {
+	for _, image := range d.config.Images.Items {
 		binInputs, ok := image.Inputs["bin"]
 		if !ok {
 			continue
@@ -403,7 +403,7 @@ func (d *Detector) getAffectedToolsByImageChanges(changedFiles []string) sets.Se
 		return affected
 	}
 
-	for _, image := range d.config.Images {
+	for _, image := range d.config.Images.Items {
 		if image.ContextDir == "" {
 			continue
 		}

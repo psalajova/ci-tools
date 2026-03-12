@@ -301,14 +301,14 @@ func TestDetector_getAffectedToolsByImageChanges(t *testing.T) {
 		{
 			name: "single image with context_dir change",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
+				Images: api.ImageConfiguration{Items: []api.ProjectDirectoryImageBuildStepConfiguration{
 					{
 						To: "ci-operator",
 						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
 							ContextDir: "images/ci-operator",
 						},
 					},
-				},
+				}},
 			},
 			changedFiles: []string{"images/ci-operator/Dockerfile"},
 			expected:     sets.New("ci-operator"),
@@ -316,14 +316,14 @@ func TestDetector_getAffectedToolsByImageChanges(t *testing.T) {
 		{
 			name: "single image with context_dir change - trailing slash",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
+				Images: api.ImageConfiguration{Items: []api.ProjectDirectoryImageBuildStepConfiguration{
 					{
 						To: "ci-operator",
 						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
 							ContextDir: "images/ci-operator/",
 						},
 					},
-				},
+				}},
 			},
 			changedFiles: []string{"images/ci-operator/Dockerfile"},
 			expected:     sets.New("ci-operator"),
@@ -331,14 +331,14 @@ func TestDetector_getAffectedToolsByImageChanges(t *testing.T) {
 		{
 			name: "multiple files in same context_dir",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
+				Images: api.ImageConfiguration{Items: []api.ProjectDirectoryImageBuildStepConfiguration{
 					{
 						To: "ci-operator",
 						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
 							ContextDir: "images/ci-operator",
 						},
 					},
-				},
+				}},
 			},
 			changedFiles: []string{
 				"images/ci-operator/Dockerfile",
@@ -350,7 +350,7 @@ func TestDetector_getAffectedToolsByImageChanges(t *testing.T) {
 		{
 			name: "multiple images with different context_dirs",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
+				Images: api.ImageConfiguration{Items: []api.ProjectDirectoryImageBuildStepConfiguration{
 					{
 						To: "ci-operator",
 						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
@@ -363,7 +363,7 @@ func TestDetector_getAffectedToolsByImageChanges(t *testing.T) {
 							ContextDir: "images/pj-rehearse",
 						},
 					},
-				},
+				}},
 			},
 			changedFiles: []string{
 				"images/ci-operator/Dockerfile",
@@ -374,14 +374,14 @@ func TestDetector_getAffectedToolsByImageChanges(t *testing.T) {
 		{
 			name: "change in different directory",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
+				Images: api.ImageConfiguration{Items: []api.ProjectDirectoryImageBuildStepConfiguration{
 					{
 						To: "ci-operator",
 						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
 							ContextDir: "images/ci-operator",
 						},
 					},
-				},
+				}},
 			},
 			changedFiles: []string{"images/other-tool/Dockerfile"},
 			expected:     sets.New[string](),
@@ -389,7 +389,7 @@ func TestDetector_getAffectedToolsByImageChanges(t *testing.T) {
 		{
 			name: "mixed changes - some match, some don't",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
+				Images: api.ImageConfiguration{Items: []api.ProjectDirectoryImageBuildStepConfiguration{
 					{
 						To: "ci-operator",
 						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
@@ -402,7 +402,7 @@ func TestDetector_getAffectedToolsByImageChanges(t *testing.T) {
 							ContextDir: "images/pj-rehearse",
 						},
 					},
-				},
+				}},
 			},
 			changedFiles: []string{
 				"images/ci-operator/Dockerfile",
@@ -414,14 +414,14 @@ func TestDetector_getAffectedToolsByImageChanges(t *testing.T) {
 		{
 			name: "image with empty context_dir",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
+				Images: api.ImageConfiguration{Items: []api.ProjectDirectoryImageBuildStepConfiguration{
 					{
 						To: "ci-operator",
 						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
 							ContextDir: "",
 						},
 					},
-				},
+				}},
 			},
 			changedFiles: []string{"images/ci-operator/Dockerfile"},
 			expected:     sets.New[string](),
@@ -429,14 +429,14 @@ func TestDetector_getAffectedToolsByImageChanges(t *testing.T) {
 		{
 			name: "no changed files",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
+				Images: api.ImageConfiguration{Items: []api.ProjectDirectoryImageBuildStepConfiguration{
 					{
 						To: "ci-operator",
 						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
 							ContextDir: "images/ci-operator",
 						},
 					},
-				},
+				}},
 			},
 			changedFiles: []string{},
 			expected:     sets.New[string](),
@@ -478,11 +478,13 @@ func TestDetector_getAffectedToolsByBinaryInputs(t *testing.T) {
 		{
 			name: "no images with bin inputs",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
-					{
-						To: "some-image",
-						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
-							ContextDir: "images/some-image",
+				Images: api.ImageConfiguration{
+					Items: []api.ProjectDirectoryImageBuildStepConfiguration{
+						{
+							To: "some-image",
+							ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
+								ContextDir: "images/some-image",
+							},
 						},
 					},
 				},
@@ -493,18 +495,20 @@ func TestDetector_getAffectedToolsByBinaryInputs(t *testing.T) {
 		{
 			name: "bundle image affected when one of its binaries is affected",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
-					{
-						To: "auto-config-brancher",
-						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
-							ContextDir: "images/auto-config-brancher",
-							Inputs: map[string]api.ImageBuildInputs{
-								"bin": {
-									Paths: makePaths(
-										"/go/bin/auto-config-brancher",
-										"/go/bin/private-prow-configs-mirror",
-										"/go/bin/config-brancher",
-									),
+				Images: api.ImageConfiguration{
+					Items: []api.ProjectDirectoryImageBuildStepConfiguration{
+						{
+							To: "auto-config-brancher",
+							ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
+								ContextDir: "images/auto-config-brancher",
+								Inputs: map[string]api.ImageBuildInputs{
+									"bin": {
+										Paths: makePaths(
+											"/go/bin/auto-config-brancher",
+											"/go/bin/private-prow-configs-mirror",
+											"/go/bin/config-brancher",
+										),
+									},
 								},
 							},
 						},
@@ -517,17 +521,19 @@ func TestDetector_getAffectedToolsByBinaryInputs(t *testing.T) {
 		{
 			name: "bundle image not affected when none of its binaries are affected",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
-					{
-						To: "auto-config-brancher",
-						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
-							ContextDir: "images/auto-config-brancher",
-							Inputs: map[string]api.ImageBuildInputs{
-								"bin": {
-									Paths: makePaths(
-										"/go/bin/auto-config-brancher",
-										"/go/bin/private-prow-configs-mirror",
-									),
+				Images: api.ImageConfiguration{
+					Items: []api.ProjectDirectoryImageBuildStepConfiguration{
+						{
+							To: "auto-config-brancher",
+							ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
+								ContextDir: "images/auto-config-brancher",
+								Inputs: map[string]api.ImageBuildInputs{
+									"bin": {
+										Paths: makePaths(
+											"/go/bin/auto-config-brancher",
+											"/go/bin/private-prow-configs-mirror",
+										),
+									},
 								},
 							},
 						},
@@ -540,31 +546,33 @@ func TestDetector_getAffectedToolsByBinaryInputs(t *testing.T) {
 		{
 			name: "multiple bundle images, only matching one is affected",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
-					{
-						To: "auto-config-brancher",
-						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
-							ContextDir: "images/auto-config-brancher",
-							Inputs: map[string]api.ImageBuildInputs{
-								"bin": {
-									Paths: makePaths(
-										"/go/bin/auto-config-brancher",
-										"/go/bin/private-prow-configs-mirror",
-									),
+				Images: api.ImageConfiguration{
+					Items: []api.ProjectDirectoryImageBuildStepConfiguration{
+						{
+							To: "auto-config-brancher",
+							ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
+								ContextDir: "images/auto-config-brancher",
+								Inputs: map[string]api.ImageBuildInputs{
+									"bin": {
+										Paths: makePaths(
+											"/go/bin/auto-config-brancher",
+											"/go/bin/private-prow-configs-mirror",
+										),
+									},
 								},
 							},
 						},
-					},
-					{
-						To: "prow-job-dispatcher",
-						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
-							ContextDir: "images/prow-job-dispatcher",
-							Inputs: map[string]api.ImageBuildInputs{
-								"bin": {
-									Paths: makePaths(
-										"/go/bin/prow-job-dispatcher",
-										"/go/bin/sanitize-prow-jobs",
-									),
+						{
+							To: "prow-job-dispatcher",
+							ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
+								ContextDir: "images/prow-job-dispatcher",
+								Inputs: map[string]api.ImageBuildInputs{
+									"bin": {
+										Paths: makePaths(
+											"/go/bin/prow-job-dispatcher",
+											"/go/bin/sanitize-prow-jobs",
+										),
+									},
 								},
 							},
 						},
@@ -577,31 +585,33 @@ func TestDetector_getAffectedToolsByBinaryInputs(t *testing.T) {
 		{
 			name: "multiple bundle images both affected",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
-					{
-						To: "auto-config-brancher",
-						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
-							ContextDir: "images/auto-config-brancher",
-							Inputs: map[string]api.ImageBuildInputs{
-								"bin": {
-									Paths: makePaths(
-										"/go/bin/auto-config-brancher",
-										"/go/bin/sanitize-prow-jobs",
-									),
+				Images: api.ImageConfiguration{
+					Items: []api.ProjectDirectoryImageBuildStepConfiguration{
+						{
+							To: "auto-config-brancher",
+							ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
+								ContextDir: "images/auto-config-brancher",
+								Inputs: map[string]api.ImageBuildInputs{
+									"bin": {
+										Paths: makePaths(
+											"/go/bin/auto-config-brancher",
+											"/go/bin/sanitize-prow-jobs",
+										),
+									},
 								},
 							},
 						},
-					},
-					{
-						To: "prow-job-dispatcher",
-						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
-							ContextDir: "images/prow-job-dispatcher",
-							Inputs: map[string]api.ImageBuildInputs{
-								"bin": {
-									Paths: makePaths(
-										"/go/bin/prow-job-dispatcher",
-										"/go/bin/sanitize-prow-jobs",
-									),
+						{
+							To: "prow-job-dispatcher",
+							ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
+								ContextDir: "images/prow-job-dispatcher",
+								Inputs: map[string]api.ImageBuildInputs{
+									"bin": {
+										Paths: makePaths(
+											"/go/bin/prow-job-dispatcher",
+											"/go/bin/sanitize-prow-jobs",
+										),
+									},
 								},
 							},
 						},
@@ -614,17 +624,19 @@ func TestDetector_getAffectedToolsByBinaryInputs(t *testing.T) {
 		{
 			name: "already affected image not double-counted",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
-					{
-						To: "auto-config-brancher",
-						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
-							ContextDir: "images/auto-config-brancher",
-							Inputs: map[string]api.ImageBuildInputs{
-								"bin": {
-									Paths: makePaths(
-										"/go/bin/auto-config-brancher",
-										"/go/bin/private-prow-configs-mirror",
-									),
+				Images: api.ImageConfiguration{
+					Items: []api.ProjectDirectoryImageBuildStepConfiguration{
+						{
+							To: "auto-config-brancher",
+							ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
+								ContextDir: "images/auto-config-brancher",
+								Inputs: map[string]api.ImageBuildInputs{
+									"bin": {
+										Paths: makePaths(
+											"/go/bin/auto-config-brancher",
+											"/go/bin/private-prow-configs-mirror",
+										),
+									},
 								},
 							},
 						},
@@ -637,14 +649,16 @@ func TestDetector_getAffectedToolsByBinaryInputs(t *testing.T) {
 		{
 			name: "image with no matching input key is skipped",
 			config: &api.ReleaseBuildConfiguration{
-				Images: []api.ProjectDirectoryImageBuildStepConfiguration{
-					{
-						To: "some-image",
-						ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
-							ContextDir: "images/some-image",
-							Inputs: map[string]api.ImageBuildInputs{
-								"src": {
-									Paths: makePaths("/go/bin/some-tool"),
+				Images: api.ImageConfiguration{
+					Items: []api.ProjectDirectoryImageBuildStepConfiguration{
+						{
+							To: "some-image",
+							ProjectDirectoryImageBuildInputs: api.ProjectDirectoryImageBuildInputs{
+								ContextDir: "images/some-image",
+								Inputs: map[string]api.ImageBuildInputs{
+									"src": {
+										Paths: makePaths("/go/bin/some-tool"),
+									},
 								},
 							},
 						},
