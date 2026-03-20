@@ -265,12 +265,12 @@ func TestAcquireLeases(t *testing.T) {
 		{
 			name: "Acquire two lease of different types",
 			leases: []api.StepLease{{
-				ResourceType: "res-type-0",
-				Env:          "lease-0",
-				Count:        1,
-			}, {
 				ResourceType: "res-type-1",
 				Env:          "lease-1",
+				Count:        1,
+			}, {
+				ResourceType: "res-type-0",
+				Env:          "lease-0",
 				Count:        1,
 			}},
 			resources: map[string]*common.Resource{
@@ -522,12 +522,14 @@ func TestAcquireLeases(t *testing.T) {
 			clusterProfileGetter := newClusterProfileGetter(tc.clusterProfiles)
 			step := LeaseStep(&leaseClient, tc.leases, &stepNeedsLease{}, nsFunc, nil, kubeClient, clusterProfileGetter)
 
+			// Parameters are usually retrieved before the step runs.
+			provides := step.Provides()
+
 			if err := step.Run(context.TODO()); err != nil {
 				t.Errorf("unexpected run error: %s", err)
 			}
 
 			gotProvides := make(map[string]string)
-			provides := step.Provides()
 			for k, f := range provides {
 				v, err := f()
 				if err != nil {

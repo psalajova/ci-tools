@@ -134,7 +134,7 @@ func (s *ipPoolStep) run(ctx context.Context, minute time.Duration) error {
 	default:
 		logrus.Debug("no unused resources were released, releasing all")
 	}
-	releaseErr := results.ForReason("releasing_ip_pool_lease").ForError(releaseLeases(client, s.metricsAgent, *l))
+	releaseErr := results.ForReason("releasing_ip_pool_lease").ForError(releaseLeases(client, s.metricsAgent, l))
 
 	return aggregateWrappedErrorAndReleaseError(wrappedErr, releaseErr)
 }
