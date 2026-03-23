@@ -291,11 +291,14 @@ func (s *server) determineJobRuns(comment string, originPR github.PullRequest) (
 				additionalPRs = append(additionalPRs, *pr)
 			}
 
-			// Store the OriginPR with its base branch cleared. The branch is captured
-			// in the job metadata, and clearing it avoids confusion when the PR was
-			// opened against a renamed branch (e.g., "master" when the default is now "main").
+			// When the operand PR is on the job repo, clear Base.Ref: branch comes from
+			// job metadata (avoids renamed default branches, e.g. master vs main).
+			// Otherwise keep the API base ref so configresolver can resolve path aliases.
 			storedOriginPR := originPR
-			storedOriginPR.Base.Ref = ""
+			if originPR.Base.Repo.Owner.Login == jobMetadata.Org &&
+				originPR.Base.Repo.Name == jobMetadata.Repo {
+				storedOriginPR.Base.Ref = ""
+			}
 			jobRuns = append(jobRuns, jobRun{
 				JobMetadata:   *jobMetadata,
 				OriginPR:      storedOriginPR,
