@@ -101,6 +101,19 @@ func ResolveCredentialReferences(
 				break
 			}
 
+			if bundle.SyncToCluster {
+				// K8s Secret bundle - convert to K8s Secret reference
+				if cred.Namespace == "" {
+					errs = append(errs, fmt.Errorf("bundle %q has sync_to_cluster: true but credential has no namespace specified", cred.Bundle))
+					break
+				}
+				resolvedCredentials = append(resolvedCredentials, api.CredentialReference{
+					Namespace: cred.Namespace,
+					Name:      bundle.Name,
+					MountPath: cred.MountPath,
+				})
+				continue
+			}
 			expanded, err := expandBundle(ctx, bundle, gsmClient, gsmProjectConfig, discoveredFields)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to expand bundle %q: %w", cred.Bundle, err))

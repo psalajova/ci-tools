@@ -333,6 +333,21 @@ func (c *GSMConfig) Validate() error {
 		}
 	}
 
+	// Check for duplicate bundle names ONLY for CSI bundles (sync_to_cluster: false)
+	// K8s Secret bundles (sync_to_cluster: true) can have duplicate names across clusters
+	seenCSIBundleNames := make(map[string]bool)
+	for _, bundle := range c.Bundles {
+		if bundle.SyncToCluster {
+			continue
+		}
+		if seenCSIBundleNames[bundle.Name] {
+			errs = append(errs, fmt.Errorf(
+				"duplicate bundle name '%s' - bundles with sync_to_cluster: false must have unique names",
+				bundle.Name))
+		}
+		seenCSIBundleNames[bundle.Name] = true
+	}
+
 	return utilerrors.NewAggregate(errs)
 }
 
