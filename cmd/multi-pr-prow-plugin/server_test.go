@@ -575,6 +575,52 @@ func TestDetermineJobRuns(t *testing.T) {
 			},
 		},
 		{
+			name:    "cross-repo job preserves origin base ref",
+			comment: "/testwith openshift/cluster-version-operator/main/e2e openshift/cluster-version-operator#1",
+			originPR: github.PullRequest{
+				Base: github.PullRequestBranch{
+					Repo: github.Repo{
+						Owner: github.User{Login: "openshift"},
+						Name:  "oc",
+					},
+					Ref: "main",
+				},
+				Number: 2170,
+			},
+			expected: []jobRun{{
+				JobMetadata: api.MetadataWithTest{
+					Metadata: api.Metadata{
+						Org:    "openshift",
+						Repo:   "cluster-version-operator",
+						Branch: "main",
+					},
+					Test: "e2e",
+				},
+				OriginPR: github.PullRequest{
+					Base: github.PullRequestBranch{
+						Repo: github.Repo{
+							Owner: github.User{Login: "openshift"},
+							Name:  "oc",
+						},
+						Ref: "main",
+					},
+					Number: 2170,
+				},
+				AdditionalPRs: []github.PullRequest{
+					{
+						Base: github.PullRequestBranch{
+							Repo: github.Repo{
+								Owner: github.User{Login: "openshift"},
+								Name:  "cluster-version-operator",
+							},
+							Ref: "main",
+						},
+						Number: 1,
+					},
+				},
+			}},
+		},
+		{
 			name:    "trigger a single job with multiple additional PRs",
 			comment: "/testwith openshift/ci-tools/main/unit openshift/ci-tools#123 openshift/release#876",
 			originPR: github.PullRequest{
@@ -726,6 +772,16 @@ func TestDetermineJobRuns(t *testing.T) {
 						},
 					},
 					Number: 876,
+				},
+				"openshift/cluster-version-operator#1": {
+					Base: github.PullRequestBranch{
+						Repo: github.Repo{
+							Owner: github.User{Login: "openshift"},
+							Name:  "cluster-version-operator",
+						},
+						Ref: "main",
+					},
+					Number: 1,
 				},
 			}}
 			s := server{
