@@ -172,6 +172,8 @@ func getOrgReposWithOfficialImages(configDir string, whitelist map[string][]stri
 }
 
 func injectPrivateBranchProtection(branchProtection prowconfig.BranchProtection, orgRepos orgReposWithOfficialImages) {
+	delete(branchProtection.Orgs, openshiftPrivOrg)
+
 	privateOrg := prowconfig.Org{
 		Repos: make(map[string]prowconfig.Repo),
 	}

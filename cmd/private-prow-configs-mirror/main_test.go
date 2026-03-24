@@ -71,6 +71,23 @@ func TestInjectPrivateBranchProtection(t *testing.T) {
 				},
 			},
 		},
+		{
+			id: "stale openshift-priv removed when no longer official",
+			branchProtection: prowconfig.BranchProtection{
+				Orgs: map[string]prowconfig.Org{
+					"openshift": {Repos: map[string]prowconfig.Repo{}},
+					"openshift-priv": {Repos: map[string]prowconfig.Repo{
+						"deleted-from-github": {Branches: map[string]prowconfig.Branch{
+							"branch1": {Policy: prowconfig.Policy{Protect: pBool(true)}}}}},
+					},
+				},
+			},
+			expected: prowconfig.BranchProtection{
+				Orgs: map[string]prowconfig.Org{
+					"openshift": {Repos: map[string]prowconfig.Repo{}},
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
