@@ -22,7 +22,7 @@ func TestFileTestResolver(t *testing.T) {
 			name: "basic case",
 			dir:  filepath.Join("testdata", "config"),
 			verifyFun: func(testResolver testResolver) error {
-				actual, actualErr := testResolver.resolve("periodic-ci-openshift-release-master-nightly-4.10-e2e-aws-serial")
+				actual, shardCount, actualErr := testResolver.resolve("periodic-ci-openshift-release-master-nightly-4.10-e2e-aws-serial")
 				expected := api.MetadataWithTest{Metadata: api.Metadata{
 					Org:     "openshift",
 					Repo:    "release",
@@ -34,11 +34,14 @@ func TestFileTestResolver(t *testing.T) {
 				if diff := cmp.Diff(expected, actual); diff != "" {
 					return fmt.Errorf("actual differs from expected: %s", diff)
 				}
+				if shardCount != 1 {
+					return fmt.Errorf("shardCount: got %d, want 1", shardCount)
+				}
 				if diff := cmp.Diff(nil, actualErr, testhelper.EquateErrorMessage); diff != "" {
 					return fmt.Errorf("actualErr differs from expected: %s", diff)
 				}
 
-				actual, actualErr = testResolver.resolve("periodic-ci-openshift-release-master-nightly-4.10-e2e-metal-ipi")
+				actual, shardCount, actualErr = testResolver.resolve("periodic-ci-openshift-release-master-nightly-4.10-e2e-metal-ipi")
 				expected = api.MetadataWithTest{Metadata: api.Metadata{
 					Org:     "openshift",
 					Repo:    "release",
@@ -50,11 +53,14 @@ func TestFileTestResolver(t *testing.T) {
 				if diff := cmp.Diff(expected, actual); diff != "" {
 					return fmt.Errorf("actual differs from expected: %s", diff)
 				}
+				if shardCount != 1 {
+					return fmt.Errorf("shardCount: got %d, want 1", shardCount)
+				}
 				if diff := cmp.Diff(nil, actualErr, testhelper.EquateErrorMessage); diff != "" {
 					return fmt.Errorf("actualErr differs from expected: %s", diff)
 				}
 
-				actual, actualErr = testResolver.resolve("periodic-ci-openshift-api-master-build")
+				actual, shardCount, actualErr = testResolver.resolve("periodic-ci-openshift-api-master-build")
 				expected = api.MetadataWithTest{Metadata: api.Metadata{
 					Org:    "openshift",
 					Repo:   "api",
@@ -65,14 +71,20 @@ func TestFileTestResolver(t *testing.T) {
 				if diff := cmp.Diff(expected, actual); diff != "" {
 					return fmt.Errorf("actual differs from expected: %s", diff)
 				}
+				if shardCount != 1 {
+					return fmt.Errorf("shardCount: got %d, want 1", shardCount)
+				}
 				if diff := cmp.Diff(nil, actualErr, testhelper.EquateErrorMessage); diff != "" {
 					return fmt.Errorf("actualErr differs from expected: %s", diff)
 				}
 
-				actual, actualErr = testResolver.resolve("some-job")
+				actual, shardCount, actualErr = testResolver.resolve("some-job")
 				expected = api.MetadataWithTest{}
 				if diff := cmp.Diff(expected, actual); diff != "" {
 					return fmt.Errorf("actual differs from expected: %s", diff)
+				}
+				if shardCount != 0 {
+					return fmt.Errorf("shardCount on error: got %d, want 0", shardCount)
 				}
 				if diff := cmp.Diff(fmt.Errorf("failed to resolve job some-job"), actualErr, testhelper.EquateErrorMessage); diff != "" {
 					return fmt.Errorf("actualErr differs from expected: %s", diff)

@@ -12,7 +12,7 @@ type fileTestResolver struct {
 	configAgent agents.ConfigAgent
 }
 
-func (r *fileTestResolver) resolve(job string) (api.MetadataWithTest, error) {
+func (r *fileTestResolver) resolve(job string) (api.MetadataWithTest, int, error) {
 	byOrgRepo := r.configAgent.GetAll()
 	for _, org := range []string{"openshift", "openshift-eng"} {
 		if v, ok := byOrgRepo[org]; ok {
@@ -22,10 +22,14 @@ func (r *fileTestResolver) resolve(job string) (api.MetadataWithTest, error) {
 						if element.IsPeriodic() {
 							testName := configuration.Metadata.TestNameFromJobName(job, jc.PeriodicPrefix)
 							if element.As == testName {
+								shardCount := 1
+								if element.ShardCount != nil {
+									shardCount = *element.ShardCount
+								}
 								return api.MetadataWithTest{
 									Metadata: configuration.Metadata,
 									Test:     element.As,
-								}, nil
+								}, shardCount, nil
 							}
 						}
 					}
@@ -33,5 +37,5 @@ func (r *fileTestResolver) resolve(job string) (api.MetadataWithTest, error) {
 			}
 		}
 	}
-	return api.MetadataWithTest{}, fmt.Errorf("failed to resolve job %s", job)
+	return api.MetadataWithTest{}, 0, fmt.Errorf("failed to resolve job %s", job)
 }

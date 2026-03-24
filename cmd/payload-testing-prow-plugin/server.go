@@ -164,7 +164,7 @@ type jobResolver interface {
 }
 
 type testResolver interface {
-	resolve(job string) (api.MetadataWithTest, error)
+	resolve(job string) (api.MetadataWithTest, int, error)
 }
 
 func specsFromComment(comment string) []jobSetSpecification {
@@ -496,26 +496,45 @@ func (s *server) handle(l *logrus.Entry, ic github.IssueCommentEvent) (string, [
 					AggregatedCount: job.AggregatedCount,
 				})
 			} else {
-				jobTuple, err := s.testResolver.resolve(job.Name)
+				jobTuple, configShardCount, err := s.testResolver.resolve(job.Name)
 				if err != nil {
 					// This is expected for non-generated jobs
 					specLogger.WithError(err).WithField("job.Name", job.Name).Info("could not resolve tests for job")
 					continue
 				}
-				shardCount, shardIndex := extractShardInfo(job.Name)
-				jobNames = append(jobNames, job.Name)
-				releaseJobSpecs = append(releaseJobSpecs, prpqv1.ReleaseJobSpec{
-					CIOperatorConfig: prpqv1.CIOperatorMetadata{
-						Org:     jobTuple.Metadata.Org,
-						Repo:    jobTuple.Metadata.Repo,
-						Branch:  jobTuple.Metadata.Branch,
-						Variant: jobTuple.Metadata.Variant,
-					},
-					Test:            jobTuple.Test,
-					AggregatedCount: job.AggregatedCount,
-					ShardCount:      shardCount,
-					ShardIndex:      shardIndex,
-				})
+				suffixShardCount, suffixShardIndex := extractShardInfo(job.Name)
+				if job.AggregatedCount == 0 && suffixShardCount == 0 && configShardCount > 1 {
+					for i := 1; i <= configShardCount; i++ {
+						name := fmt.Sprintf("%s-%dof%d", job.Name, i, configShardCount)
+						jobNames = append(jobNames, name)
+						releaseJobSpecs = append(releaseJobSpecs, prpqv1.ReleaseJobSpec{
+							CIOperatorConfig: prpqv1.CIOperatorMetadata{
+								Org:     jobTuple.Metadata.Org,
+								Repo:    jobTuple.Metadata.Repo,
+								Branch:  jobTuple.Metadata.Branch,
+								Variant: jobTuple.Metadata.Variant,
+							},
+							Test:            jobTuple.Test,
+							AggregatedCount: job.AggregatedCount,
+							ShardCount:      configShardCount,
+							ShardIndex:      i,
+						})
+					}
+				} else {
+					jobNames = append(jobNames, job.Name)
+					releaseJobSpecs = append(releaseJobSpecs, prpqv1.ReleaseJobSpec{
+						CIOperatorConfig: prpqv1.CIOperatorMetadata{
+							Org:     jobTuple.Metadata.Org,
+							Repo:    jobTuple.Metadata.Repo,
+							Branch:  jobTuple.Metadata.Branch,
+							Variant: jobTuple.Metadata.Variant,
+						},
+						Test:            jobTuple.Test,
+						AggregatedCount: job.AggregatedCount,
+						ShardCount:      suffixShardCount,
+						ShardIndex:      suffixShardIndex,
+					})
+				}
 			}
 		}
 
