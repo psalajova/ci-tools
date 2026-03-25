@@ -25,6 +25,7 @@ spec:
           connectors:
           - config:
               claimMapping:
+                groups: groups
                 preferred_username: preferred_username
               clientID: $CLIENT_ID
               clientSecret: $CLIENT_SECRET
@@ -35,6 +36,7 @@ spec:
               - openid
               - profile
               - email
+              - groups
             id: sso
             name: SSO
             type: oidc
