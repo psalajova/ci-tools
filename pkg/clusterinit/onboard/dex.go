@@ -174,8 +174,8 @@ func (s *dexGenerator) updateOIDCConnectorScopes(log *logrus.Entry, config dexCo
 		if !ok {
 			continue
 		}
-		// Ensure required scopes are present: openid, profile, email
-		requiredScopes := []string{"openid", "profile", "email"}
+		// Ensure required scopes are present: openid, profile, email, groups
+		requiredScopes := []string{"openid", "profile", "email", "groups"}
 		scopes, ok := connectorConfig["scopes"]
 		if !ok {
 			scopesList := make([]interface{}, len(requiredScopes))

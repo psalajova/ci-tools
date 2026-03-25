@@ -41,6 +41,7 @@ spec:
               getUserInfo: true
               claimMapping:
                 preferred_username: preferred_username
+                groups: groups
           staticClients:
           - idEnv: APP-CI-ID
             name: "app.ci"
