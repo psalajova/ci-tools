@@ -36,7 +36,7 @@ type ClusterProfileGetter func(name string) (*api.ClusterProfileDetails, error)
 // leaseStep wraps another step and acquires/releases one or more leases.
 type leaseStep struct {
 	client               *lease.Client
-	leases               []stepLease
+	leases               []*stepLease
 	wrapped              api.Step
 	metricsAgent         *metrics.MetricsAgent
 	kubeClient           ctrlruntimeclient.Client
@@ -59,7 +59,7 @@ func LeaseStep(client *lease.Client, leases []api.StepLease, wrapped api.Step, n
 		clusterProfileGetter: clusterProfileGetter,
 	}
 	for _, l := range leases {
-		ret.leases = append(ret.leases, stepLease{StepLease: l})
+		ret.leases = append(ret.leases, &stepLease{StepLease: l})
 	}
 	return &ret
 }
@@ -92,8 +92,7 @@ func (s *leaseStep) Provides() api.ParameterMap {
 	// nolint:unparam
 	parameters[api.ClusterProfileParam] = func() (string, error) { return s.clusterProfileName, nil }
 
-	for i := range s.leases {
-		l := &s.leases[i]
+	for _, l := range s.leases {
 		// nolint:unparam
 		parameters[l.Env] = func() (string, error) {
 			if len(l.resources) == 0 {
@@ -171,8 +170,7 @@ func (s *leaseStep) acquireLeases(ctx context.Context, cancel context.CancelFunc
 		return s.leases[i].ResourceType < s.leases[j].ResourceType
 	})
 	var errs []error
-	for i := range s.leases {
-		l := &s.leases[i]
+	for _, l := range s.leases {
 		start := time.Now()
 		logrus.Debugf("Acquiring %d lease(s) for %s", l.Count, l.ResourceType)
 		names, err := client.Acquire(l.ResourceType, l.Count, ctx, cancel)
@@ -208,7 +206,7 @@ func (s *leaseStep) acquireLeases(ctx context.Context, cancel context.CancelFunc
 	return utilerrors.NewAggregate(errs)
 }
 
-func releaseLeases(client lease.Client, metricsAgent *metrics.MetricsAgent, leases ...stepLease) error {
+func releaseLeases(client lease.Client, metricsAgent *metrics.MetricsAgent, leases ...*stepLease) error {
 	var errs []error
 	for _, l := range leases {
 		for _, r := range l.resources {
