@@ -716,6 +716,36 @@ See details on https://pr-payload-tests.ci.openshift.org/runs/ci/guid-0
 `,
 		},
 		{
+			name: "payload-job with sharded job base name expands all shards",
+			s: &server{
+				ghc:                ghc,
+				ctx:                context.TODO(),
+				kubeClient:         fakeclient.NewClientBuilder().Build(),
+				namespace:          "ci",
+				testResolver:       newFakeTestResolver(),
+				trustedChecker:     &fakeTrustedChecker{},
+				ciOpConfigResolver: &fakeCIOpConfigResolver{},
+			},
+			ic: github.IssueCommentEvent{
+				GUID: "guid",
+				Repo: github.Repo{Owner: github.User{Login: "openshift"}},
+				Issue: github.Issue{
+					Number:      123,
+					PullRequest: &struct{}{},
+				},
+				Comment: github.IssueComment{
+					Body: "/payload-job periodic-ci-openshift-release-master-nightly-4.10-e2e-sharded",
+				},
+			},
+			expectedMessage: `trigger 3 job(s) for the /payload-(with-prs|job|aggregate|job-with-prs|aggregate-with-prs) command
+- periodic-ci-openshift-release-master-nightly-4.10-e2e-sharded-1of3
+- periodic-ci-openshift-release-master-nightly-4.10-e2e-sharded-2of3
+- periodic-ci-openshift-release-master-nightly-4.10-e2e-sharded-3of3
+
+See details on https://pr-payload-tests.ci.openshift.org/runs/ci/guid-0
+`,
+		},
+		{
 			name: "payload-job",
 			s: &server{
 				ghc:                ghc,
@@ -1230,13 +1260,16 @@ func newFakeTestResolver() testResolver {
 	}
 }
 
-func (r *fakeTestResolver) resolve(job string) (api.MetadataWithTest, error) {
-	// Remove shard suffix from job if present prior to searching for it in map
+func (r *fakeTestResolver) resolve(job string) (api.MetadataWithTest, int, error) {
 	baseJob := shardSuffixPattern.ReplaceAllString(job, "")
 	if jt, ok := r.tuples[baseJob]; ok {
-		return jt, nil
+		shardCount := 1
+		if jt.Test == "e2e-sharded" {
+			shardCount = 3
+		}
+		return jt, shardCount, nil
 	}
-	return api.MetadataWithTest{}, fmt.Errorf("failed to resolve job %s", job)
+	return api.MetadataWithTest{}, 0, fmt.Errorf("failed to resolve job %s", job)
 }
 
 func TestFormatError(t *testing.T) {
