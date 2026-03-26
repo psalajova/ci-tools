@@ -11,6 +11,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	metricsclient "k8s.io/metrics/pkg/client/clientset/versioned"
@@ -229,6 +231,34 @@ func (ma *MetricsAgent) StoreMachinesSnapshot(obj ctrlruntimeclient.Object) {
 		return
 	}
 	ma.Record(&MachinesEvent{Workload: workload})
+}
+
+// StoreMachinesSnapshotForBuildPod waits until the build pod exists and has ci-workload label, then snapshots machines.
+func (ma *MetricsAgent) StoreMachinesSnapshotForBuildPod(ctx context.Context, namespace, podName string, podClient ctrlruntimeclient.Client) {
+	if ma == nil || ma.machinesPlugin == nil || podClient == nil {
+		return
+	}
+	go func() {
+		waitCtx, cancel := context.WithTimeout(ctx, 60*time.Minute)
+		defer cancel()
+
+		if err := wait.PollUntilContextCancel(waitCtx, 5*time.Second, true, func(ctx context.Context) (bool, error) {
+			var pod corev1.Pod
+			if err := podClient.Get(ctx, ctrlruntimeclient.ObjectKey{Namespace: namespace, Name: podName}, &pod); err != nil {
+				if kerrors.IsNotFound(err) {
+					return false, nil
+				}
+				return false, err
+			}
+			if pod.Labels[CIWorkloadLabel] == "" {
+				return false, nil
+			}
+			ma.StoreMachinesSnapshot(&pod)
+			return true, nil
+		}); err != nil {
+			ma.logger.WithError(err).Debugf("Failed waiting for pod %s/%s to store machines snapshot", namespace, podName)
+		}
+	}()
 }
 
 // RecordStepEvent records a single Finished event for a step, including objects metadata.
