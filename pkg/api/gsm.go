@@ -400,6 +400,9 @@ func validateBundle(bundle *GSMBundle, idx int) error {
 	}
 
 	if bundle.DockerConfig != nil {
+		if !bundle.SyncToCluster {
+			errs = append(errs, fmt.Errorf("bundle %s has dockerconfig but sync_to_cluster is false - dockerconfig bundles must have sync_to_cluster: true", bundle.Name))
+		}
 		if err := validateDockerConfig(bundle.DockerConfig, idx, bundle.Name); err != nil {
 			errs = append(errs, err)
 		}

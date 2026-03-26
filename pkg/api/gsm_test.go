@@ -1444,6 +1444,24 @@ func TestGSMConfigValidate(t *testing.T) {
 			errorContains: "has empty cluster",
 		},
 		{
+			name: "error: dockerconfig with sync_to_cluster false",
+			config: GSMConfig{
+				Bundles: []GSMBundle{
+					{
+						Name: "test-dockerconfig-bundle",
+						DockerConfig: &DockerConfigSpec{
+							Registries: []RegistryAuthData{
+								{Collection: "test-platform-infra", Group: "build_farm", RegistryURL: "registry.ci.openshift.org", AuthField: "token"},
+							},
+						},
+						SyncToCluster: false,
+					},
+				},
+			},
+			expectError:   true,
+			errorContains: "bundle test-dockerconfig-bundle has dockerconfig but sync_to_cluster is false - dockerconfig bundles must have sync_to_cluster: true",
+		},
+		{
 			name: "valid: duplicate K8s Secret bundle name targeting same cluster (different namespaces)",
 			config: GSMConfig{
 				Bundles: []GSMBundle{
