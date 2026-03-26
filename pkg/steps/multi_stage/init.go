@@ -30,6 +30,29 @@ var (
 	uidRangeRegexp = regexp.MustCompile(`^(\d+)/\d+`)
 )
 
+func isK8sSecretReference(c api.CredentialReference) bool {
+	return c.Namespace != "" && c.Name != ""
+}
+
+func isGSMReference(c api.CredentialReference) bool {
+	return c.Collection != "" && c.Group != "" && c.Field != ""
+}
+
+// getAllStepPtrs returns pointers to all steps (pre, test, post) to allow in-place modification.
+func (s *multiStageTestStep) getAllStepPtrs() []*api.LiteralTestStep {
+	var allStepPtrs []*api.LiteralTestStep
+	for i := range s.pre {
+		allStepPtrs = append(allStepPtrs, &s.pre[i])
+	}
+	for i := range s.test {
+		allStepPtrs = append(allStepPtrs, &s.test[i])
+	}
+	for i := range s.post {
+		allStepPtrs = append(allStepPtrs, &s.post[i])
+	}
+	return allStepPtrs
+}
+
 func (s *multiStageTestStep) createSharedDirSecret(ctx context.Context) error {
 	logrus.Debugf("Creating multi-stage test shared directory %q", s.name)
 	secret := &coreapi.Secret{ObjectMeta: meta.ObjectMeta{
@@ -43,61 +66,11 @@ func (s *multiStageTestStep) createSharedDirSecret(ctx context.Context) error {
 	return s.client.Create(ctx, secret)
 }
 
-func (s *multiStageTestStep) createCredentials(ctx context.Context) error {
-	logrus.Debugf("Creating multi-stage test credentials for %q", s.name)
-	toCreate := map[string]*coreapi.Secret{}
-	for _, step := range append(s.pre, append(s.test, s.post...)...) {
-		for _, credential := range step.Credentials {
-			// we don't want secrets imported from separate namespaces to collide
-			// but we want to keep them generally recognizable for debugging, and the
-			// chance we get a second-level collision (ns-a, name) and (ns, a-name) is
-			// small, so we can get away with this string prefixing
-			name := fmt.Sprintf("%s-%s", credential.Namespace, credential.Name)
-			if _, ok := toCreate[name]; ok {
-				continue
-			}
-			raw := &coreapi.Secret{}
-			if err := s.client.Get(ctx, ctrlruntimeclient.ObjectKey{Namespace: credential.Namespace, Name: credential.Name}, raw); err != nil {
-				return fmt.Errorf("could not read source credential: %w", err)
-			}
-			toCreate[name] = &coreapi.Secret{
-				TypeMeta: raw.TypeMeta,
-				ObjectMeta: meta.ObjectMeta{
-					Name:      name,
-					Namespace: s.jobSpec.Namespace(),
-				},
-				Type:       raw.Type,
-				Data:       raw.Data,
-				StringData: raw.StringData,
-			}
-		}
-	}
+// resolveCredentials resolves bundle references and auto-discovery for all steps.
+// Updates step.Credentials in place with resolved credential references.
+func (s *multiStageTestStep) resolveCredentials(ctx context.Context) error {
+	allStepPtrs := s.getAllStepPtrs()
 
-	for name := range toCreate {
-		if err := s.client.Create(ctx, toCreate[name]); err != nil && !kerrors.IsAlreadyExists(err) {
-			return fmt.Errorf("could not create source credential: %w", err)
-		}
-	}
-	return nil
-}
-
-// createSPCs creates all the SecretProviderClasses (SPCs) needed
-// to fetch the appropriate secrets from GCP. This is done before
-// the individual steps are run to make sure the appropriate
-// SecretProviderClasses already exist and are available for the test pods.
-func (s *multiStageTestStep) createSPCs(ctx context.Context) error {
-	spcsToCreate := map[string]*csiapi.SecretProviderClass{}
-
-	var allStepPtrs []*api.LiteralTestStep
-	for i := range s.pre {
-		allStepPtrs = append(allStepPtrs, &s.pre[i])
-	}
-	for i := range s.test {
-		allStepPtrs = append(allStepPtrs, &s.test[i])
-	}
-	for i := range s.post {
-		allStepPtrs = append(allStepPtrs, &s.post[i])
-	}
 	discoveredFields := make(map[collectionGroupKey][]string)
 	for _, step := range allStepPtrs {
 		resolvedCredentials, err := ResolveCredentialReferences(
@@ -116,46 +89,104 @@ func (s *multiStageTestStep) createSPCs(ctx context.Context) error {
 		}
 		step.Credentials = resolvedCredentials
 	}
-	allSteps := append(append(s.pre, s.test...), s.post...)
 
-	logrus.Infof("Creating SPCs for actual credential usage...")
-	// Create grouped SPCs for actual credential usage
-	for _, step := range allSteps {
-		collectionMountGroups := groupCredentialsByCollectionGroupAndMountPath(step.Credentials)
+	return nil
+}
 
-		for _, credentials := range collectionMountGroups {
-			spcName := getSPCName(s.jobSpec.Namespace(), credentials)
-			secrets, err := buildGCPSecretsParameter(credentials)
-			if err != nil {
-				return fmt.Errorf("could not marshal secrets for mount path %s: %w", credentials[0].MountPath, err)
+// separateCredentialsByType partitions credentials into K8s Secret and GSM references.
+// Returns (k8sSecretCredentials, gsmCredentials).
+func (s *multiStageTestStep) separateCredentialsByType() ([]api.CredentialReference, []api.CredentialReference) {
+	var k8sSecretCredentials []api.CredentialReference
+	var gsmCredentials []api.CredentialReference
+	allStepPtrs := s.getAllStepPtrs()
+
+	for _, step := range allStepPtrs {
+		for _, credential := range step.Credentials {
+			if isK8sSecretReference(credential) {
+				k8sSecretCredentials = append(k8sSecretCredentials, credential)
+			} else if isGSMReference(credential) {
+				gsmCredentials = append(gsmCredentials, credential)
 			}
-			spcsToCreate[spcName] = buildSecretProviderClass(spcName, s.jobSpec.Namespace(), secrets)
 		}
+	}
+
+	return k8sSecretCredentials, gsmCredentials
+}
+
+func (s *multiStageTestStep) createCredentials(ctx context.Context, credentials []api.CredentialReference) error {
+	toCreate := map[string]*coreapi.Secret{}
+	for _, credential := range credentials {
+		// we don't want secrets imported from separate namespaces to collide
+		// but we want to keep them generally recognizable for debugging, and the
+		// chance we get a second-level collision (ns-a, name) and (ns, a-name) is
+		// small, so we can get away with this string prefixing
+		name := fmt.Sprintf("%s-%s", credential.Namespace, credential.Name)
+		if _, ok := toCreate[name]; ok {
+			continue
+		}
+		raw := &coreapi.Secret{}
+		if err := s.client.Get(ctx, ctrlruntimeclient.ObjectKey{Namespace: credential.Namespace, Name: credential.Name}, raw); err != nil {
+			return fmt.Errorf("could not read source credential: %w", err)
+		}
+		toCreate[name] = &coreapi.Secret{
+			TypeMeta: raw.TypeMeta,
+			ObjectMeta: meta.ObjectMeta{
+				Name:      name,
+				Namespace: s.jobSpec.Namespace(),
+			},
+			Type:       raw.Type,
+			Data:       raw.Data,
+			StringData: raw.StringData,
+		}
+	}
+
+	for name := range toCreate {
+		if err := s.client.Create(ctx, toCreate[name]); err != nil && !kerrors.IsAlreadyExists(err) {
+			return fmt.Errorf("could not create source credential: %w", err)
+		}
+	}
+	return nil
+}
+
+// createSPCs creates all the SecretProviderClasses (SPCs) needed
+// to fetch the appropriate secrets from GCP. This is done before
+// the individual steps are run to make sure the appropriate
+// SecretProviderClasses already exist and are available for the test pods.
+func (s *multiStageTestStep) createSPCs(ctx context.Context, credentials []api.CredentialReference) error {
+	logrus.Infof("Creating SPCs for actual credential usage...")
+	spcsToCreate := map[string]*csiapi.SecretProviderClass{}
+	collectionMountGroups := groupCredentialsByCollectionGroupAndMountPath(credentials)
+
+	for _, credentials := range collectionMountGroups {
+		spcName := getSPCName(s.jobSpec.Namespace(), credentials)
+		secrets, err := buildGCPSecretsParameter(credentials)
+		if err != nil {
+			return fmt.Errorf("could not marshal secrets for mount path %s: %w", credentials[0].MountPath, err)
+		}
+		spcsToCreate[spcName] = buildSecretProviderClass(spcName, s.jobSpec.Namespace(), secrets)
 	}
 
 	// Create SPCs for sidecar censoring; each credential gets its own SPC.
 	logrus.Infof("Creating SPCs for sidecar censoring...")
 	seenCredentials := make(map[string]bool)
-	for _, step := range allSteps {
-		for _, credential := range step.Credentials {
-			fullSecretName := gsm.GetGSMSecretName(credential.Collection, credential.Group, credential.Field)
-			if seenCredentials[fullSecretName] {
-				continue
-			}
-			seenCredentials[fullSecretName] = true
-
-			censorMountPath := getCensorMountPath(fullSecretName) //arbitrary mount path for uniqueness
-			censoredCredential := credential
-			censoredCredential.MountPath = censorMountPath
-			individualCredentials := []api.CredentialReference{censoredCredential}
-			spcName := getSPCName(s.jobSpec.Namespace(), individualCredentials)
-
-			secrets, err := buildGCPSecretsParameter(individualCredentials)
-			if err != nil {
-				return fmt.Errorf("could not marshal secrets for censored credential %s: %w", fullSecretName, err)
-			}
-			spcsToCreate[spcName] = buildSecretProviderClass(spcName, s.jobSpec.Namespace(), secrets)
+	for _, credential := range credentials {
+		fullSecretName := gsm.GetGSMSecretName(credential.Collection, credential.Group, credential.Field)
+		if seenCredentials[fullSecretName] {
+			continue
 		}
+		seenCredentials[fullSecretName] = true
+
+		censorMountPath := getCensorMountPath(fullSecretName) //arbitrary mount path for uniqueness
+		censoredCredential := credential
+		censoredCredential.MountPath = censorMountPath
+		individualCredentials := []api.CredentialReference{censoredCredential}
+		spcName := getSPCName(s.jobSpec.Namespace(), individualCredentials)
+
+		secrets, err := buildGCPSecretsParameter(individualCredentials)
+		if err != nil {
+			return fmt.Errorf("could not marshal secrets for censored credential %s: %w", fullSecretName, err)
+		}
+		spcsToCreate[spcName] = buildSecretProviderClass(spcName, s.jobSpec.Namespace(), secrets)
 	}
 
 	for name := range spcsToCreate {

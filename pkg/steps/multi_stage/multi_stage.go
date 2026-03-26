@@ -247,16 +247,42 @@ func (s *multiStageTestStep) run(ctx context.Context) error {
 	if err := s.createSharedDirSecret(ctx); err != nil {
 		return fmt.Errorf("failed to create secret: %w", err)
 	}
+
+	var k8sSecretCredentials, gsmCredentials []api.CredentialReference
+	if s.enableSecretsStoreCSIDriver {
+		if err := s.resolveCredentials(ctx); err != nil {
+			return fmt.Errorf("failed to resolve credentials: %w", err)
+		}
+		k8sSecretCredentials, gsmCredentials = s.separateCredentialsByType()
+	} else {
+		// Legacy path - collect K8s Secret references from credentials
+		for _, step := range append(append(s.pre, s.test...), s.post...) {
+			k8sSecretCredentials = append(k8sSecretCredentials, step.Credentials...)
+		}
+	}
 	if s.enableSecretsStoreCSIDriver {
 		if s.gsm == nil || s.gsm.Client == nil {
 			return fmt.Errorf("GSM client was not initialized - credentials file may be missing")
 		}
-		if err := s.createSPCs(ctx); err != nil {
-			return fmt.Errorf("failed to create SecretProviderClass objects: %w", err)
+		if len(k8sSecretCredentials) > 0 {
+			if err := s.createCredentials(ctx, k8sSecretCredentials); err != nil {
+				return fmt.Errorf("failed to create K8s Secret credentials: %w", err)
+			}
+		}
+		if len(gsmCredentials) > 0 {
+			if err := s.createSPCs(ctx, gsmCredentials); err != nil {
+				return fmt.Errorf("failed to create SecretProviderClass objects: %w", err)
+			}
 		}
 	} else {
-		if err := s.createCredentials(ctx); err != nil {
-			return fmt.Errorf("failed to create credentials: %w", err)
+		// Legacy path - only K8s Secrets are expected and old credentials stanza is used
+		if len(gsmCredentials) > 0 {
+			return fmt.Errorf("GSM credentials (collection/group/field) require CSI driver to be enabled")
+		}
+		if len(k8sSecretCredentials) > 0 {
+			if err := s.createCredentials(ctx, k8sSecretCredentials); err != nil {
+				return fmt.Errorf("failed to create credentials: %w", err)
+			}
 		}
 	}
 	if err := s.createCommandConfigMaps(ctx); err != nil {
@@ -551,6 +577,10 @@ func (s *multiStageTestStep) addCredentialsToCensoring(secretVolumes []coreapi.V
 	i := 0
 	for _, step := range append(s.pre, append(s.test, s.post...)...) {
 		for _, credential := range step.Credentials {
+			// Skip K8s Secret credentials - they're already censored by secretsForCensoring()
+			if !isGSMReference(credential) {
+				continue
+			}
 			fullSecretName := gsm.GetGSMSecretName(credential.Collection, credential.Group, credential.Field)
 			if seenCredentials[fullSecretName] {
 				continue

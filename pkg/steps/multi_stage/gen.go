@@ -558,24 +558,8 @@ func addSharedDirSecret(secret string, pod *coreapi.Pod) {
 }
 
 func addCredentials(credentials []api.CredentialReference, pod *coreapi.Pod, useCSI bool) {
-	if useCSI {
-		collectionMountGroups := groupCredentialsByCollectionGroupAndMountPath(credentials)
-
-		// Create one CSI volume per (collection, group, mount_path)
-		for _, credentials := range collectionMountGroups {
-			mountPath := credentials[0].MountPath
-
-			csiVolumeName := getCSIVolumeName(pod.Namespace, credentials)
-			csiVolume := BuildCSIVolume(csiVolumeName, getSPCName(pod.Namespace, credentials))
-			pod.Spec.Volumes = append(pod.Spec.Volumes, csiVolume)
-			pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, coreapi.VolumeMount{
-				Name:      csiVolumeName,
-				MountPath: mountPath,
-			})
-		}
-	} else {
-		//TODO: this is the old way, delete after we have enabled CSI Secrets for all repos
-		for _, credential := range credentials {
+	addK8sSecretVolumes := func(creds []api.CredentialReference) {
+		for _, credential := range creds {
 			name := fmt.Sprintf("%s-%s", credential.Namespace, credential.Name)
 			volumeName := volumeName(credential.Namespace, credential.Name)
 			pod.Spec.Volumes = append(pod.Spec.Volumes, coreapi.Volume{
@@ -589,6 +573,37 @@ func addCredentials(credentials []api.CredentialReference, pod *coreapi.Pod, use
 				MountPath: credential.MountPath,
 			})
 		}
+	}
+
+	if useCSI {
+		var k8sSecretCreds []api.CredentialReference
+		var gsmCreds []api.CredentialReference
+		for _, cred := range credentials {
+			if isK8sSecretReference(cred) {
+				k8sSecretCreds = append(k8sSecretCreds, cred)
+			} else if isGSMReference(cred) {
+				gsmCreds = append(gsmCreds, cred)
+			}
+		}
+
+		addK8sSecretVolumes(k8sSecretCreds)
+
+		// Add GSM credentials as CSI volumes
+		collectionMountGroups := groupCredentialsByCollectionGroupAndMountPath(gsmCreds)
+		for _, credentials := range collectionMountGroups {
+			mountPath := credentials[0].MountPath
+
+			csiVolumeName := getCSIVolumeName(pod.Namespace, credentials)
+			csiVolume := BuildCSIVolume(csiVolumeName, getSPCName(pod.Namespace, credentials))
+			pod.Spec.Volumes = append(pod.Spec.Volumes, csiVolume)
+			pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, coreapi.VolumeMount{
+				Name:      csiVolumeName,
+				MountPath: mountPath,
+			})
+		}
+	} else {
+		//TODO: this is the old way, delete after we have enabled CSI Secrets for all repos
+		addK8sSecretVolumes(credentials)
 	}
 }
 

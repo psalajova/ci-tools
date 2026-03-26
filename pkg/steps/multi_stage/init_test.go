@@ -169,7 +169,12 @@ func TestCreateSPCs(t *testing.T) {
 				},
 			}
 			step.jobSpec.SetNamespace("test-ns")
-			err := step.createSPCs(context.TODO())
+			// Collect all credentials for testing (they're already resolved GSM credentials in this test)
+			var credentials []api.CredentialReference
+			for _, s := range append(append(tc.pre, tc.test...), tc.post...) {
+				credentials = append(credentials, s.Credentials...)
+			}
+			err := step.createSPCs(context.TODO(), credentials)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -1267,7 +1267,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Namespace: "ns", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0].name cannot be empty"),
+				errors.New("root.credentials[0]: `name` is required"),
 			},
 		},
 		{
@@ -1276,7 +1276,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Name: "name", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0].namespace cannot be empty"),
+				errors.New("root.credentials[0]: `namespace` is required"),
 			},
 		},
 		{
@@ -1285,7 +1285,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Namespace: "ns", Name: "name"},
 			},
 			output: []error{
-				errors.New("root.credentials[0].mountPath cannot be empty"),
+				errors.New("root.credentials[0]: `mountPath` is required"),
 			},
 		},
 		{
@@ -1341,6 +1341,12 @@ func TestValidateCredentials(t *testing.T) {
 			},
 		},
 		{
+			name: "bundle reference with namespace is valid", // case when sync_to_cluster: true
+			input: []api.CredentialReference{
+				{Bundle: "my-bundle", MountPath: "/foo", Namespace: "ns"},
+			},
+		},
+		{
 			name: "auto-discovery (collection + group) is valid",
 			input: []api.CredentialReference{
 				{Collection: "coll", Group: "group", MountPath: "/foo/bar"},
@@ -1364,7 +1370,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Collection: "coll", Group: "grp", As: "something", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: must provide 'field' when 'as' is specified"),
+				errors.New("root.credentials[0]: `field` is required when `as` is specified"),
 			},
 		},
 		{
@@ -1373,7 +1379,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Bundle: "my-bundle"},
 			},
 			output: []error{
-				errors.New("root.credentials[0].mountPath cannot be empty"),
+				errors.New("root.credentials[0]: `mountPath` is required"),
 			},
 		},
 		{
@@ -1382,7 +1388,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Collection: "coll", Group: "group"},
 			},
 			output: []error{
-				errors.New("root.credentials[0].mountPath cannot be empty"),
+				errors.New("root.credentials[0]: `mountPath` is required"),
 			},
 		},
 		{
@@ -1409,7 +1415,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Bundle: "my-bundle", Collection: "coll", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: bundle is mutually exclusive with collection, group, and field"),
+				errors.New("root.credentials[0]: `bundle` cannot be used with `collection`, `group`, or `field`"),
 			},
 		},
 		{
@@ -1418,7 +1424,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Bundle: "my-bundle", Group: "group", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: bundle is mutually exclusive with collection, group, and field"),
+				errors.New("root.credentials[0]: `bundle` cannot be used with `collection`, `group`, or `field`"),
 			},
 		},
 		{
@@ -1427,7 +1433,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Bundle: "my-bundle", Field: "fld", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: bundle is mutually exclusive with collection, group, and field"),
+				errors.New("root.credentials[0]: `bundle` cannot be used with `collection`, `group`, or `field`"),
 			},
 		},
 		{
@@ -1436,7 +1442,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Bundle: "my-bundle", Collection: "coll", Group: "grp", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: bundle is mutually exclusive with collection, group, and field"),
+				errors.New("root.credentials[0]: `bundle` cannot be used with `collection`, `group`, or `field`"),
 			},
 		},
 		{
@@ -1445,7 +1451,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Collection: "coll", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: invalid CSI credential reference, must provide bundle, collection+group (auto-discovery), or collection+group+field"),
+				errors.New("root.credentials[0]: must specify `bundle`, `collection`+`group`, or `collection`+`group`+`field`"),
 			},
 		},
 		{
@@ -1454,7 +1460,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Group: "grp", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: invalid CSI credential reference, must provide bundle, collection+group (auto-discovery), or collection+group+field"),
+				errors.New("root.credentials[0]: must specify `bundle`, `collection`+`group`, or `collection`+`group`+`field`"),
 			},
 		},
 		{
@@ -1463,7 +1469,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Field: "fld", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: invalid CSI credential reference, must provide bundle, collection+group (auto-discovery), or collection+group+field"),
+				errors.New("root.credentials[0]: must specify `bundle`, `collection`+`group`, or `collection`+`group`+`field`"),
 			},
 		},
 		{
@@ -1472,7 +1478,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Collection: "coll", Field: "fld", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: invalid CSI credential reference, must provide bundle, collection+group (auto-discovery), or collection+group+field"),
+				errors.New("root.credentials[0]: must specify `bundle`, `collection`+`group`, or `collection`+`group`+`field`"),
 			},
 		},
 		{
@@ -1528,7 +1534,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Group: "grp", Field: "fld", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: invalid CSI credential reference, must provide bundle, collection+group (auto-discovery), or collection+group+field"),
+				errors.New("root.credentials[0]: must specify `bundle`, `collection`+`group`, or `collection`+`group`+`field`"),
 			},
 		},
 		{
@@ -1537,16 +1543,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Bundle: "my-bundle", Name: "secret", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: cannot use fields (name, namespace) with CSI fields (bundle, collection, group, field)"),
-			},
-		},
-		{
-			name: "CSI bundle with old system namespace means error",
-			input: []api.CredentialReference{
-				{Bundle: "my-bundle", Namespace: "ns", MountPath: "/foo"},
-			},
-			output: []error{
-				errors.New("root.credentials[0]: cannot use fields (name, namespace) with CSI fields (bundle, collection, group, field)"),
+				errors.New("root.credentials[0]: `name` cannot be used with `bundle`, `collection`, `group`, or `field`"),
 			},
 		},
 		{
@@ -1555,7 +1552,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Bundle: "my-bundle", Name: "secret", Namespace: "ns", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: cannot use fields (name, namespace) with CSI fields (bundle, collection, group, field)"),
+				errors.New("root.credentials[0]: `name` cannot be used with `bundle`, `collection`, `group`, or `field`"),
 			},
 		},
 		{
@@ -1564,7 +1561,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Collection: "coll", Group: "grp", Name: "secret", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: cannot use fields (name, namespace) with CSI fields (bundle, collection, group, field)"),
+				errors.New("root.credentials[0]: `name` cannot be used with `bundle`, `collection`, `group`, or `field`"),
 			},
 		},
 		{
@@ -1573,7 +1570,7 @@ func TestValidateCredentials(t *testing.T) {
 				{Collection: "coll", Group: "grp", Namespace: "ns", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: cannot use fields (name, namespace) with CSI fields (bundle, collection, group, field)"),
+				errors.New("root.credentials[0]: `namespace` cannot be used with `collection`, `group`, or `field`"),
 			},
 		},
 		{
@@ -1582,7 +1579,8 @@ func TestValidateCredentials(t *testing.T) {
 				{Collection: "coll", Group: "grp", Field: "fld", Name: "secret", Namespace: "ns", MountPath: "/foo"},
 			},
 			output: []error{
-				errors.New("root.credentials[0]: cannot use fields (name, namespace) with CSI fields (bundle, collection, group, field)"),
+				errors.New("root.credentials[0]: `name` cannot be used with `bundle`, `collection`, `group`, or `field`"),
+				errors.New("root.credentials[0]: `namespace` cannot be used with `collection`, `group`, or `field`"),
 			},
 		},
 	}

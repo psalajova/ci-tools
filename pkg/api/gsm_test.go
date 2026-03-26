@@ -1403,6 +1403,171 @@ func TestGSMConfigValidate(t *testing.T) {
 			expectError:   true,
 			errorContains: "bundle test-bundle has neither gsm_secrets, dockerconfig, nor components",
 		},
+		{
+			name: "error: sync_to_cluster true but no targets (dockerconfig bundle)",
+			config: GSMConfig{
+				Bundles: []GSMBundle{
+					{
+						Name: "test-dockerconfig",
+						DockerConfig: &DockerConfigSpec{
+							Registries: []RegistryAuthData{
+								{Collection: "test-platform-infra", Group: "build_farm", RegistryURL: "registry.ci.openshift.org", AuthField: "token"},
+							},
+						},
+						SyncToCluster: true,
+						Targets:       []TargetSpec{},
+					},
+				},
+			},
+			expectError:   true,
+			errorContains: "bundle test-dockerconfig has sync_to_cluster: true but no targets",
+		},
+		{
+			name: "error: target with empty cluster (dockerconfig bundle)",
+			config: GSMConfig{
+				Bundles: []GSMBundle{
+					{
+						Name: "test-dockerconfig",
+						DockerConfig: &DockerConfigSpec{
+							Registries: []RegistryAuthData{
+								{Collection: "test-platform-infra", Group: "build_farm", RegistryURL: "registry.ci.openshift.org", AuthField: "token"},
+							},
+						},
+						SyncToCluster: true,
+						Targets: []TargetSpec{
+							{Cluster: "", Namespace: "ci"},
+						},
+					},
+				},
+			},
+			expectError:   true,
+			errorContains: "has empty cluster",
+		},
+		{
+			name: "error: dockerconfig with sync_to_cluster false",
+			config: GSMConfig{
+				Bundles: []GSMBundle{
+					{
+						Name: "test-dockerconfig-bundle",
+						DockerConfig: &DockerConfigSpec{
+							Registries: []RegistryAuthData{
+								{Collection: "test-platform-infra", Group: "build_farm", RegistryURL: "registry.ci.openshift.org", AuthField: "token"},
+							},
+						},
+						SyncToCluster: false,
+					},
+				},
+			},
+			expectError:   true,
+			errorContains: "bundle test-dockerconfig-bundle has dockerconfig but sync_to_cluster is false - dockerconfig bundles must have sync_to_cluster: true",
+		},
+		{
+			name: "valid: duplicate K8s Secret bundle name targeting same cluster (different namespaces)",
+			config: GSMConfig{
+				Bundles: []GSMBundle{
+					{
+						Name: "duplicate-bundle",
+						GSMSecrets: []GSMSecretRef{
+							{Collection: "test-secrets", Group: "group1", Fields: []FieldEntry{{Name: "token1"}}},
+						},
+						SyncToCluster: true,
+						Targets: []TargetSpec{
+							{Cluster: "build01", Namespace: "ci"},
+						},
+					},
+					{
+						Name: "duplicate-bundle",
+						GSMSecrets: []GSMSecretRef{
+							{Collection: "test-secrets2", Group: "group2", Fields: []FieldEntry{{Name: "token2"}}},
+						},
+						SyncToCluster: true,
+						Targets: []TargetSpec{
+							{Cluster: "build01", Namespace: "test-credentials"},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "error: duplicate CSI bundle names",
+			config: GSMConfig{
+				Bundles: []GSMBundle{
+					{
+						Name: "csi-bundle",
+						GSMSecrets: []GSMSecretRef{
+							{Collection: "test-secrets", Group: "group1", Fields: []FieldEntry{{Name: "token1"}}},
+						},
+						SyncToCluster: false,
+					},
+					{
+						Name: "csi-bundle",
+						GSMSecrets: []GSMSecretRef{
+							{Collection: "test-secrets", Group: "group2", Fields: []FieldEntry{{Name: "token2"}}},
+						},
+						SyncToCluster: false,
+					},
+				},
+			},
+			expectError:   true,
+			errorContains: "duplicate bundle name 'csi-bundle' - bundles with sync_to_cluster: false must have unique names",
+		},
+		{
+			name: "valid: same bundle name targeting different clusters (K8s Secret bundles)",
+			config: GSMConfig{
+				Bundles: []GSMBundle{
+					{
+						Name: "same-name",
+						GSMSecrets: []GSMSecretRef{
+							{Collection: "test-secrets", Group: "group1", Fields: []FieldEntry{{Name: "token1"}}},
+						},
+						SyncToCluster: true,
+						Targets: []TargetSpec{
+							{Cluster: "build01", Namespace: "ci"},
+						},
+					},
+					{
+						Name: "same-name",
+						GSMSecrets: []GSMSecretRef{
+							{Collection: "test-secrets", Group: "group2", Fields: []FieldEntry{{Name: "token2"}}},
+						},
+						SyncToCluster: true,
+						Targets: []TargetSpec{
+							{Cluster: "build02", Namespace: "ci"},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "valid: different bundle names targeting different clusters",
+			config: GSMConfig{
+				Bundles: []GSMBundle{
+					{
+						Name: "name",
+						GSMSecrets: []GSMSecretRef{
+							{Collection: "test-secrets", Group: "group1", Fields: []FieldEntry{{Name: "token1"}}},
+						},
+						SyncToCluster: true,
+						Targets: []TargetSpec{
+							{Cluster: "build01", Namespace: "ci"},
+						},
+					},
+					{
+						Name: "other-name",
+						GSMSecrets: []GSMSecretRef{
+							{Collection: "test-secrets", Group: "group2", Fields: []FieldEntry{{Name: "token2"}}},
+						},
+						SyncToCluster: true,
+						Targets: []TargetSpec{
+							{Cluster: "build01", Namespace: "ci"},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
 	}
 
 	for _, tc := range testCases {

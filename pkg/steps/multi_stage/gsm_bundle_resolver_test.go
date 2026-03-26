@@ -235,6 +235,84 @@ func TestResolveCredentialReferences(t *testing.T) {
 			},
 		},
 		{
+			name: "bundle with sync_to_cluster: true and dockerconfig - converts to K8s Secret reference",
+			credentials: []api.CredentialReference{
+				{
+					Bundle:    "docker-bundle",
+					Namespace: "test-credentials",
+					MountPath: "/tmp/docker",
+				},
+			},
+			gsmConfig: &api.GSMConfig{
+				Bundles: []api.GSMBundle{
+					{
+						Name:          "docker-bundle",
+						SyncToCluster: true,
+						Targets: []api.TargetSpec{
+							{Cluster: "build01", Namespace: "ci"},
+						},
+						DockerConfig: &api.DockerConfigSpec{
+							Registries: []api.RegistryAuthData{
+								{Collection: "creds", Group: "registry", RegistryURL: "registry.ci.openshift.org", AuthField: "auth"},
+							},
+						},
+					},
+				},
+			},
+			expected: []api.CredentialReference{
+				{Namespace: "test-credentials", Name: "docker-bundle", MountPath: "/tmp/docker"},
+			},
+		},
+		{
+			name: "bundle with sync_to_cluster: true - converts to K8s Secret reference",
+			credentials: []api.CredentialReference{
+				{
+					Bundle:    "k8s-secret-bundle",
+					Namespace: "test-credentials",
+					MountPath: "/tmp/k8s-secret",
+				},
+			},
+			gsmConfig: &api.GSMConfig{
+				Bundles: []api.GSMBundle{
+					{
+						Name:          "k8s-secret-bundle",
+						SyncToCluster: true,
+						Targets: []api.TargetSpec{
+							{Cluster: "build01", Namespace: "ci"},
+							{Cluster: "build02", Namespace: "ci"},
+						},
+						GSMSecrets: []api.GSMSecretRef{
+							{Collection: "creds", Group: "aws", Fields: []api.FieldEntry{{Name: "key"}}},
+						},
+					},
+				},
+			},
+			expected: []api.CredentialReference{
+				{Namespace: "test-credentials", Name: "k8s-secret-bundle", MountPath: "/tmp/k8s-secret"},
+			},
+		},
+		{
+			name: "error: bundle with sync_to_cluster: true but no namespace",
+			credentials: []api.CredentialReference{
+				{
+					Bundle:    "k8s-secret-bundle",
+					MountPath: "/tmp/k8s-secret",
+				},
+			},
+			gsmConfig: &api.GSMConfig{
+				Bundles: []api.GSMBundle{
+					{
+						Name:          "k8s-secret-bundle",
+						SyncToCluster: true,
+						Targets: []api.TargetSpec{
+							{Cluster: "build01", Namespace: "ci"},
+						},
+					},
+				},
+			},
+			expectedError: errors.New("bundle \"k8s-secret-bundle\" has sync_to_cluster: true but credential has no namespace specified"),
+		},
+		{
 			name: "error: bundle not found in config",
 			credentials: []api.CredentialReference{
 				{Bundle: "non-existent-bundle", MountPath: "/tmp/test"},

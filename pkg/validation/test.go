@@ -798,36 +798,43 @@ func validateCredentials(fieldRoot string, credentials []api.CredentialReference
 	for i, credential := range credentials {
 		// TODO: simplify once we are not supporting the old system anymore
 		if credential.Field != "" || credential.Group != "" || credential.Collection != "" || credential.Bundle != "" {
-			if credential.Name != "" || credential.Namespace != "" {
-				errs = append(errs, fmt.Errorf("%s.credentials[%d]: cannot use fields (name, namespace) with CSI fields (bundle, collection, group, field)", fieldRoot, i))
+			if credential.Name != "" {
+				errs = append(errs, fmt.Errorf("%s.credentials[%d]: `name` cannot be used with `bundle`, `collection`, `group`, or `field`", fieldRoot, i))
 			}
 			if credential.As != "" && credential.Field == "" {
-				errs = append(errs, fmt.Errorf("%s.credentials[%d]: must provide 'field' when 'as' is specified", fieldRoot, i))
+				errs = append(errs, fmt.Errorf("%s.credentials[%d]: `field` is required when `as` is specified", fieldRoot, i))
 			} else if credential.IsBundleReference() {
+				// Bundles do allow Namespace field (when it has sync_to_cluster: true)
 				if credential.Collection != "" || credential.Group != "" || credential.Field != "" {
-					errs = append(errs, fmt.Errorf("%s.credentials[%d]: bundle is mutually exclusive with collection, group, and field", fieldRoot, i))
+					errs = append(errs, fmt.Errorf("%s.credentials[%d]: `bundle` cannot be used with `collection`, `group`, or `field`", fieldRoot, i))
 				}
 			} else if credential.IsAutoDiscovery() {
 				if credential.Bundle != "" {
-					errs = append(errs, fmt.Errorf("%s.credentials[%d]: bundle is mutually exclusive with collection, group, and field", fieldRoot, i))
+					errs = append(errs, fmt.Errorf("%s.credentials[%d]: `bundle` cannot be used with `collection`, `group`, or `field`", fieldRoot, i))
+				}
+				if credential.Namespace != "" {
+					errs = append(errs, fmt.Errorf("%s.credentials[%d]: `namespace` cannot be used with `collection`, `group`, or `field`", fieldRoot, i))
 				}
 			} else if credential.IsExplicitField() {
 				if credential.Bundle != "" {
-					errs = append(errs, fmt.Errorf("%s.credentials[%d]: bundle is mutually exclusive with collection, group, and field", fieldRoot, i))
+					errs = append(errs, fmt.Errorf("%s.credentials[%d]: `bundle` cannot be used with `collection`, `group`, or `field`", fieldRoot, i))
+				}
+				if credential.Namespace != "" {
+					errs = append(errs, fmt.Errorf("%s.credentials[%d]: `namespace` cannot be used with `collection`, `group`, or `field`", fieldRoot, i))
 				}
 			} else {
-				errs = append(errs, fmt.Errorf("%s.credentials[%d]: invalid CSI credential reference, must provide bundle, collection+group (auto-discovery), or collection+group+field", fieldRoot, i))
+				errs = append(errs, fmt.Errorf("%s.credentials[%d]: must specify `bundle`, `collection`+`group`, or `collection`+`group`+`field`", fieldRoot, i))
 			}
 		} else {
 			if credential.Name == "" {
-				errs = append(errs, fmt.Errorf("%s.credentials[%d].name cannot be empty", fieldRoot, i))
+				errs = append(errs, fmt.Errorf("%s.credentials[%d]: `name` is required", fieldRoot, i))
 			}
 			if credential.Namespace == "" {
-				errs = append(errs, fmt.Errorf("%s.credentials[%d].namespace cannot be empty", fieldRoot, i))
+				errs = append(errs, fmt.Errorf("%s.credentials[%d]: `namespace` is required", fieldRoot, i))
 			}
 		}
 		if credential.MountPath == "" {
-			errs = append(errs, fmt.Errorf("%s.credentials[%d].mountPath cannot be empty", fieldRoot, i))
+			errs = append(errs, fmt.Errorf("%s.credentials[%d]: `mountPath` is required", fieldRoot, i))
 		} else if !filepath.IsAbs(credential.MountPath) {
 			errs = append(errs, fmt.Errorf("%s.credentials[%d].mountPath is not absolute: %s", fieldRoot, i, credential.MountPath))
 		}
