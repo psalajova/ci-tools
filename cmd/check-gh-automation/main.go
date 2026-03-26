@@ -132,10 +132,7 @@ func main() {
 			logger.Fatalf("error loading configurations: %v", err)
 		}
 	}
-	failing, err := checkRepos(repos, o.bots.Strings(), o.appName, o.ignore.StringSet(), appCheckMode(o.appCheckMode), o.checkBranchProtection, configs, client, logger, pluginAgent, tideQueries, prowAgent)
-	if err != nil {
-		logger.Fatalf("error checking repos: %v", err)
-	}
+	failing := checkRepos(repos, o.bots.Strings(), o.appName, o.ignore.StringSet(), appCheckMode(o.appCheckMode), o.checkBranchProtection, configs, client, logger, pluginAgent, tideQueries, prowAgent)
 
 	if len(failing) > 0 {
 		logger.Fatalf("Repo(s) missing github automation: %s", strings.Join(failing, ", "))
@@ -157,9 +154,11 @@ func determineRepos(o options, prowAgent *prowconfig.Agent, logger *logrus.Entry
 	return sets.List(prowAgent.Config().AllRepos)
 }
 
-func checkRepos(repos []string, bots []string, appName string, ignore sets.Set[string], mode appCheckMode, checkBranchProtection bool, configs *config.ReleaseRepoConfig, client automationClient, logger *logrus.Entry, pluginAgent *plugins.ConfigAgent, tideQueries *prowconfig.QueryMap, prowAgent *prowconfig.Agent) ([]string, error) {
+func checkRepos(repos []string, bots []string, appName string, ignore sets.Set[string], mode appCheckMode, checkBranchProtection bool, configs *config.ReleaseRepoConfig, client automationClient, logger *logrus.Entry, pluginAgent *plugins.ConfigAgent, tideQueries *prowconfig.QueryMap, prowAgent *prowconfig.Agent) []string {
 	logger.Infof("checking %d repo(s): %s", len(repos), strings.Join(repos, ", "))
 	failing := sets.New[string]()
+	var errs []error
+repoLoop:
 	for _, orgRepo := range repos {
 		split := strings.Split(orgRepo, "/")
 		org, repo := split[0], split[1]
@@ -175,8 +174,10 @@ func checkRepos(repos []string, bots []string, appName string, ignore sets.Set[s
 
 		fullRepo, err := client.GetRepo(org, repo)
 		if err != nil {
-			logger.Errorf("Error obtaining repository from github: %s/%s: %v", org, repo, err)
-			return nil, fmt.Errorf("error obtaining repository from github: %s/%s: %w", org, repo, err)
+			repoLogger.WithError(err).Error("Error obtaining repository from github")
+			failing.Insert(orgRepo)
+			errs = append(errs, fmt.Errorf("error obtaining repository from github: %s/%s: %w", org, repo, err))
+			continue
 		}
 
 		configData, found := config.DataWithInfo{}, false
@@ -204,7 +205,10 @@ func checkRepos(repos []string, bots []string, appName string, ignore sets.Set[s
 			for _, bot := range bots {
 				isMember, err := client.IsMember(org, bot)
 				if err != nil {
-					return nil, fmt.Errorf("unable to determine if: %s is a member of %s: %w", bot, org, err)
+					repoLogger.WithError(err).Errorf("unable to determine if %s is a member of %s", bot, org)
+					failing.Insert(orgRepo)
+					errs = append(errs, fmt.Errorf("unable to determine if: %s is a member of %s: %w", bot, org, err))
+					continue repoLoop
 				}
 				if isMember {
 					repoLogger.WithField("bot", bot).Info("bot is an org member")
@@ -213,7 +217,10 @@ func checkRepos(repos []string, bots []string, appName string, ignore sets.Set[s
 
 				isCollaborator, err := client.IsCollaborator(org, repo, bot)
 				if err != nil {
-					return nil, fmt.Errorf("unable to determine if: %s is a collaborator on %s/%s: %w", bot, org, repo, err)
+					repoLogger.WithError(err).Errorf("unable to determine if %s is a collaborator on %s/%s", bot, org, repo)
+					failing.Insert(orgRepo)
+					errs = append(errs, fmt.Errorf("unable to determine if: %s is a collaborator on %s/%s: %w", bot, org, repo, err))
+					continue repoLoop
 				}
 				if !isCollaborator {
 					missingBots = append(missingBots, bot)
@@ -252,10 +259,11 @@ func checkRepos(repos []string, bots []string, appName string, ignore sets.Set[s
 					if fullRepo.Owner.Type == "Organization" {
 						fullOrg, err := client.GetOrg(org)
 						if err != nil {
-							logger.Errorf("Error obtaining org from github: %s: %v", org, err)
-							return nil, fmt.Errorf("error obtaining org from github: %s: %w", org, err)
-						}
-						if fullOrg.Plan.Name == "free" {
+							repoLogger.WithError(err).Errorf("Error obtaining org from github: %s", org)
+							failing.Insert(orgRepo)
+							errs = append(errs, fmt.Errorf("error obtaining org from github: %s: %w", org, err))
+							continue repoLoop
+						} else if fullOrg.Plan.Name == "free" {
 							logger.Errorf("Branch protection is enabled, the org %s has a free plan, the repository %s must be public", org, repo)
 							failing.Insert(orgRepo)
 						}
@@ -267,10 +275,11 @@ func checkRepos(repos []string, bots []string, appName string, ignore sets.Set[s
 
 				hasAdminAccess, err := client.HasPermission(org, repo, branchProtectionRobot, "admin")
 				if err != nil {
-					logger.Errorf("Error checking admin access for bot %s in %s/%s: %v", branchProtectionRobot, org, repo, err)
-					return nil, fmt.Errorf("error checking admin access for bot %s in %s/%s: %w", branchProtectionRobot, org, repo, err)
-				}
-				if !hasAdminAccess {
+					repoLogger.WithError(err).Errorf("Error checking admin access for bot %s", branchProtectionRobot)
+					failing.Insert(orgRepo)
+					errs = append(errs, fmt.Errorf("error checking admin access for bot %s in %s/%s: %w", branchProtectionRobot, org, repo, err))
+					continue repoLoop
+				} else if !hasAdminAccess {
 					logger.Errorf("Bot %s does not have admin access in %s/%s with branch protection enabled", branchProtectionRobot, org, repo)
 					failing.Insert(orgRepo)
 				} else {
@@ -290,11 +299,17 @@ func checkRepos(repos []string, bots []string, appName string, ignore sets.Set[s
 				if plugin.Name == cherrypickPlugin {
 					isMember, err := client.IsMember(org, cherrypickRobot)
 					if err != nil {
-						return nil, fmt.Errorf("failed to determine membership status of 'openshift-cherrypick-robot' in '%s': %w", org, err)
+						repoLogger.WithError(err).Errorf("failed to determine membership status of '%s' in '%s'", cherrypickRobot, org)
+						failing.Insert(orgRepo)
+						errs = append(errs, fmt.Errorf("failed to determine membership status of 'openshift-cherrypick-robot' in '%s': %w", org, err))
+						continue repoLoop
 					}
 					hasAccess, err := client.HasPermission(org, repo, cherrypickRobot, "read", "write", "admin")
 					if err != nil {
-						return nil, fmt.Errorf("error checking access level (read/write/admin) for 'openshift-cherrypick-robot' in '%s/%s': %w", org, repo, err)
+						repoLogger.WithError(err).Errorf("error checking access level for '%s' in '%s/%s'", cherrypickRobot, org, repo)
+						failing.Insert(orgRepo)
+						errs = append(errs, fmt.Errorf("error checking access level (read/write/admin) for 'openshift-cherrypick-robot' in '%s/%s': %w", org, repo, err))
+						continue repoLoop
 					}
 					if !isMember && !hasAccess {
 						repoLogger.Errorf("'openshift-cherrypick-robot' lacks required permissions (read/write/admin) or org membership in '%s/%s'", org, repo)
@@ -319,9 +334,10 @@ func checkRepos(repos []string, bots []string, appName string, ignore sets.Set[s
 		if checkAppInstall {
 			appInstalled, err := client.IsAppInstalled(org, repo)
 			if err != nil {
-				return nil, fmt.Errorf("unable to determine if %s app is installed on %s/%s: %w", appName, org, repo, err)
-			}
-			if !appInstalled {
+				repoLogger.WithError(err).Errorf("unable to determine if %s app is installed", appName)
+				failing.Insert(orgRepo)
+				errs = append(errs, fmt.Errorf("unable to determine if %s app is installed on %s/%s: %w", appName, org, repo, err))
+			} else if !appInstalled {
 				failing.Insert(orgRepo)
 				repoLogger.Errorf("%s app is not installed for repo", appName)
 			} else {
@@ -330,7 +346,11 @@ func checkRepos(repos []string, bots []string, appName string, ignore sets.Set[s
 		}
 	}
 
-	return sets.List(failing), nil
+	if len(errs) > 0 {
+		logger.Errorf("Encountered %d error(s) while checking repos", len(errs))
+	}
+
+	return sets.List(failing)
 }
 
 const maxRepos = 10

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -16,7 +15,6 @@ import (
 
 	cioperatorapi "github.com/openshift/ci-tools/pkg/api"
 	"github.com/openshift/ci-tools/pkg/config"
-	"github.com/openshift/ci-tools/pkg/testhelper"
 )
 
 type fakeAutomationClient struct {
@@ -172,7 +170,7 @@ func (c fakeAutomationClient) IsMember(org, user string) (bool, error) {
 		}
 	}
 	if org == "fake" {
-		return false, errors.New("intentional error")
+		return false, fmt.Errorf("intentional error")
 	}
 
 	return false, nil
@@ -187,7 +185,7 @@ func (c fakeAutomationClient) IsCollaborator(org, repo, user string) (bool, erro
 		}
 	}
 	if repo == "fake" {
-		return false, errors.New("intentional error")
+		return false, fmt.Errorf("intentional error")
 	}
 
 	return false, nil
@@ -195,7 +193,7 @@ func (c fakeAutomationClient) IsCollaborator(org, repo, user string) (bool, erro
 
 func (c fakeAutomationClient) IsAppInstalled(org, repo string) (bool, error) {
 	if repo == "error" {
-		return false, errors.New("intentional error")
+		return false, fmt.Errorf("intentional error")
 	}
 
 	orgRepo := fmt.Sprintf("%s/%s", org, repo)
@@ -204,7 +202,11 @@ func (c fakeAutomationClient) IsAppInstalled(org, repo string) (bool, error) {
 
 func (c fakeAutomationClient) GetRepo(owner, name string) (github.FullRepo, error) {
 	orgRepo := fmt.Sprintf("%s/%s", owner, name)
-	return c.repos[orgRepo], nil
+	repo, ok := c.repos[orgRepo]
+	if !ok {
+		return github.FullRepo{}, fmt.Errorf("repository not found: %s", orgRepo)
+	}
+	return repo, nil
 }
 
 func (c fakeAutomationClient) GetOrg(org string) (*github.Organization, error) {
@@ -215,6 +217,8 @@ func (c fakeAutomationClient) GetOrg(org string) (*github.Organization, error) {
 func TestCheckRepos(t *testing.T) {
 	client := fakeAutomationClient{
 		repos: map[string]github.FullRepo{
+			"fake/repo":    {Repo: github.Repo{Owner: github.User{Type: "Organization"}}},
+			"org-1/repo-a": {Repo: github.Repo{Owner: github.User{Type: "Organization"}}},
 			"org-1/repo-c": {
 				Repo: github.Repo{
 					Owner:     github.User{Type: "Organization"},
@@ -229,6 +233,11 @@ func TestCheckRepos(t *testing.T) {
 					HasIssues: true,
 				},
 			},
+			"org-1/fake":   {Repo: github.Repo{Owner: github.User{Type: "Organization"}}},
+			"org-1/error":  {Repo: github.Repo{Owner: github.User{Type: "Organization"}}},
+			"org-2/repo-z": {Repo: github.Repo{Owner: github.User{Type: "Organization"}}},
+			"org-3/repo-y": {Repo: github.Repo{Owner: github.User{Type: "Organization"}}},
+			"org-3/repo-z": {Repo: github.Repo{Owner: github.User{Type: "Organization"}}},
 			"org-5/repo-a": {
 				Repo: github.Repo{
 					Owner:     github.User{Type: "Organization"},
@@ -236,6 +245,8 @@ func TestCheckRepos(t *testing.T) {
 					HasIssues: false,
 				},
 			},
+			"org-5/repo-b": {Repo: github.Repo{Owner: github.User{Type: "Organization"}}},
+			"org-5/repo-c": {Repo: github.Repo{Owner: github.User{Type: "Organization"}}},
 			"org-5/repo-d": {
 				Repo: github.Repo{
 					Owner:     github.User{Type: "Organization"},
@@ -243,6 +254,7 @@ func TestCheckRepos(t *testing.T) {
 					HasIssues: false,
 				},
 			},
+			"org-6/repo-a": {Repo: github.Repo{Owner: github.User{Type: "Organization"}}},
 			"user-1/repo-a": {
 				Repo: github.Repo{
 					Owner:   github.User{Type: "User"},
@@ -301,9 +313,8 @@ func TestCheckRepos(t *testing.T) {
 		adminBots []string
 		mode      appCheckMode
 
-		ignore      sets.Set[string]
-		expected    []string
-		expectedErr error
+		ignore   sets.Set[string]
+		expected []string
 	}{
 		{
 			name:     "org has bots as members",
@@ -370,25 +381,32 @@ func TestCheckRepos(t *testing.T) {
 			expected: []string{},
 		},
 		{
-			name:        "org member check returns error",
-			repos:       []string{"fake/repo"},
-			bots:        []string{"a-bot"},
-			mode:        standard,
-			expectedErr: errors.New("unable to determine if: a-bot is a member of fake: intentional error"),
+			name:     "org member check returns error, repo marked failing and processing continues",
+			repos:    []string{"fake/repo", "org-1/repo-a"},
+			bots:     []string{"a-bot"},
+			mode:     standard,
+			expected: []string{"fake/repo"},
 		},
 		{
-			name:        "collaborator check returns error",
-			repos:       []string{"org-1/fake"},
-			bots:        []string{"a-bot"},
-			mode:        standard,
-			expectedErr: errors.New("unable to determine if: a-bot is a collaborator on org-1/fake: intentional error"),
+			name:     "collaborator check returns error, repo marked failing and processing continues",
+			repos:    []string{"org-1/fake", "org-1/repo-a"},
+			bots:     []string{"a-bot"},
+			mode:     standard,
+			expected: []string{"org-1/fake"},
 		},
 		{
-			name:        "app install check returns error",
-			repos:       []string{"org-1/error"},
-			bots:        []string{"a-bot"},
-			mode:        standard,
-			expectedErr: errors.New("unable to determine if openshift-ci app is installed on org-1/error: intentional error"),
+			name:     "app install check returns error, repo marked failing and processing continues",
+			repos:    []string{"org-1/error", "org-1/repo-a"},
+			bots:     []string{"a-bot"},
+			mode:     standard,
+			expected: []string{"org-1/error"},
+		},
+		{
+			name:     "nonexistent repo is marked failing and remaining repos still checked",
+			repos:    []string{"org-1/nonexistent", "org-1/repo-a"},
+			bots:     []string{"d-bot"},
+			mode:     standard,
+			expected: []string{"org-1/nonexistent"},
 		},
 		{
 			name:     "app install check in tide mode successful when app installed and query exists",
@@ -486,10 +504,7 @@ func TestCheckRepos(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			logrus.Infof("Testing %s", tc.name)
-			failing, err := checkRepos(tc.repos, tc.bots, "openshift-ci", tc.ignore, tc.mode, true, newFakeConfiguration(), client, logrus.NewEntry(logrus.New()), newFakePluginConfigAgent(), newFakeProwConfigAgent().Config().Tide.Queries.QueryMap(), newFakeProwConfigAgent())
-			if diff := cmp.Diff(tc.expectedErr, err, testhelper.EquateErrorMessage); diff != "" {
-				t.Fatalf("error doesn't match expected, diff: %s", diff)
-			}
+			failing := checkRepos(tc.repos, tc.bots, "openshift-ci", tc.ignore, tc.mode, true, newFakeConfiguration(), client, logrus.NewEntry(logrus.New()), newFakePluginConfigAgent(), newFakeProwConfigAgent().Config().Tide.Queries.QueryMap(), newFakeProwConfigAgent())
 			if diff := cmp.Diff(tc.expected, failing); diff != "" {
 				t.Fatalf("returned failing repos did not match expected, diff: %s", diff)
 			}
