@@ -1300,8 +1300,8 @@ func TestValidateCredentials(t *testing.T) {
 		{
 			name: "normal creds means no error",
 			input: []api.CredentialReference{
-				{Namespace: "ns", Name: "name", MountPath: "/foo"},
-				{Namespace: "ns", Name: "name", MountPath: "/bar"},
+				{Namespace: "ns", Name: "name1", MountPath: "/foo"},
+				{Namespace: "ns", Name: "name2", MountPath: "/bar"},
 			},
 		},
 		{
@@ -1317,9 +1317,9 @@ func TestValidateCredentials(t *testing.T) {
 		{
 			name: "subdir cred mount path means error",
 			input: []api.CredentialReference{
-				{Namespace: "ns", Name: "name", MountPath: "/foo/bar"},
-				{Namespace: "ns", Name: "name", MountPath: "/foo"},
-				{Namespace: "ns", Name: "name", MountPath: "/foo/bar/baz"},
+				{Namespace: "ns", Name: "name1", MountPath: "/foo/bar"},
+				{Namespace: "ns", Name: "name2", MountPath: "/foo"},
+				{Namespace: "ns", Name: "name3", MountPath: "/foo/bar/baz"},
 			},
 			output: []error{
 				errors.New("root.credentials[0] mounts at /foo/bar, which is under credentials[1] (/foo)"),
@@ -1330,8 +1330,8 @@ func TestValidateCredentials(t *testing.T) {
 		{
 			name: "substring cred mount path means no error",
 			input: []api.CredentialReference{
-				{Namespace: "ns", Name: "name", MountPath: "/foo-bar"},
-				{Namespace: "ns", Name: "name", MountPath: "/foo"},
+				{Namespace: "ns", Name: "name1", MountPath: "/foo-bar"},
+				{Namespace: "ns", Name: "name2", MountPath: "/foo"},
 			},
 		},
 		{
@@ -1581,6 +1581,70 @@ func TestValidateCredentials(t *testing.T) {
 			output: []error{
 				errors.New("root.credentials[0]: `name` cannot be used with `bundle`, `collection`, `group`, or `field`"),
 				errors.New("root.credentials[0]: `namespace` cannot be used with `collection`, `group`, or `field`"),
+			},
+		},
+		{
+			name: "duplicate bundles with empty namespace means error",
+			input: []api.CredentialReference{
+				{Bundle: "ci-pull-credentials", Namespace: "", MountPath: "/tmp/pull-secret"},
+				{Bundle: "ci-pull-credentials", Namespace: "", MountPath: "/tmp/import-secret"},
+			},
+			output: []error{
+				errors.New("root.credentials[0] and credentials[1] reference the same bundle \"ci-pull-credentials\""),
+			},
+		},
+		{
+			name: "duplicate bundles with mixed namespaces (one empty, one not) means error",
+			input: []api.CredentialReference{
+				{Bundle: "my-bundle", Namespace: "", MountPath: "/tmp/secret1"},
+				{Bundle: "my-bundle", Namespace: "test-credentials", MountPath: "/tmp/secret2"},
+			},
+			output: []error{
+				errors.New("root.credentials[0] and credentials[1] reference the same bundle \"my-bundle\""),
+			},
+		},
+		{
+			name: "duplicate bundles with same namespace means error",
+			input: []api.CredentialReference{
+				{Bundle: "ci-pull-credentials", Namespace: "test-credentials", MountPath: "/tmp/pull-secret"},
+				{Bundle: "ci-pull-credentials", Namespace: "test-credentials", MountPath: "/tmp/import-secret"},
+			},
+			output: []error{
+				errors.New("root.credentials[0] and credentials[1] reference the same bundle \"ci-pull-credentials\""),
+			},
+		},
+		{
+			name: "duplicate bundle with different namespaces also means error",
+			input: []api.CredentialReference{
+				{Bundle: "my-bundle", Namespace: "ns1", MountPath: "/tmp/secret1"},
+				{Bundle: "my-bundle", Namespace: "ns2", MountPath: "/tmp/secret2"},
+			},
+			output: []error{
+				errors.New("root.credentials[0] and credentials[1] reference the same bundle \"my-bundle\""),
+			},
+		},
+		{
+			name: "duplicate name credentials with same namespace means error",
+			input: []api.CredentialReference{
+				{Name: "my-secret", Namespace: "test-credentials", MountPath: "/tmp/secret1"},
+				{Name: "my-secret", Namespace: "test-credentials", MountPath: "/tmp/secret2"},
+			},
+			output: []error{
+				errors.New("root.credentials[0] and credentials[1] reference the same secret (test-credentials/my-secret), which would create a duplicate Kubernetes volume name"),
+			},
+		},
+		{
+			name: "different bundles is valid",
+			input: []api.CredentialReference{
+				{Bundle: "bundle1", Namespace: "ns", MountPath: "/tmp/secret1"},
+				{Bundle: "bundle2", Namespace: "ns", MountPath: "/tmp/secret2"},
+			},
+		},
+		{
+			name: "bundle and GSM credentials together is valid",
+			input: []api.CredentialReference{
+				{Bundle: "my-bundle", Namespace: "ns", MountPath: "/tmp/bundle"},
+				{Collection: "coll", Group: "grp", Field: "fld", MountPath: "/tmp/gsm"},
 			},
 		},
 	}

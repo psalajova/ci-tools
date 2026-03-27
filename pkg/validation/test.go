@@ -844,6 +844,19 @@ func validateCredentials(fieldRoot string, credentials []api.CredentialReference
 				errs = append(errs, fmt.Errorf("%s.credentials[%d] and credentials[%d] mount to the same location (%s), which would result in a collision", fieldRoot, i, index, credential.MountPath))
 				continue
 			}
+			// Check for duplicate credential sources that would create duplicate Kubernetes volume names (= k8s error).
+			if (credential.Bundle != "" && other.Bundle != "") && (credential.Bundle == other.Bundle) {
+				errs = append(errs, fmt.Errorf("%s.credentials[%d] and credentials[%d] reference the same bundle %q", fieldRoot, i, index, credential.Bundle))
+				continue
+			}
+			if credential.Namespace != "" && other.Namespace != "" {
+				if credential.Name != "" && other.Name != "" {
+					if credential.Namespace == other.Namespace && credential.Name == other.Name {
+						errs = append(errs, fmt.Errorf("%s.credentials[%d] and credentials[%d] reference the same secret (%s/%s), which would create a duplicate Kubernetes volume name", fieldRoot, i, index, credential.Namespace, credential.Name))
+						continue
+					}
+				}
+			}
 			// we can make a couple of assumptions here to improve our check:
 			//  - valid mount paths must be absolute paths
 			//  - given two absolute paths, a relative path between A and B will
