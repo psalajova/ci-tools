@@ -4,10 +4,11 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/utils/ptr"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/openshift/ci-tools/pkg/api"
 	"github.com/openshift/ci-tools/pkg/config"
 )
@@ -307,7 +308,10 @@ func TestCIOperatorConfigsCallback(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			gotConfigsByRepo := make(configsByRepo)
 			callback := ciOperatorConfigsCallback(tc.opts, gotConfigsByRepo)
-			callback(tc.rbc, tc.repoInfo)
+
+			if err := callback(tc.rbc, tc.repoInfo); err != nil {
+				t.Fatalf("callback error: %s", err)
+			}
 
 			if diff := cmp.Diff(tc.wantConfigsByRepo, gotConfigsByRepo); diff != "" {
 				t.Errorf("unexpected configs: %s", diff)
