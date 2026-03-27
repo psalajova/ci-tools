@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -93,8 +94,8 @@ func (s *jobNameGenerator) GenerateJobNames() ([]string, error) {
 		}
 		err = func() error {
 			defer resp.Body.Close()
-			if resp.StatusCode == 404 {
-				// TRT may define releases prior to branch cut for sippy's use; ignore these if not defined
+			if resp.StatusCode == 404 && strings.Contains(url, "release-5.0") && time.Now().Format(time.DateOnly) < "2026-05-01" {
+				// TRT defined the 5.0 release prior to branch cut for sippy's use; ignore if not defined
 				fmt.Println("SKIPPING release because URL is 404 not found: " + url)
 				return nil
 			} else if resp.StatusCode < 200 || resp.StatusCode > 299 {
