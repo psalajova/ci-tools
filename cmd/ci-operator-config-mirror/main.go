@@ -107,7 +107,81 @@ func main() {
 	}()
 
 	configsByRepo := make(configsByRepo)
-	callback := func(rbc *api.ReleaseBuildConfiguration, repoInfo *config.Info) error {
+	callback := ciOperatorConfigsCallback(o, configsByRepo)
+
+	if err := o.OperateOnCIOperatorConfigDir(o.ConfigDir, callback); err != nil {
+		logrus.WithError(err).Fatal("error while operating in the ci-operator configuration files")
+	}
+
+	dest := filepath.Join(o.ConfigDir, o.toOrg)
+	logger := logrus.WithField("destination", dest)
+	if o.clean {
+		logger.Info("Cleaning destination's sub directories")
+		if err := configsByRepo.cleanDestinationSubdirs(dest); err != nil {
+			logger.WithError(err).Fatal("couldn't cleanup destination's subdirectories")
+		}
+	}
+
+	logger.Info("Generating configurations...")
+	if err := configsByRepo.generateConfigs(o.ConfigDir); err != nil {
+		logger.WithError(err).Fatal("couldn't generate configurations")
+	}
+}
+
+func privateReleaseTagConfiguration(tagSpecification *api.ReleaseTagConfiguration) {
+	if tagSpecification.Namespace == ocpNamespace {
+		tagSpecification.Name = fmt.Sprintf("%s-priv", tagSpecification.Name)
+		tagSpecification.Namespace = privatePromotionNamespace
+	}
+}
+
+func privateIntegrationRelease(release *api.Integration) {
+	if release.Namespace == ocpNamespace {
+		release.Name = fmt.Sprintf("%s-priv", release.Name)
+		release.Namespace = privatePromotionNamespace
+	}
+}
+
+func privateBuildRoot(buildRoot *api.BuildRootImageConfiguration) {
+	if buildRoot.ImageStreamTagReference.Namespace == ocpNamespace {
+		buildRoot.ImageStreamTagReference.Name = fmt.Sprintf("%s-priv", buildRoot.ImageStreamTagReference.Name)
+		buildRoot.ImageStreamTagReference.Namespace = privatePromotionNamespace
+	}
+}
+
+func privateBaseImages(baseImages map[string]api.ImageStreamTagReference) {
+	for name, reference := range baseImages {
+		if reference.Namespace == ocpNamespace && api.IsValidOCPVersion(reference.Name) {
+			reference.Name = fmt.Sprintf("%s-priv", reference.Name)
+			reference.Namespace = privatePromotionNamespace
+			baseImages[name] = reference
+		}
+	}
+}
+
+func privatePromotionConfiguration(promotion *api.PromotionConfiguration) {
+	for i := range promotion.Targets {
+		if promotion.Targets[i].Namespace == ocpNamespace {
+			if promotion.Targets[i].Name != "" {
+				promotion.Targets[i].Name = fmt.Sprintf("%s-priv", promotion.Targets[i].Name)
+			} else { // promotion.Targets[i].Tag must be set
+				promotion.Targets[i].Tag = fmt.Sprintf("%s-priv", promotion.Targets[i].Tag)
+			}
+			promotion.Targets[i].TagByCommit = false // Never use tag_by_commit for mirrored repos
+			promotion.Targets[i].Namespace = privatePromotionNamespace
+		} else {
+			// Disable this target or it will conflict with its non `-priv` counterpart
+			promotion.Targets[i].Disabled = true
+		}
+	}
+}
+
+func strP(str string) *string {
+	return &str
+}
+
+func ciOperatorConfigsCallback(o options, configsByRepo configsByRepo) func(rbc *api.ReleaseBuildConfiguration, repoInfo *config.Info) error {
+	return func(rbc *api.ReleaseBuildConfiguration, repoInfo *config.Info) error {
 		logger := logrus.WithFields(logrus.Fields{"org": repoInfo.Org, "repo": repoInfo.Repo, "branch": repoInfo.Branch})
 
 		if repoInfo.Org == o.toOrg {
@@ -186,81 +260,14 @@ func main() {
 
 		repoInfo.Org = o.toOrg
 		rbc.Metadata.Org = o.toOrg
-		configsByRepo[repoInfo.Repo] = append(configsByRepo[repoInfo.Repo], config.DataWithInfo{
-			Configuration: *rbc,
-			Info:          *repoInfo,
-		})
+
+		if len(rbc.Tests) > 0 || len(rbc.Images) > 0 {
+			configsByRepo[repoInfo.Repo] = append(configsByRepo[repoInfo.Repo], config.DataWithInfo{
+				Configuration: *rbc,
+				Info:          *repoInfo,
+			})
+		}
 
 		return nil
 	}
-
-	if err := o.OperateOnCIOperatorConfigDir(o.ConfigDir, callback); err != nil {
-		logrus.WithError(err).Fatal("error while operating in the ci-operator configuration files")
-	}
-
-	dest := filepath.Join(o.ConfigDir, o.toOrg)
-	logger := logrus.WithField("destination", dest)
-	if o.clean {
-		logger.Info("Cleaning destination's sub directories")
-		if err := configsByRepo.cleanDestinationSubdirs(dest); err != nil {
-			logger.WithError(err).Fatal("couldn't cleanup destination's subdirectories")
-		}
-	}
-
-	logger.Info("Generating configurations...")
-	if err := configsByRepo.generateConfigs(o.ConfigDir); err != nil {
-		logger.WithError(err).Fatal("couldn't generate configurations")
-	}
-}
-
-func privateReleaseTagConfiguration(tagSpecification *api.ReleaseTagConfiguration) {
-	if tagSpecification.Namespace == ocpNamespace {
-		tagSpecification.Name = fmt.Sprintf("%s-priv", tagSpecification.Name)
-		tagSpecification.Namespace = privatePromotionNamespace
-	}
-}
-
-func privateIntegrationRelease(release *api.Integration) {
-	if release.Namespace == ocpNamespace {
-		release.Name = fmt.Sprintf("%s-priv", release.Name)
-		release.Namespace = privatePromotionNamespace
-	}
-}
-
-func privateBuildRoot(buildRoot *api.BuildRootImageConfiguration) {
-	if buildRoot.ImageStreamTagReference.Namespace == ocpNamespace {
-		buildRoot.ImageStreamTagReference.Name = fmt.Sprintf("%s-priv", buildRoot.ImageStreamTagReference.Name)
-		buildRoot.ImageStreamTagReference.Namespace = privatePromotionNamespace
-	}
-}
-
-func privateBaseImages(baseImages map[string]api.ImageStreamTagReference) {
-	for name, reference := range baseImages {
-		if reference.Namespace == ocpNamespace && api.IsValidOCPVersion(reference.Name) {
-			reference.Name = fmt.Sprintf("%s-priv", reference.Name)
-			reference.Namespace = privatePromotionNamespace
-			baseImages[name] = reference
-		}
-	}
-}
-
-func privatePromotionConfiguration(promotion *api.PromotionConfiguration) {
-	for i := range promotion.Targets {
-		if promotion.Targets[i].Namespace == ocpNamespace {
-			if promotion.Targets[i].Name != "" {
-				promotion.Targets[i].Name = fmt.Sprintf("%s-priv", promotion.Targets[i].Name)
-			} else { // promotion.Targets[i].Tag must be set
-				promotion.Targets[i].Tag = fmt.Sprintf("%s-priv", promotion.Targets[i].Tag)
-			}
-			promotion.Targets[i].TagByCommit = false // Never use tag_by_commit for mirrored repos
-			promotion.Targets[i].Namespace = privatePromotionNamespace
-		} else {
-			// Disable this target or it will conflict with its non `-priv` counterpart
-			promotion.Targets[i].Disabled = true
-		}
-	}
-}
-
-func strP(str string) *string {
-	return &str
 }

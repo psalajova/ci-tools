@@ -4,9 +4,13 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/utils/ptr"
 
 	"github.com/openshift/ci-tools/pkg/api"
+	"github.com/openshift/ci-tools/pkg/config"
 )
 
 func TestPrivateReleaseTagConfiguration(t *testing.T) {
@@ -230,6 +234,87 @@ func TestPrivatePromotionConfiguration(t *testing.T) {
 			privatePromotionConfiguration(tc.promotion)
 			if !reflect.DeepEqual(tc.promotion, tc.expected) {
 				t.Fatalf("Differences found: %v", diff.ObjectReflectDiff(tc.promotion, tc.expected))
+			}
+		})
+	}
+}
+
+func TestCIOperatorConfigsCallback(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		opts              options
+		rbc               *api.ReleaseBuildConfiguration
+		repoInfo          *config.Info
+		wantConfigsByRepo configsByRepo
+	}{
+		{
+			name: "Mirror a config",
+			opts: options{
+				toOrg:   "openshift-priv",
+				onlyOrg: "openshift",
+				WhitelistOptions: config.WhitelistOptions{
+					WhitelistConfig: config.WhitelistConfig{
+						Whitelist: map[string][]string{
+							"openshift": {"kubernetes"},
+						},
+					},
+				},
+			},
+			rbc: &api.ReleaseBuildConfiguration{
+				Tests: []api.TestStepConfiguration{{
+					As: "e2e",
+				}},
+			},
+			repoInfo: &config.Info{
+				Metadata: api.Metadata{
+					Org:  "openshift",
+					Repo: "kubernetes",
+				},
+			},
+			wantConfigsByRepo: configsByRepo{
+				"kubernetes": []config.DataWithInfo{{
+					Configuration: api.ReleaseBuildConfiguration{
+						Metadata:              api.Metadata{Org: "openshift-priv"},
+						CanonicalGoRepository: ptr.To("github.com/openshift/kubernetes"),
+						Tests:                 []api.TestStepConfiguration{{As: "e2e"}},
+					},
+					Info: config.Info{Metadata: api.Metadata{Org: "openshift-priv", Repo: "kubernetes"}},
+				}},
+			},
+		},
+		{
+			name: "Do not mirror config without tests and images",
+			opts: options{
+				toOrg:   "openshift-priv",
+				onlyOrg: "openshift",
+				WhitelistOptions: config.WhitelistOptions{
+					WhitelistConfig: config.WhitelistConfig{
+						Whitelist: map[string][]string{
+							"openshift": {"kubernetes"},
+						},
+					},
+				},
+			},
+			rbc: &api.ReleaseBuildConfiguration{},
+			repoInfo: &config.Info{
+				Metadata: api.Metadata{
+					Org:  "openshift",
+					Repo: "kubernetes",
+				},
+			},
+			wantConfigsByRepo: configsByRepo{},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gotConfigsByRepo := make(configsByRepo)
+			callback := ciOperatorConfigsCallback(tc.opts, gotConfigsByRepo)
+
+			if err := callback(tc.rbc, tc.repoInfo); err != nil {
+				t.Fatalf("callback error: %s", err)
+			}
+
+			if diff := cmp.Diff(tc.wantConfigsByRepo, gotConfigsByRepo); diff != "" {
+				t.Errorf("unexpected configs: %s", diff)
 			}
 		})
 	}
