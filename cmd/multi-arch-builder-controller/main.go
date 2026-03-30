@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/prow/pkg/logrusutil"
 
 	buildv1 "github.com/openshift/api/build/v1"
+	imagev1 "github.com/openshift/api/image/v1"
 
 	multiarchbuildconfigv1 "github.com/openshift/ci-tools/pkg/api/multiarchbuildconfig/v1"
 	"github.com/openshift/ci-tools/pkg/controller/multiarchbuildconfig"
@@ -80,6 +81,10 @@ func main() {
 
 	if err := buildv1.AddToScheme(mgr.GetScheme()); err != nil {
 		logrus.WithError(err).Fatal("Failed to add multiarchbuildconfig to scheme")
+	}
+
+	if err := imagev1.AddToScheme(mgr.GetScheme()); err != nil {
+		logrus.WithError(err).Fatal("Failed to add image API to scheme")
 	}
 
 	nodeArchitectures, err := resolveNodeArchitectures(ctx, kubeClient.Nodes())
