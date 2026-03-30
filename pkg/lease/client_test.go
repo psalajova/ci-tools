@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"k8s.io/apimachinery/pkg/util/diff"
 )
 
@@ -130,4 +132,55 @@ func TestHeartbeatRetries(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLeases(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		acquire    []string
+		release    []string
+		wantLeases []string
+	}{
+		{
+			name:       "Acquire several leases",
+			acquire:    []string{"a", "b", "c"},
+			wantLeases: []string{"a_0", "b_1", "c_2"},
+		},
+		{
+			name:       "Acquire and release several leases",
+			acquire:    []string{"a", "b", "c"},
+			release:    []string{"a_0", "b_1"},
+			wantLeases: []string{"c_2"},
+		},
+		{
+			name:    "Acquire no leases",
+			acquire: []string{},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.TODO()
+			client := NewFakeClient("owner", "url", 0, nil, new([]string), nil)
+			for _, l := range tc.acquire {
+				if _, err := client.Acquire(l, 1, ctx, nil); err != nil {
+					t.Fatalf("acquire: %s", err)
+				}
+			}
+
+			for _, l := range tc.release {
+				if err := client.Release(l); err != nil {
+					t.Fatalf("release: %s", err)
+				}
+			}
+
+			gotLeases := client.Leases()
+			if diff := cmp.Diff(tc.wantLeases, gotLeases); diff != "" {
+				t.Errorf("unexpected leases: %s", diff)
+			}
+		})
+	}
+
 }

@@ -1176,11 +1176,13 @@ func (o *options) Run() (errs []error) {
 			stopHeartbeating := o.startLeaseHearthbeating()
 			defer func() {
 				close(stopHeartbeating)
-				if l, err := o.leaseClient.ReleaseAll(); err != nil {
-					logrus.WithError(err).Errorf("Failed to release leaked leases (%v)", l)
-				} else if len(l) != 0 {
-					o.metricsAgent.Record(metrics.NewInsightsEvent(metrics.InsightLeaseReleased, metrics.Context{"released_count": len(l)}))
-					logrus.Warnf("Would leak leases: %v", l)
+				released, err := o.leaseClient.ReleaseAll()
+				if err != nil {
+					logrus.WithError(err).Errorf("Failed to release leaked leases")
+				}
+				if leaked := o.leaseClient.Leases(); len(leaked) > 0 {
+					o.metricsAgent.Record(metrics.NewInsightsEvent(metrics.InsightLeaseReleased, metrics.Context{"released_count": len(released)}))
+					logrus.Warnf("Would leak leases: %v", leaked)
 				}
 			}()
 		}
