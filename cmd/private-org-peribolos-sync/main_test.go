@@ -276,15 +276,18 @@ func TestGetReposForPrivateOrg(t *testing.T) {
 				"org2": sets.New("repo3", "another-repo-without-ci-config"),
 			},
 		},
+		{
+			name:    "invalid configs are skipped without error",
+			onlyOrg: "org1",
+			expectedRepos: map[string]sets.Set[string]{
+				"org1": sets.New("repo1"),
+			},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			orgRepos, err := getReposForPrivateOrg("testdata", tc.whitelistConfig, tc.onlyOrg)
-			if err != nil {
-				t.Fatal(err)
-			}
-
+			orgRepos := getReposForPrivateOrg("testdata", tc.whitelistConfig, tc.onlyOrg)
 			if diff := cmp.Diff(tc.expectedRepos, orgRepos); diff != "" {
 				t.Fatal(diff)
 			}

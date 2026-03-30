@@ -133,10 +133,7 @@ func main() {
 		logger.WithError(err).Fatal("Error getting GitHub client.")
 	}
 
-	orgRepos, err := getReposForPrivateOrg(o.releaseRepoPath, o.WhitelistOptions.WhitelistConfig, o.onlyOrg)
-	if err != nil {
-		logger.WithError(err).Fatal("couldn't get the list of org/repos that promote official images")
-	}
+	orgRepos := getReposForPrivateOrg(o.releaseRepoPath, o.WhitelistOptions.WhitelistConfig, o.onlyOrg)
 
 	peribolosRepos := generateRepositories(gc, orgRepos, logger, o.onlyOrg, o.flattenOrgs)
 	peribolosConfigByOrg := peribolosConfig.Orgs[o.destOrg]
@@ -203,7 +200,7 @@ func generateRepositories(gc gitHubClient, orgRepos map[string]sets.Set[string],
 
 // getReposForPrivateOrg iterates through the release repository directory and creates a map of
 // repository sets by organization that promote official images or are whitelisted.
-func getReposForPrivateOrg(releaseRepoPath string, whitelistConfig config.WhitelistConfig, onlyOrg string) (map[string]sets.Set[string], error) {
+func getReposForPrivateOrg(releaseRepoPath string, whitelistConfig config.WhitelistConfig, onlyOrg string) map[string]sets.Set[string] {
 	ret := make(map[string]sets.Set[string])
 
 	// First, collect repos from CI configs that build official images
@@ -223,7 +220,7 @@ func getReposForPrivateOrg(releaseRepoPath string, whitelistConfig config.Whitel
 	}
 
 	if err := config.OperateOnCIOperatorConfigDir(filepath.Join(releaseRepoPath, config.CiopConfigInRepoPath), callback); err != nil {
-		return ret, fmt.Errorf("error while operating in ci-operator configuration files: %w", err)
+		logrus.WithError(err).Warn("Failed to load some CI Operator configurations; they have been skipped")
 	}
 
 	// Then, add ALL whitelisted repos (regardless of whether they have CI configs)
@@ -236,5 +233,5 @@ func getReposForPrivateOrg(releaseRepoPath string, whitelistConfig config.Whitel
 		ret[org] = repos.Insert(repoList...)
 	}
 
-	return ret, nil
+	return ret
 }
