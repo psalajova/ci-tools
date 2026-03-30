@@ -68,10 +68,6 @@ func OAuthTemplatePath(releaseRepo, clusterName string) string {
 	return filepath.Join(releaseRepo, "clusters", "build-clusters", clusterName, "assets/admin_cluster_oauth_template.yaml")
 }
 
-func QuayioPullThroughCacheManifestPath(releaseRepo, clusterName string) string {
-	return filepath.Join(releaseRepo, "clusters", "build-clusters", clusterName, "assets/quayio-pull-through-cache-icsp.yaml")
-}
-
 func CertificateManifestPath(releaseRepo, clusterName string) string {
 	return filepath.Join(releaseRepo, "clusters", "build-clusters", clusterName, "cert-manager/certificate.yaml")
 }

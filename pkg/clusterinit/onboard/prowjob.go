@@ -80,7 +80,7 @@ func (s *prowJobStep) generatePeriodic(metadata *api.Metadata, clusterName strin
 				ExtraRefs: []prowapi.Refs{{
 					Org:     "openshift",
 					Repo:    "release",
-					BaseRef: "master",
+					BaseRef: s.releaseBranch,
 				}},
 			},
 			Labels: map[string]string{
@@ -115,7 +115,7 @@ func (s *prowJobStep) generatePostsubmit(metadata *api.Metadata, clusterName str
 			},
 		},
 		Brancher: prowconfig.Brancher{
-			Branches: []string{jobconfig.ExactlyBranch("master")},
+			Branches: []string{jobconfig.ExactlyBranch(s.releaseBranch)},
 		},
 	}
 }
@@ -161,7 +161,7 @@ func (s *prowJobStep) generatePresubmit(metadata *api.Metadata, clusterName stri
 			RunIfChanged: "^clusters/.*",
 		},
 		Brancher: prowconfig.Brancher{
-			Branches: []string{jobconfig.ExactlyBranch("master"), jobconfig.FeatureBranch("master")},
+			Branches: []string{jobconfig.ExactlyBranch(s.releaseBranch), jobconfig.FeatureBranch(s.releaseBranch)},
 		},
 		Reporter: prowconfig.Reporter{
 			Context: fmt.Sprintf("ci/build-farm/%s-dry", clusterName),
@@ -253,9 +253,13 @@ func (s *prowJobStep) generateContainer(image, clusterName string, osd bool, unm
 }
 
 func NewProwJobStep(log *logrus.Entry, clusterInstall *clusterinstall.ClusterInstall, releaseBranch string) *prowJobStep {
+	branch := releaseBranch
+	if branch == "" {
+		branch = Main
+	}
 	return &prowJobStep{
 		log:            log,
 		clusterInstall: clusterInstall,
-		releaseBranch:  releaseBranch,
+		releaseBranch:  branch,
 	}
 }

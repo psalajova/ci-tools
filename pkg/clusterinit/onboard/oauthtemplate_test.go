@@ -37,6 +37,12 @@ func TestUpdateOAuthTemplate(t *testing.T) {
 			wantManifests: map[string][]interface{}{
 				"/release/repo/clusters/build-clusters/build99/assets/admin_cluster_oauth_template.yaml": {
 					map[string]interface{}{
+						"apiVersion": "template.openshift.io/v1",
+						"kind":       "Template",
+						"metadata": map[string]interface{}{
+							"name":      "cluster-oauth-template",
+							"namespace": "openshift",
+						},
 						"objects": []interface{}{
 							map[string]interface{}{
 								"apiVersion": "config.openshift.io/v1",
@@ -88,8 +94,6 @@ func TestUpdateOAuthTemplate(t *testing.T) {
 								"description": "build99_id",
 							},
 						},
-						"apiVersion": "template.openshift.io/v1",
-						"kind":       "Template",
 					},
 				},
 			},

@@ -56,20 +56,20 @@ func (s *openshiftMonitoringGenerator) configMapManifests() []interface{} {
     node-role.kubernetes.io/infra: ""
   tolerations:
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoSchedule
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoExecute
 prometheusK8s:
   nodeSelector:
     node-role.kubernetes.io/infra: ""
   tolerations:
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoSchedule
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoExecute
   volumeClaimTemplate:
     spec:
@@ -81,60 +81,60 @@ prometheusOperator:
     node-role.kubernetes.io/infra: ""
   tolerations:
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoSchedule
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoExecute
 metricsServer:
   nodeSelector:
     node-role.kubernetes.io/infra: ""
   tolerations:
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoSchedule
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoExecute
 kubeStateMetrics:
   nodeSelector:
     node-role.kubernetes.io/infra: ""
   tolerations:
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoSchedule
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoExecute
 telemeterClient:
   nodeSelector:
     node-role.kubernetes.io/infra: ""
   tolerations:
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoSchedule
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoExecute
 openshiftStateMetrics:
   nodeSelector:
     node-role.kubernetes.io/infra: ""
   tolerations:
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoSchedule
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoExecute
 thanosQuerier:
   nodeSelector:
     node-role.kubernetes.io/infra: ""
   tolerations:
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoSchedule
   - key: node-role.kubernetes.io/infra
-    value: reserved
+    operator: Exists
     effect: NoExecute`,
 			},
 		},

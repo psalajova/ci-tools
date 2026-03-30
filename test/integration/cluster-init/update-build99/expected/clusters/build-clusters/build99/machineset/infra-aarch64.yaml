@@ -71,6 +71,9 @@ spec:
             value: owned
           userDataSecret:
             name: worker-user-data
+      taints:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/infra
 ---
 apiVersion: autoscaling.openshift.io/v1beta1
 kind: MachineAutoscaler
@@ -152,6 +155,9 @@ spec:
             value: owned
           userDataSecret:
             name: worker-user-data
+      taints:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/infra
 ---
 apiVersion: autoscaling.openshift.io/v1beta1
 kind: MachineAutoscaler
@@ -233,6 +239,9 @@ spec:
             value: owned
           userDataSecret:
             name: worker-user-data
+      taints:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/infra
 ---
 apiVersion: autoscaling.openshift.io/v1beta1
 kind: MachineAutoscaler

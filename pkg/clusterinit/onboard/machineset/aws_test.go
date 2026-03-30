@@ -295,6 +295,12 @@ func TestGenerateManifests(t *testing.T) {
 											"node-role.kubernetes.io/infra": "",
 										},
 									},
+									"taints": []interface{}{
+										map[string]interface{}{
+											"effect": "NoSchedule",
+											"key":    "node-role.kubernetes.io/infra",
+										},
+									},
 								},
 							},
 						},
@@ -454,6 +460,12 @@ func TestGenerateManifests(t *testing.T) {
 											},
 										},
 									},
+									"taints": []interface{}{
+										map[string]interface{}{
+											"effect": "NoSchedule",
+											"key":    "node-role.kubernetes.io/infra",
+										},
+									},
 								},
 							},
 						},
@@ -563,6 +575,12 @@ func TestGenerateManifests(t *testing.T) {
 													"value": "owned",
 												},
 											},
+										},
+									},
+									"taints": []interface{}{
+										map[string]interface{}{
+											"effect": "NoSchedule",
+											"key":    "node-role.kubernetes.io/infra",
 										},
 									},
 								},

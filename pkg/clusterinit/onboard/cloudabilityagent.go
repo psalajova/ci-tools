@@ -49,6 +49,9 @@ func (s *cloudabilityAgentGenerator) manifests(clusterName, region string) []int
 			"kind":       "Namespace",
 			"metadata": map[string]interface{}{
 				"name": "cloudability",
+				"annotations": map[string]interface{}{
+					"argocd.argoproj.io/sync-options": "Prune=false,Delete=confirm",
+				},
 			},
 		},
 		map[string]interface{}{
@@ -226,7 +229,7 @@ func (s *cloudabilityAgentGenerator) manifests(clusterName, region string) []int
 										"value": "180",
 									},
 								},
-								"image":           "cloudability/metrics-agent:latest",
+								"image":           "docker.io/cloudability/metrics-agent:latest",
 								"imagePullPolicy": "Always",
 								"livenessProbe": map[string]interface{}{
 									"exec": map[string]interface{}{
