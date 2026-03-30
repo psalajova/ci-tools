@@ -3,7 +3,9 @@ package lease
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math/rand"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -72,6 +74,8 @@ type Client interface {
 	// Metrics queries the states of a particular resource, for informational
 	// purposes.
 	Metrics(rtype string) (Metrics, error)
+	// Leases returns the leases collected so far.
+	Leases() []string
 }
 
 // NewClient creates a client that leases resources with the specified owner.
@@ -213,4 +217,12 @@ func (c *client) Metrics(rtype string) (Metrics, error) {
 		Free:   metrics.Current[freeState],
 		Leased: metrics.Current[leasedState],
 	}, nil
+}
+
+func (c *client) Leases() []string {
+	c.Lock()
+	defer c.Unlock()
+	l := slices.Collect(maps.Keys(c.leases))
+	slices.Sort(l)
+	return l
 }
