@@ -112,7 +112,7 @@ type ref struct {
 	ref string
 }
 
-func (r RehearsalConfig) DetermineAffectedJobs(candidate RehearsalCandidate, candidatePath string, networkAccessRehearsalsAllowed bool, logger *logrus.Entry) (config.Presubmits, config.Periodics, []string, error) {
+func (r RehearsalConfig) DetermineAffectedJobs(candidate RehearsalCandidate, candidatePath string, networkAccessRehearsalsAllowed bool, logger *logrus.Entry) (*config.ReleaseRepoConfig, config.Presubmits, config.Periodics, []string, error) {
 	start := time.Now()
 	defer func() {
 		logger.Infof("determineAffectedJobs ran in %s", time.Since(start).Truncate(time.Second))
@@ -120,12 +120,12 @@ func (r RehearsalConfig) DetermineAffectedJobs(candidate RehearsalCandidate, can
 
 	prConfig, err := config.GetAllConfigs(candidatePath)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("could not load configuration from candidate revision of release repo: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("could not load configuration from candidate revision of release repo: %w", err)
 	}
 	baseSHA := candidate.base.sha
 	masterConfig, err := config.GetAllConfigsFromSHA(candidatePath, baseSHA)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("could not load configuration from base revision of release repo: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("could not load configuration from base revision of release repo: %w", err)
 	}
 
 	presubmits := config.Presubmits{}
@@ -152,22 +152,18 @@ func (r RehearsalConfig) DetermineAffectedJobs(candidate RehearsalCandidate, can
 	if !r.NoRegistry {
 		changedRegistrySteps, err = determineChangedRegistrySteps(candidatePath, baseSHA, logger)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("could not determine changed registry steps: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("could not determine changed registry steps: %w", err)
 		}
 		presubmitsForRegistry, periodicsForRegistry := SelectJobsForChangedRegistry(changedRegistrySteps, prConfig.Prow.JobConfig.PresubmitsStatic, prConfig.Prow.JobConfig.Periodics, prConfig.CiOperator, logger)
 		presubmits.AddAll(presubmitsForRegistry, config.ChangedRegistryContent)
 		periodics.AddAll(periodicsForRegistry, config.ChangedRegistryContent)
 	}
 
-	return filterPresubmits(presubmits, restrictNetworkAccessFalseJobs, logger), filterPeriodics(periodics, restrictNetworkAccessFalseJobs, logger), restrictNetworkAccessFalseJobs, nil
+	return prConfig, filterPresubmits(presubmits, restrictNetworkAccessFalseJobs, logger), filterPeriodics(periodics, restrictNetworkAccessFalseJobs, logger), restrictNetworkAccessFalseJobs, nil
 }
 
-func (r RehearsalConfig) SetupJobs(candidate RehearsalCandidate, candidatePath string, presubmits config.Presubmits, periodics config.Periodics, limit int, logger *logrus.Entry) (*config.ReleaseRepoConfig, *prowapi.Refs, []*prowconfig.Presubmit, error) {
+func (r RehearsalConfig) SetupJobs(candidate RehearsalCandidate, candidatePath string, prConfig *config.ReleaseRepoConfig, presubmits config.Presubmits, periodics config.Periodics, limit int, logger *logrus.Entry) (*config.ReleaseRepoConfig, *prowapi.Refs, []*prowconfig.Presubmit, error) {
 	resolver, err := r.createResolver(candidatePath)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	prConfig, err := config.GetAllConfigs(candidatePath)
 	if err != nil {
 		return nil, nil, nil, err
 	}
