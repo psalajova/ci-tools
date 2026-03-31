@@ -299,7 +299,7 @@ func (o *JobRunAggregatorAnalyzerOptions) Run(ctx context.Context) error {
 		return err
 	}
 
-	if hasFailedTestCase(syntheticSuite) {
+	if hasBlockingFailedTestCase(syntheticSuite) {
 		// we already indicated failure messages above
 		return fmt.Errorf("Some tests failed aggregation.  See above for details.")
 	}
@@ -313,15 +313,22 @@ func (o *JobRunAggregatorAnalyzerOptions) Run(ctx context.Context) error {
 	return nil
 }
 
-func hasFailedTestCase(suite *junit.TestSuite) bool {
+// isInformingTest returns true if the test case has a lifecycle attribute set to "informing".
+func isInformingTest(testCase *junit.TestCase) bool {
+	return testCase.Lifecycle == "informing"
+}
+
+// hasBlockingFailedTestCase returns true if any non-informing test case has failed.
+// Informing test failures are non-blocking and do not cause the aggregation to fail.
+func hasBlockingFailedTestCase(suite *junit.TestSuite) bool {
 	for _, testCase := range suite.TestCases {
-		if testCase.FailureOutput != nil {
+		if testCase.FailureOutput != nil && !isInformingTest(testCase) {
 			return true
 		}
 	}
 
 	for _, child := range suite.Children {
-		if hasFailedTestCase(child) {
+		if hasBlockingFailedTestCase(child) {
 			return true
 		}
 	}

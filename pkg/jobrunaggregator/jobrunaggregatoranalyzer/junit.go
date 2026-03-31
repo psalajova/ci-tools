@@ -229,5 +229,11 @@ func aggregateTestCase(testSuiteName string, combined *junit.TestCase, jobGCSBuc
 		return nil
 	}
 	combined.SystemOut = string(detailsYaml)
+
+	// Propagate lifecycle attribute from source test case to the combined one
+	if combined.Lifecycle == "" && toAdd.Lifecycle != "" {
+		combined.Lifecycle = toAdd.Lifecycle
+	}
+
 	return nil
 }
