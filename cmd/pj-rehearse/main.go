@@ -168,12 +168,12 @@ func dryRun(o options, logger *logrus.Entry) error {
 	candidatePath := dro.dryRunPath
 	candidate := rehearse.RehearsalCandidateFromPullRequest(pr, pr.Base.SHA)
 
-	presubmits, periodics, _, err := rc.DetermineAffectedJobs(candidate, candidatePath, false, logger)
+	prConfig, presubmits, periodics, _, err := rc.DetermineAffectedJobs(candidate, candidatePath, false, logger)
 	if err != nil {
 		return fmt.Errorf("error determining affected jobs: %w: %s", err, "ERROR: pj-rehearse: misconfiguration")
 	}
 
-	prConfig, prRefs, presubmitsToRehearse, err := rc.SetupJobs(candidate, candidatePath, presubmits, periodics, dro.limit, logger)
+	prConfig, prRefs, presubmitsToRehearse, err := rc.SetupJobs(candidate, candidatePath, prConfig, presubmits, periodics, dro.limit, logger)
 	if err != nil {
 		return fmt.Errorf("error setting up jobs: %w: %s", err, "ERROR: pj-rehearse: setup failure")
 	}
