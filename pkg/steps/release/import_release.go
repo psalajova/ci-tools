@@ -361,56 +361,72 @@ func ImportReleaseStep(
 
 const overrideCLIStreamName = "amd64-cli"
 
-func (s *importReleaseStep) getCLIImage(ctx context.Context, target, streamName string) (*api.ImageStreamTagReference, error) {
-	if s.overrideCLIReleaseExtractImage != nil {
+func (s *importReleaseStep) ensureCLIStream(ctx context.Context, streamName string) error {
+	stableIS := &imagev1.ImageStream{
+		ObjectMeta: meta.ObjectMeta{
+			Namespace: s.jobSpec.Namespace(),
+			Name:      streamName,
+		},
+		Spec: imagev1.ImageStreamSpec{
+			LookupPolicy: imagev1.ImageLookupPolicy{Local: true},
+		},
+	}
+	if _, err := util.CreateImageStreamWithMetrics(ctx, s.client, stableIS, s.client.MetricsAgent()); err != nil {
+		return fmt.Errorf("could not create stable imagestream %s: %w", streamName, err)
+	}
+	return nil
+}
 
-		// Setting the lookup policy on the imagestreamtag doesn't do anything, it gets happily reset to false so we have to
-		// create the imagestream to be able to set it there.
-		overrideIS := &imagev1.ImageStream{
-			ObjectMeta: metav1.ObjectMeta{Name: overrideCLIStreamName, Namespace: s.jobSpec.Namespace()},
-			Spec:       imagev1.ImageStreamSpec{LookupPolicy: imagev1.ImageLookupPolicy{Local: true}, Tags: []imagev1.TagReference{{ReferencePolicy: imagev1.TagReferencePolicy{Type: s.referencePolicy}}}},
+func (s *importReleaseStep) resolveCLIImageFromStream(ctx context.Context, streamName string) (*api.ImageStreamTagReference, error) {
+	streamTagName := fmt.Sprintf("%s:cli", streamName)
+	streamTag := &imagev1.ImageStreamTag{}
+	if err := s.client.Get(ctx, ctrlruntimeclient.ObjectKey{Namespace: s.jobSpec.Namespace(), Name: streamTagName}, streamTag); err != nil {
+		if kerrors.IsNotFound(err) {
+			return nil, nil
 		}
-		if _, err := util.CreateImageStreamWithMetrics(ctx, s.client, overrideIS, s.client.MetricsAgent()); err != nil {
-			return nil, fmt.Errorf("failed to create %s imagestream: %w", overrideCLIStreamName, err)
-		}
-
-		referencePolicy := imagev1.SourceTagReferencePolicy
-		if s.referencePolicy == imagev1.LocalTagReferencePolicy {
-			referencePolicy = s.referencePolicy
-		}
-		streamTag := &imagev1.ImageStreamTag{
-			ObjectMeta: meta.ObjectMeta{
-				Namespace: s.jobSpec.Namespace(),
-				Name:      overrideCLIStreamName + ":latest",
-			},
-			Tag: &imagev1.TagReference{
-				ReferencePolicy: imagev1.TagReferencePolicy{
-					Type: referencePolicy,
-				},
-				From: s.overrideCLIReleaseExtractImage,
-			},
-		}
-		key := ctrlruntimeclient.ObjectKeyFromObject(streamTag)
-		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			return s.client.Update(ctx, streamTag)
-		}); err != nil {
-			return nil, fmt.Errorf("unable to tag the override 'cli' image into the %s:latest: %w", overrideCLIStreamName, err)
-		}
-		if err := wait.ExponentialBackoff(wait.Backoff{Steps: 4, Duration: 1 * time.Second, Factor: 2}, func() (bool, error) {
-			if err := s.client.Get(ctx, key, streamTag); err != nil {
-				if kerrors.IsNotFound(err) {
-					return false, nil
-				}
-				return false, err
-			}
-			return streamTag.Tag != nil && streamTag.Tag.Generation != nil && *streamTag.Tag.Generation == streamTag.Generation, nil
-		}); err != nil {
-			return nil, fmt.Errorf("failed to import override CLI image into %s:latest: %w", overrideCLIStreamName, err)
-		}
-		return &api.ImageStreamTagReference{Name: overrideCLIStreamName, Tag: "latest"}, nil
+		return nil, fmt.Errorf("unable to get existing %s imagestreamtag: %w", streamTagName, err)
 	}
 
-	targetCLI := fmt.Sprintf("%s-cli", target)
+	if err := utils.WaitForImportingISTag(ctx, s.client, s.jobSpec.Namespace(), streamName, nil, sets.New("cli"), 10*time.Minute, s.client.MetricsAgent()); err != nil {
+		return nil, fmt.Errorf("unable to wait for the existing 'cli' image in the stable stream to populate: %w", err)
+	}
+
+	if err := s.client.Get(ctx, ctrlruntimeclient.ObjectKey{Namespace: s.jobSpec.Namespace(), Name: streamTagName}, streamTag); err != nil {
+		return nil, fmt.Errorf("unable to refresh existing %s imagestreamtag: %w", streamTagName, err)
+	}
+	if streamTag.Tag == nil || streamTag.Tag.From == nil || streamTag.Tag.From.Name == "" {
+		return nil, nil
+	}
+
+	cliRef, err := util.ParseImageStreamTagReference(streamTag.Tag.From.Name)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse existing cli image reference %q: %w", streamTag.Tag.From.Name, err)
+	}
+	return &cliRef, nil
+}
+
+func (s *importReleaseStep) resolveCLIImage(ctx context.Context, targetCLI, streamName string) (*api.ImageStreamTagReference, error) {
+	cliRef, err := s.resolveCLIImageFromStream(ctx, streamName)
+	if err != nil || cliRef != nil {
+		return cliRef, err
+	}
+
+	existingExtractorPod := &coreapi.Pod{}
+	if err := s.client.Get(ctx, ctrlruntimeclient.ObjectKey{Namespace: s.jobSpec.Namespace(), Name: targetCLI}, existingExtractorPod); err != nil {
+		if kerrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("unable to check for existing cli extraction pod %s: %w", targetCLI, err)
+	}
+
+	if _, err := util.WaitForPodCompletion(ctx, s.client, s.jobSpec.Namespace(), targetCLI, nil, util.SkipLogs); err != nil {
+		return nil, fmt.Errorf("unable to wait for existing cli extraction pod %s: %w", targetCLI, err)
+	}
+
+	return s.resolveCLIImageFromStream(ctx, streamName)
+}
+
+func (s *importReleaseStep) extractAndTagCLIImage(ctx context.Context, targetCLI, streamName string) (*api.ImageStreamTagReference, error) {
 	if _, err := steps.RunPod(ctx, s.client, &coreapi.Pod{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      targetCLI,
@@ -475,4 +491,69 @@ func (s *importReleaseStep) getCLIImage(ctx context.Context, target, streamName 
 	}
 
 	return &cliImageRef, nil
+}
+
+func (s *importReleaseStep) getCLIImage(ctx context.Context, target, streamName string) (*api.ImageStreamTagReference, error) {
+	if s.overrideCLIReleaseExtractImage != nil {
+
+		// Setting the lookup policy on the imagestreamtag doesn't do anything, it gets happily reset to false so we have to
+		// create the imagestream to be able to set it there.
+		overrideIS := &imagev1.ImageStream{
+			ObjectMeta: metav1.ObjectMeta{Name: overrideCLIStreamName, Namespace: s.jobSpec.Namespace()},
+			Spec:       imagev1.ImageStreamSpec{LookupPolicy: imagev1.ImageLookupPolicy{Local: true}, Tags: []imagev1.TagReference{{ReferencePolicy: imagev1.TagReferencePolicy{Type: s.referencePolicy}}}},
+		}
+		if _, err := util.CreateImageStreamWithMetrics(ctx, s.client, overrideIS, s.client.MetricsAgent()); err != nil {
+			return nil, fmt.Errorf("failed to create %s imagestream: %w", overrideCLIStreamName, err)
+		}
+
+		referencePolicy := imagev1.SourceTagReferencePolicy
+		if s.referencePolicy == imagev1.LocalTagReferencePolicy {
+			referencePolicy = s.referencePolicy
+		}
+		streamTag := &imagev1.ImageStreamTag{
+			ObjectMeta: meta.ObjectMeta{
+				Namespace: s.jobSpec.Namespace(),
+				Name:      overrideCLIStreamName + ":latest",
+			},
+			Tag: &imagev1.TagReference{
+				ReferencePolicy: imagev1.TagReferencePolicy{
+					Type: referencePolicy,
+				},
+				From: s.overrideCLIReleaseExtractImage,
+			},
+		}
+		key := ctrlruntimeclient.ObjectKeyFromObject(streamTag)
+		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			return s.client.Update(ctx, streamTag)
+		}); err != nil {
+			return nil, fmt.Errorf("unable to tag the override 'cli' image into the %s:latest: %w", overrideCLIStreamName, err)
+		}
+		if err := wait.ExponentialBackoff(wait.Backoff{Steps: 4, Duration: 1 * time.Second, Factor: 2}, func() (bool, error) {
+			if err := s.client.Get(ctx, key, streamTag); err != nil {
+				if kerrors.IsNotFound(err) {
+					return false, nil
+				}
+				return false, err
+			}
+			return streamTag.Tag != nil && streamTag.Tag.Generation != nil && *streamTag.Tag.Generation == streamTag.Generation, nil
+		}); err != nil {
+			return nil, fmt.Errorf("failed to import override CLI image into %s:latest: %w", overrideCLIStreamName, err)
+		}
+		return &api.ImageStreamTagReference{Name: overrideCLIStreamName, Tag: "latest"}, nil
+	}
+
+	if err := s.ensureCLIStream(ctx, streamName); err != nil {
+		return nil, err
+	}
+
+	targetCLI := fmt.Sprintf("%s-cli", target)
+	cliRef, err := s.resolveCLIImage(ctx, targetCLI, streamName)
+	if err != nil {
+		return nil, err
+	}
+	if cliRef != nil {
+		return cliRef, nil
+	}
+
+	return s.extractAndTagCLIImage(ctx, targetCLI, streamName)
 }
