@@ -598,6 +598,7 @@ func handleBuild(ctx context.Context, client BuildClient, podClient kubernetes.P
 		}
 
 		client.MetricsAgent().AddNodeWorkload(ctx, ns, fmt.Sprintf("%s-build", name), name, podClient)
+		client.MetricsAgent().StoreMachinesSnapshotForBuildPod(ctx, ns, fmt.Sprintf("%s-build", name), podClient)
 		if err := waitForBuildOrTimeout(ctx, client, podClient, ns, name); err != nil {
 			errs = append(errs, err)
 			return false, handleFailedBuild(ctx, client, ns, name, err)
