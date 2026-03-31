@@ -329,3 +329,269 @@ func NewMockPassFailCalculator(jobRunIDs []string, historicalBackendDisruptions 
 		historicalBackendDisruptions: historicalBackendDisruptions,
 	}
 }
+
+func TestIsInformingTest(t *testing.T) {
+	tests := []struct {
+		name     string
+		testCase *junit.TestCase
+		expected bool
+	}{
+		{
+			name:     "no lifecycle",
+			testCase: &junit.TestCase{Name: "test"},
+			expected: false,
+		},
+		{
+			name:     "lifecycle informing",
+			testCase: &junit.TestCase{Name: "test", Lifecycle: "informing"},
+			expected: true,
+		},
+		{
+			name:     "lifecycle blocking",
+			testCase: &junit.TestCase{Name: "test", Lifecycle: "blocking"},
+			expected: false,
+		},
+		{
+			name:     "lifecycle empty",
+			testCase: &junit.TestCase{Name: "test", Lifecycle: ""},
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, isInformingTest(tc.testCase))
+		})
+	}
+}
+
+func TestHasBlockingFailedTestCase(t *testing.T) {
+	tests := []struct {
+		name     string
+		suite    *junit.TestSuite
+		expected bool
+	}{
+		{
+			name: "no failures",
+			suite: &junit.TestSuite{
+				TestCases: []*junit.TestCase{
+					{Name: "passing test"},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "non-informing failure",
+			suite: &junit.TestSuite{
+				TestCases: []*junit.TestCase{
+					{Name: "failing test", FailureOutput: &junit.FailureOutput{Message: "failed"}},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "informing failure only",
+			suite: &junit.TestSuite{
+				TestCases: []*junit.TestCase{
+					{
+						Name:          "informing test",
+						Lifecycle:     "informing",
+						FailureOutput: &junit.FailureOutput{Message: "failed"},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "informing and non-informing failures",
+			suite: &junit.TestSuite{
+				TestCases: []*junit.TestCase{
+					{
+						Name:          "informing test",
+						Lifecycle:     "informing",
+						FailureOutput: &junit.FailureOutput{Message: "failed"},
+					},
+					{Name: "blocking test", FailureOutput: &junit.FailureOutput{Message: "failed"}},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "informing failure in child suite only",
+			suite: &junit.TestSuite{
+				TestCases: []*junit.TestCase{
+					{Name: "passing test"},
+				},
+				Children: []*junit.TestSuite{
+					{
+						TestCases: []*junit.TestCase{
+							{
+								Name:          "informing test",
+								Lifecycle:     "informing",
+								FailureOutput: &junit.FailureOutput{Message: "failed"},
+							},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "non-informing failure in child suite",
+			suite: &junit.TestSuite{
+				Children: []*junit.TestSuite{
+					{
+						TestCases: []*junit.TestCase{
+							{Name: "failing test", FailureOutput: &junit.FailureOutput{Message: "failed"}},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, hasBlockingFailedTestCase(tc.suite))
+		})
+	}
+}
+
+func TestAggregateTestCasePropagatesLifecycle(t *testing.T) {
+	combined := &junit.TestCase{Name: "test-with-lifecycle"}
+
+	source := &junit.TestCase{
+		Name:      "test-with-lifecycle",
+		Lifecycle: "informing",
+	}
+
+	err := aggregateTestCase("suite", combined, "logs/job", "run1", source)
+	assert.NoError(t, err)
+	assert.Equal(t, "informing", combined.Lifecycle)
+
+	// Second aggregation should not overwrite the lifecycle
+	source2 := &junit.TestCase{
+		Name:      "test-with-lifecycle",
+		Lifecycle: "informing",
+	}
+	err = aggregateTestCase("suite", combined, "logs/job", "run2", source2)
+	assert.NoError(t, err)
+	assert.Equal(t, "informing", combined.Lifecycle)
+}
+
+func TestInformingTestFailureMessage(t *testing.T) {
+	suite := &junit.TestSuites{
+		Suites: []*junit.TestSuite{
+			{
+				Name: "e2e-tests",
+				TestCases: []*junit.TestCase{
+					{
+						Name:      "informing-test",
+						Lifecycle: "informing",
+						SystemOut: "name: informing-test\nfailures:\n- jobrunid: run1\n",
+					},
+				},
+			},
+		},
+	}
+
+	// Use a mock that always fails tests
+	err := assignPassFail(context.TODO(), "test-job", suite, &alwaysFailBaseline{})
+	assert.NoError(t, err)
+
+	tc := suite.Suites[0].TestCases[0]
+	assert.NotNil(t, tc.FailureOutput)
+	assert.Contains(t, tc.FailureOutput.Message, "*** NON-BLOCKING FAILURE:")
+	assert.Contains(t, tc.FailureOutput.Message, "lifecycle is 'informing'")
+}
+
+func TestInformingTestAnalyzer(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	payloadStartTime := time.Date(2023, 6, 18, 12, 0, 0, 0, time.UTC)
+
+	// Build job runs with an informing test that fails
+	junitXML := `<testsuites>
+<testsuite tests="1" failures="0" time="1983" name="e2e-tests">
+  <testcase name="informing-test" lifecycle="informing"/>
+</testsuite>
+</testsuites>`
+
+	backendDisruptionJSON, _ := json.Marshal(jobrunaggregatorlib.BackendDisruptionList{
+		BackendDisruptions: map[string]*jobrunaggregatorlib.BackendDisruption{},
+	})
+	openshiftFiles := map[string]string{"0": string(backendDisruptionJSON)}
+
+	var jobRunInfos []jobrunaggregatorapi.JobRunInfo
+	for i := 1001; i <= 1010; i++ {
+		jobRunInfos = append(jobRunInfos, buildFakeJobRunInfo(mockCtrl, fmt.Sprintf("%d", i), payloadStartTime, true, junitXML, openshiftFiles))
+	}
+
+	workDir, err := os.MkdirTemp("/tmp/", "ci-tools-aggregator-test-informing")
+	assert.NoError(t, err)
+	defer os.RemoveAll(workDir)
+
+	startPayloadJobRunWindow := payloadStartTime.Add(-1 * jobrunaggregatorlib.JobSearchWindowStartOffset)
+	endPayloadJobRunWindow := payloadStartTime.Add(jobrunaggregatorlib.JobSearchWindowEndOffset)
+
+	mockDataClient := jobrunaggregatorlib.NewMockCIDataClient(mockCtrl)
+	mockDataClient.EXPECT().GetJobRunForJobNameBeforeTime(gomock.Any(), testJobName, startPayloadJobRunWindow).Return("1000", nil).Times(1)
+	mockDataClient.EXPECT().GetJobRunForJobNameAfterTime(gomock.Any(), testJobName, endPayloadJobRunWindow).Return("2000", nil).Times(1)
+	mockDataClient.EXPECT().GetJobVariants(gomock.Any(), gomock.Any()).Return(&jobrunaggregatorapi.JobRowWithVariants{Topology: "ha"}, nil).AnyTimes()
+
+	mockGCSClient := jobrunaggregatorlib.NewMockCIGCSClient(mockCtrl)
+	mockGCSClient.EXPECT().ReadRelatedJobRuns(
+		gomock.Any(), testJobName, fmt.Sprintf("logs/%s", testJobName), "1000", "2000", gomock.Any(),
+	).Return(jobRunInfos, nil).Times(1)
+
+	var jobRunIDs []string
+	for _, ri := range jobRunInfos {
+		mockGCSClient.EXPECT().ReadJobRunFromGCS(gomock.Any(), gomock.Any(), testJobName, ri.GetJobRunID(), gomock.Any()).Return(ri, nil)
+		jobRunIDs = append(jobRunIDs, ri.GetJobRunID())
+	}
+
+	// Use a calculator that fails the informing test
+	analyzer := JobRunAggregatorAnalyzerOptions{
+		jobRunLocator: jobrunaggregatorlib.NewPayloadAnalysisJobLocatorForReleaseController(
+			testJobName, testPayloadtag, payloadStartTime, mockDataClient, mockGCSClient, "bucketname",
+		),
+		passFailCalculator:  &alwaysFailBaseline{jobRunIDs: jobRunIDs},
+		ciDataClient:        mockDataClient,
+		jobName:             testJobName,
+		payloadTag:          testPayloadtag,
+		workingDir:          workDir,
+		jobRunStartEstimate: payloadStartTime,
+		clock:               fakeclock.NewFakeClock(payloadStartTime),
+		timeout:             6 * time.Hour,
+	}
+
+	// Should succeed because only informing tests failed
+	err = analyzer.Run(context.TODO())
+	assert.NoError(t, err, "aggregation should succeed when only informing tests fail")
+}
+
+// alwaysFailBaseline is a test baseline that always reports tests as failed.
+type alwaysFailBaseline struct {
+	jobRunIDs []string
+}
+
+func (b *alwaysFailBaseline) CheckFailed(_ context.Context, _ string, _ []string, details *jobrunaggregatorlib.TestCaseDetails) (testCaseStatus, string, error) {
+	if !didTestRun(details) {
+		return testCasePassed, "did not run", nil
+	}
+	return testCaseFailed, "always fails for testing", nil
+}
+
+func (b *alwaysFailBaseline) CheckDisruptionMeanWithinFiveStandardDeviations(_ context.Context, _ map[string]jobrunaggregatorlib.AvailabilityResult, _, _ string) ([]string, []string, testCaseStatus, string, error) {
+	return []string{}, b.jobRunIDs, testCasePassed, "", nil
+}
+
+func (b *alwaysFailBaseline) CheckDisruptionMeanWithinOneStandardDeviation(_ context.Context, _ map[string]jobrunaggregatorlib.AvailabilityResult, _, _ string) ([]string, []string, testCaseStatus, string, error) {
+	return []string{}, b.jobRunIDs, testCasePassed, "", nil
+}
+
+func (b *alwaysFailBaseline) CheckPercentileDisruption(_ context.Context, _ map[string]jobrunaggregatorlib.AvailabilityResult, _ string, _ int, _ int, _ string) ([]string, []string, testCaseStatus, string, error) {
+	return []string{}, b.jobRunIDs, testCasePassed, "", nil
+}

@@ -87,8 +87,12 @@ func assignPassFailForTestSuite(ctx context.Context, jobName string, parentTestS
 		currTestCase.SystemOut = string(detailsBytes)
 
 		if status == testCaseFailed {
+			failureMessage := message
+			if isInformingTest(currTestCase) {
+				failureMessage = "*** NON-BLOCKING FAILURE: This test failure is not considered terminal because its lifecycle is 'informing' and will not prevent the overall suite from passing.\n" + message
+			}
 			currTestCase.FailureOutput = &junit.FailureOutput{
-				Message: message,
+				Message: failureMessage,
 				Output:  currTestCase.SystemOut,
 			}
 			failureCount++
