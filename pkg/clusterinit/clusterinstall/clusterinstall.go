@@ -63,7 +63,6 @@ type Onboard struct {
 	UseTokenFileInKubeconfig   *bool                      `json:"useTokenFileInKubeconfig,omitempty"`
 	Multiarch                  *bool                      `json:"multiarch,omitempty"`
 	Dex                        Dex                        `json:"dex,omitempty"`
-	QuayioPullThroughCache     QuayioPullThroughCache     `json:"quayioPullThroughCache,omitempty"`
 	Certificate                Certificate                `json:"certificate,omitempty"`
 	CISchedulingWebhook        CISchedulingWebhook        `json:"ciSchedulingWebhook,omitempty"`
 	MachineSet                 MachineSet                 `json:"machineSet,omitempty"`
@@ -80,12 +79,6 @@ type Onboard struct {
 }
 
 type Dex struct {
-	types.SkipStep
-	types.ExcludeManifest
-	Patches []manifest.Patch `json:"patches,omitempty"`
-}
-
-type QuayioPullThroughCache struct {
 	types.SkipStep
 	types.ExcludeManifest
 	Patches []manifest.Patch `json:"patches,omitempty"`

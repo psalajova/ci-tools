@@ -45,6 +45,12 @@ func (s *oauthTemplateGenerator) Generate(ctx context.Context, log *logrus.Entry
 
 func generateOAuthTemplate(clusterIdPlaceholder string) map[string]interface{} {
 	return map[string]interface{}{
+		"apiVersion": "template.openshift.io/v1",
+		"kind":       "Template",
+		"metadata": map[string]interface{}{
+			"name":      "cluster-oauth-template",
+			"namespace": "openshift",
+		},
 		"objects": []interface{}{
 			map[string]interface{}{
 				"apiVersion": "config.openshift.io/v1",
@@ -96,8 +102,6 @@ func generateOAuthTemplate(clusterIdPlaceholder string) map[string]interface{} {
 				"description": clusterIdPlaceholder,
 			},
 		},
-		"apiVersion": "template.openshift.io/v1",
-		"kind":       "Template",
 	}
 }
 

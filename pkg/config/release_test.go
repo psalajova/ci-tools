@@ -51,14 +51,21 @@ git commit --quiet -m initial
 cd %s
 %s
 git commit --quiet --all --message changes
-git rev-parse HEAD^
 `, path, cmd))
 	p.Dir = tmp
 	out, err := p.CombinedOutput()
 	if err != nil {
 		t.Fatalf("%q failed, output:\n%s", p.Args, out)
 	}
-	changed, err := f(dir, strings.TrimSpace(string(out)))
+	// Read the parent commit in a separate invocation so global git hooks cannot
+	// print to stdout during git commit and corrupt the hash (CombinedOutput).
+	rev := exec.Command("git", "rev-parse", "HEAD^")
+	rev.Dir = tmp
+	parentHash, err := rev.Output()
+	if err != nil {
+		t.Fatalf("git rev-parse HEAD^: %v", err)
+	}
+	changed, err := f(dir, strings.TrimSpace(string(parentHash)))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,6 +12,27 @@ import (
 	"github.com/openshift/ci-tools/pkg/clusterinit/types"
 )
 
+const (
+	registryS3Region         = "us-east-1"
+	registryS3RegionEndpoint = "https://2209d6dda25891dee55b086a469130de.r2.cloudflarestorage.com"
+)
+
+func registryS3StorageSpec(clusterName string) map[string]interface{} {
+	return map[string]interface{}{
+		"managementState": "Managed",
+		"s3": map[string]interface{}{
+			"bucket":         fmt.Sprintf("%s-image-registry", clusterName),
+			"encrypt":        true,
+			"region":         registryS3Region,
+			"regionEndpoint": registryS3RegionEndpoint,
+			"trustedCA": map[string]interface{}{
+				"name": "",
+			},
+			"virtualHostedStyle": false,
+		},
+	}
+}
+
 type imageRegistryGenerator struct {
 	clusterInstall *clusterinstall.ClusterInstall
 }
@@ -36,11 +57,8 @@ func (s *imageRegistryGenerator) Generate(ctx context.Context, log *logrus.Entry
 	pathToManifests := make(map[string][]interface{})
 	basePath := ImageRegistryManifestsPath(s.clusterInstall.Onboard.ReleaseRepo, s.clusterInstall.ClusterName)
 
-	manifests := s.configClusterManifests()
-	pathToManifests[path.Join(basePath, "config-cluster.yaml")] = manifests
-
-	manifests = s.imagePrunerManifests()
-	pathToManifests[path.Join(basePath, "imagepruner-cluster.yaml")] = manifests
+	pathToManifests[path.Join(basePath, "config-cluster.yaml")] = s.configClusterManifests()
+	pathToManifests[path.Join(basePath, "imagepruner-cluster.yaml")] = s.imagePrunerManifests()
 
 	return pathToManifests, nil
 }
@@ -133,11 +151,14 @@ func (s *imageRegistryGenerator) configClusterManifests() []interface{} {
 						},
 					},
 				},
-				"managementState": "Managed",
+				"logLevel":         "Normal",
+				"operatorLogLevel": "Normal",
+				"managementState":  "Managed",
 				"nodeSelector": map[string]interface{}{
 					"node-role.kubernetes.io/infra": "",
 				},
 				"replicas": 5,
+				"storage":  registryS3StorageSpec(s.clusterInstall.ClusterName),
 			},
 		},
 	}

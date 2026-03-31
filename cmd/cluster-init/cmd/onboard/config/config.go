@@ -69,7 +69,6 @@ func runConfigSteps(ctx context.Context, log *logrus.Entry, update bool, cluster
 		onboard.NewSyncRoverGroupStep(log, clusterInstall),
 		onboard.NewProwPluginStep(log, clusterInstall),
 		onboard.NewManifestGeneratorStep(log, onboard.NewDexGenerator(ctrlClient, clusterInstall)),
-		onboard.NewManifestGeneratorStep(log, onboard.NewQuayioPullThroughCacheStep(clusterInstall, ctrlClient)),
 		onboard.NewManifestGeneratorStep(log, onboard.NewCertificateGenerator(clusterInstall, ctrlClient)),
 		onboard.NewManifestGeneratorStep(log, onboard.NewCloudabilityAgentGenerator(clusterInstall)),
 		onboard.NewCommonSymlinkStep(log, clusterInstall),

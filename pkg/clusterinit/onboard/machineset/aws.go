@@ -105,56 +105,64 @@ func (ap *awsProvider) manifests(ctx context.Context, log *logrus.Entry, ci *clu
 					"node-role.kubernetes.io/" + profile: "",
 				},
 			},
-			"providerSpec": map[string]interface{}{
-				"value": map[string]interface{}{
-					"instanceType": instanceType,
-					"kind":         "AWSMachineProviderConfig",
-					"subnet": map[string]interface{}{
-						"id": subnetId,
+		}
+		if profile == clusterinstall.MachineProfileInfra {
+			machineSetTemplateSpec["taints"] = []interface{}{
+				map[string]interface{}{
+					"effect": "NoSchedule",
+					"key":    "node-role.kubernetes.io/infra",
+				},
+			}
+		}
+		machineSetTemplateSpec["providerSpec"] = map[string]interface{}{
+			"value": map[string]interface{}{
+				"instanceType": instanceType,
+				"kind":         "AWSMachineProviderConfig",
+				"subnet": map[string]interface{}{
+					"id": subnetId,
+				},
+				"userDataSecret": map[string]interface{}{
+					"name": "worker-user-data",
+				},
+				"apiVersion": "machine.openshift.io/v1beta1",
+				"tags": []interface{}{
+					map[string]interface{}{
+						"name":  "kubernetes.io/cluster/" + infraId,
+						"value": "owned",
 					},
-					"userDataSecret": map[string]interface{}{
-						"name": "worker-user-data",
-					},
-					"apiVersion": "machine.openshift.io/v1beta1",
-					"tags": []interface{}{
-						map[string]interface{}{
-							"name":  "kubernetes.io/cluster/" + infraId,
-							"value": "owned",
-						},
-					},
-					"publicIp": true,
-					"ami": map[string]interface{}{
-						"id": ami,
-					},
-					"blockDevices": []interface{}{
-						map[string]interface{}{
-							"ebs": map[string]interface{}{
-								"kmsKey": map[string]interface{}{
-									"arn": "",
-								},
-								"volumeSize": 120,
-								"volumeType": "gp3",
-								"encrypted":  true,
-								"iops":       0,
+				},
+				"publicIp": true,
+				"ami": map[string]interface{}{
+					"id": ami,
+				},
+				"blockDevices": []interface{}{
+					map[string]interface{}{
+						"ebs": map[string]interface{}{
+							"kmsKey": map[string]interface{}{
+								"arn": "",
 							},
+							"volumeSize": 120,
+							"volumeType": "gp3",
+							"encrypted":  true,
+							"iops":       0,
 						},
 					},
-					"credentialsSecret": map[string]interface{}{
-						"name": "aws-cloud-credentials",
-					},
-					"deviceIndex":    0,
-					"securityGroups": securityGroups,
-					"iamInstanceProfile": map[string]interface{}{
-						"id": infraId + "-worker-profile",
-					},
-					"metadata": map[string]interface{}{
-						"creationTimestamp": nil,
-					},
-					"metadataServiceOptions": map[string]interface{}{},
-					"placement": map[string]interface{}{
-						"availabilityZone": az,
-						"region":           region,
-					},
+				},
+				"credentialsSecret": map[string]interface{}{
+					"name": "aws-cloud-credentials",
+				},
+				"deviceIndex":    0,
+				"securityGroups": securityGroups,
+				"iamInstanceProfile": map[string]interface{}{
+					"id": infraId + "-worker-profile",
+				},
+				"metadata": map[string]interface{}{
+					"creationTimestamp": nil,
+				},
+				"metadataServiceOptions": map[string]interface{}{},
+				"placement": map[string]interface{}{
+					"availabilityZone": az,
+					"region":           region,
 				},
 			},
 		}
