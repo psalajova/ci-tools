@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/openshift/ci-tools/pkg/jobrunaggregator/jobrunaggregatorapi"
 )
@@ -84,68 +84,59 @@ func (s *jobNameGenerator) UpdateURLsForAllReleases(releases []jobrunaggregatora
 	}
 }
 
+func readConfigURL(url string, into interface{}, unmarshal func(data []byte, v any) error) (skip bool, failure error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return false, fmt.Errorf("error requesting %v: %w", url, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 404 && strings.Contains(url, "-5.0") && time.Now().Format(time.DateOnly) < "2026-05-01" {
+		// TRT defined the 5.0 release prior to branch cut for sippy's use; ignore if not defined
+		fmt.Println("SKIPPING premature 5.0 config with URL 404 not found: " + url)
+		return true, nil
+	} else if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return false, fmt.Errorf("error reading %v: %v", url, resp.StatusCode)
+	}
+
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("error loading content %v: %w", url, err)
+	}
+
+	if err = unmarshal(content, into); err != nil {
+		return false, fmt.Errorf("error unmarshaling %v: %w", url, err)
+	}
+	return false, nil
+}
+
 func (s *jobNameGenerator) GenerateJobNames() ([]string, error) {
 	jobNames := []string{}
 
 	for _, url := range s.releaseConfigURLs {
-		resp, err := http.Get(url)
-		if err != nil {
-			return jobNames, fmt.Errorf("error reading %v: %w", url, err)
-		}
-		err = func() error {
-			defer resp.Body.Close()
-			if resp.StatusCode == 404 && strings.Contains(url, "release-5.0") && time.Now().Format(time.DateOnly) < "2026-05-01" {
-				// TRT defined the 5.0 release prior to branch cut for sippy's use; ignore if not defined
-				fmt.Println("SKIPPING release because URL is 404 not found: " + url)
-				return nil
-			} else if resp.StatusCode < 200 || resp.StatusCode > 299 {
-				return fmt.Errorf("error reading %v: %v", url, resp.StatusCode)
-			}
-
-			content, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return fmt.Errorf("error reading %v: %w", url, err)
-			}
-
-			releaseConfig := &FakeReleaseConfig{}
-			if err := json.Unmarshal(content, releaseConfig); err != nil {
-				return fmt.Errorf("error reading %v: %w", url, err)
-			}
-
-			jobNames = append(jobNames, fmt.Sprintf("// begin %v", url))
-			localLines := []string{}
-			for _, curr := range releaseConfig.Verify {
-				localLines = append(localLines, curr.ProwJob.Name)
-			}
-			sort.Strings(localLines)
-			jobNames = append(jobNames, localLines...)
-			jobNames = append(jobNames, fmt.Sprintf("// end %v", url))
-			jobNames = append(jobNames, "")
-			return nil
-		}()
-		if err != nil {
+		releaseConfig := &FakeReleaseConfig{}
+		if skip, err := readConfigURL(url, releaseConfig, json.Unmarshal); err != nil {
 			return jobNames, err
+		} else if skip {
+			continue
 		}
+
+		jobNames = append(jobNames, fmt.Sprintf("// begin %v", url))
+		localLines := []string{}
+		for _, curr := range releaseConfig.Verify {
+			localLines = append(localLines, curr.ProwJob.Name)
+		}
+		sort.Strings(localLines)
+		jobNames = append(jobNames, localLines...)
+		jobNames = append(jobNames, fmt.Sprintf("// end %v", url))
+		jobNames = append(jobNames, "")
 	}
 
 	for _, url := range s.periodicURLs {
-		resp, err := http.Get(url)
-		if err != nil {
-			return jobNames, fmt.Errorf("error reading %v: %w", url, err)
-		}
-		if resp.StatusCode < 200 || resp.StatusCode > 299 {
-			return jobNames, fmt.Errorf("error reading %v: %v", url, resp.StatusCode)
-		}
-
-		content, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return jobNames, fmt.Errorf("error reading %v: %w", url, err)
-		}
-		resp.Body.Close()
-
 		periodicConfig := &FakePeriodicConfig{}
-		if err := yaml.Unmarshal(content, periodicConfig); err != nil {
-			return jobNames, fmt.Errorf("error reading %v: %w", url, err)
+		if skip, err := readConfigURL(url, periodicConfig, yaml.Unmarshal); err != nil {
+			return jobNames, err
+		} else if skip {
+			continue
 		}
 
 		jobNames = append(jobNames, fmt.Sprintf("// begin %v", url))
