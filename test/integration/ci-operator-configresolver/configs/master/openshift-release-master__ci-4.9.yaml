@@ -17,9 +17,17 @@ resources:
       memory: 200Mi
 tests:
 - as: e2e-aws
-  commands: TEST_SUITE=openshift/conformance/parallel run-tests
-  openshift_installer:
+  steps:
     cluster_profile: aws
+    workflow: ipi
+    test:
+    - as: e2e
+      from: my-image
+      commands: TEST_SUITE=openshift/conformance/parallel run-tests
+      resources:
+        requests:
+          cpu: 1000m
+          memory: 2Gi
 - as: e2e
   steps:
     cluster_profile: azure4

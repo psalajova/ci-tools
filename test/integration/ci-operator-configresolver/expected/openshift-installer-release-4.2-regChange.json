@@ -28,9 +28,75 @@
     },
     {
       "as": "e2e-aws",
-      "commands": "TEST_SUITE=openshift/conformance/parallel run-tests",
-      "openshift_installer": {
-        "cluster_profile": "aws"
+      "literal_steps": {
+        "cluster_profile": "aws",
+        "pre": [
+          {
+            "as": "ipi-install-rbac",
+            "from": "installer",
+            "commands": "setup-rbac-2\n",
+            "resources": {
+              "requests": {
+                "cpu": "1000m",
+                "memory": "2Gi"
+              }
+            }
+          },
+          {
+            "as": "ipi-install-install",
+            "from": "installer",
+            "commands": "openshift-cluster install --newFlag\n",
+            "resources": {
+              "requests": {
+                "cpu": "1000m",
+                "memory": "2Gi"
+              }
+            },
+            "env": [
+              {
+                "name": "TEST_PARAMETER",
+                "default": "test parameter default"
+              }
+            ]
+          }
+        ],
+        "test": [
+          {
+            "as": "e2e",
+            "from": "my-image",
+            "commands": "TEST_SUITE=openshift/conformance/parallel run-tests",
+            "resources": {
+              "requests": {
+                "cpu": "1000m",
+                "memory": "2Gi"
+              }
+            }
+          }
+        ],
+        "post": [
+          {
+            "as": "ipi-deprovision-must-gather",
+            "from": "installer",
+            "commands": "gather\n",
+            "resources": {
+              "requests": {
+                "cpu": "1000m",
+                "memory": "2Gi"
+              }
+            }
+          },
+          {
+            "as": "ipi-deprovision-deprovision",
+            "from": "installer",
+            "commands": "openshift-cluster destroy\n",
+            "resources": {
+              "requests": {
+                "cpu": "1000m",
+                "memory": "2Gi"
+              }
+            }
+          }
+        ]
       }
     },
     {
