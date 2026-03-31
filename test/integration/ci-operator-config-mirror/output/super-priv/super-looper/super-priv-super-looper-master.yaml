@@ -3,24 +3,20 @@ base_images:
     name: origin-v4.0
     namespace: openshift
     tag: base
-  os:
-    name: centos
-    namespace: ocp
-    tag: os
 build_root:
   image_stream_tag:
     name: release
     namespace: openshift
     tag: golang-1.10
-canonical_go_repository: github.com/super/duper
+canonical_go_repository: github.com/super/looper
 images:
   items:
   - from: base
     to: test-image
 promotion:
   to:
-  - name: other-priv
-    namespace: ocp-private
+  - namespace: ocp-private
+    tag: 4.14-priv
 resources:
   '*':
     limits:
@@ -38,4 +34,4 @@ tests:
 zz_generated_metadata:
   branch: master
   org: super-priv
-  repo: duper
+  repo: super-looper

@@ -12,6 +12,7 @@ import (
 
 	"github.com/openshift/ci-tools/pkg/api"
 	"github.com/openshift/ci-tools/pkg/config"
+	"github.com/openshift/ci-tools/pkg/privateorg"
 )
 
 func TestOptionsValidate(t *testing.T) {
@@ -845,7 +846,7 @@ func TestDestinationNaming(t *testing.T) {
 
 			// Apply the same logic as in main()
 			// Start with the default flattened orgs for backwards compatibility
-			flattenedOrgs := sets.New[string](defaultFlattenOrgs...)
+			flattenedOrgs := sets.New[string](privateorg.DefaultFlattenOrgs...)
 			// Add any additional orgs specified via --flatten-org
 			flattenedOrgs.Insert(o.flattenOrgs...)
 			// The --only-org is also flattened if specified

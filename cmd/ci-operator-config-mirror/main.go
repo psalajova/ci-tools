@@ -9,10 +9,12 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/prow/pkg/interrupts"
 
 	"github.com/openshift/ci-tools/pkg/api"
 	"github.com/openshift/ci-tools/pkg/config"
+	"github.com/openshift/ci-tools/pkg/privateorg"
 )
 
 const (
@@ -27,7 +29,8 @@ type options struct {
 	toOrg   string
 	onlyOrg string
 
-	clean bool
+	flattenOrgs privateorg.ArrayFlags
+	clean       bool
 }
 
 func gatherOptions() (options, error) {
@@ -36,6 +39,7 @@ func gatherOptions() (options, error) {
 
 	fs.StringVar(&o.toOrg, "to-org", "", "Name of the organization which the ci-operator configuration files will be mirrored")
 	fs.StringVar(&o.onlyOrg, "only-org", "", "Mirror only ci-operator configuration from this organization")
+	fs.Var(&o.flattenOrgs, "flatten-org", "Organizations whose repos should not have org prefix (can be specified multiple times)")
 
 	fs.BoolVar(&o.clean, "clean", true, "If the `to-org` folder already exists, then delete all subdirectories")
 
@@ -106,8 +110,14 @@ func main() {
 		os.Exit(1)
 	}()
 
+	flattenedOrgs := sets.New[string](privateorg.DefaultFlattenOrgs...)
+	flattenedOrgs.Insert(o.flattenOrgs...)
+	if o.onlyOrg != "" {
+		flattenedOrgs.Insert(o.onlyOrg)
+	}
+
 	configsByRepo := make(configsByRepo)
-	callback := ciOperatorConfigsCallback(o, configsByRepo)
+	callback := ciOperatorConfigsCallback(o, configsByRepo, flattenedOrgs)
 
 	if err := o.OperateOnCIOperatorConfigDir(o.ConfigDir, callback); err != nil {
 		logrus.WithError(err).Fatal("error while operating in the ci-operator configuration files")
@@ -180,7 +190,7 @@ func strP(str string) *string {
 	return &str
 }
 
-func ciOperatorConfigsCallback(o options, configsByRepo configsByRepo) func(rbc *api.ReleaseBuildConfiguration, repoInfo *config.Info) error {
+func ciOperatorConfigsCallback(o options, configsByRepo configsByRepo, flattenedOrgs sets.Set[string]) func(rbc *api.ReleaseBuildConfiguration, repoInfo *config.Info) error {
 	return func(rbc *api.ReleaseBuildConfiguration, repoInfo *config.Info) error {
 		logger := logrus.WithFields(logrus.Fields{"org": repoInfo.Org, "repo": repoInfo.Repo, "branch": repoInfo.Branch})
 
@@ -258,8 +268,11 @@ func ciOperatorConfigsCallback(o options, configsByRepo configsByRepo) func(rbc 
 		}
 		rbc.Tests = tests
 
+		sourceOrg := repoInfo.Org
 		repoInfo.Org = o.toOrg
+		repoInfo.Repo = privateorg.MirroredRepoName(sourceOrg, repoInfo.Repo, flattenedOrgs)
 		rbc.Metadata.Org = o.toOrg
+		rbc.Metadata.Repo = repoInfo.Repo
 
 		if len(rbc.Tests) > 0 || len(rbc.Images.Items) > 0 {
 			configsByRepo[repoInfo.Repo] = append(configsByRepo[repoInfo.Repo], config.DataWithInfo{

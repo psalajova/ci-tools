@@ -20,6 +20,7 @@ import (
 
 	"github.com/openshift/ci-tools/pkg/api"
 	"github.com/openshift/ci-tools/pkg/config"
+	"github.com/openshift/ci-tools/pkg/privateorg"
 )
 
 const (
@@ -41,6 +42,7 @@ type options struct {
 	gitEmail        string
 	publicizeConfig string
 	releaseRepoPath string
+	flattenOrgs     privateorg.ArrayFlags
 
 	config.WhitelistOptions
 	flagutil.GitHubOptions
@@ -58,6 +60,7 @@ func parseOptions() options {
 
 	fs.StringVar(&o.publicizeConfig, "publicize-config", "", "The publicize configuration to be updated. Assuming that the file exists in the working directory.")
 	fs.StringVar(&o.releaseRepoPath, "release-repo-path", "", "Path to a openshift/release repository directory")
+	fs.Var(&o.flattenOrgs, "flatten-org", "Organizations whose repos should not have org prefix (can be specified multiple times)")
 
 	o.AddFlags(fs)
 	o.WhitelistOptions.Bind(fs)
@@ -113,9 +116,12 @@ func main() {
 	}
 
 	publicizeRepos := make(map[string]string)
+	flattenedOrgs := sets.New[string](privateorg.DefaultFlattenOrgs...)
+	flattenedOrgs.Insert(o.flattenOrgs...)
 	for org, repos := range orgRepos {
 		for repo := range repos {
-			privateOrgRepo := fmt.Sprintf("%s/%s", privateOrg, repo)
+			mirroredRepo := privateorg.MirroredRepoName(org, repo, flattenedOrgs)
+			privateOrgRepo := fmt.Sprintf("%s/%s", privateOrg, mirroredRepo)
 			publicOrgRepo := fmt.Sprintf("%s/%s", org, repo)
 			publicizeRepos[privateOrgRepo] = publicOrgRepo
 		}
@@ -192,11 +198,6 @@ func getReposForPrivateOrg(releaseRepoPath string, allowlist map[string][]string
 
 	callback := func(c *api.ReleaseBuildConfiguration, i *config.Info) error {
 		if !api.BuildsAnyOfficialImages(c, api.WithoutOKD) {
-			return nil
-		}
-
-		if i.Org != "openshift" {
-			logrus.WithField("org", i.Org).WithField("repo", i.Repo).Warn("Dropping repo in non-openshift org, this is currently not supported")
 			return nil
 		}
 

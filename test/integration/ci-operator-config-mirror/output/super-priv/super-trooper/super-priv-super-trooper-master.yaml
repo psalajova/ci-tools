@@ -8,14 +8,14 @@ build_root:
     name: release
     namespace: openshift
     tag: golang-1.10
-canonical_go_repository: github.com/foo/barry-white
+canonical_go_repository: github.com/super/trooper
 images:
   items:
   - from: base
     to: test-image
 promotion:
   to:
-  - name: 4.5-priv
+  - name: other-priv
     namespace: ocp-private
 resources:
   '*':
@@ -32,6 +32,6 @@ tests:
   container:
     from: src
 zz_generated_metadata:
-  branch: official
+  branch: master
   org: super-priv
-  repo: barry-white
+  repo: super-trooper

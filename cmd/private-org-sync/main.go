@@ -21,29 +21,8 @@ import (
 
 	"github.com/openshift/ci-tools/pkg/api"
 	"github.com/openshift/ci-tools/pkg/config"
+	"github.com/openshift/ci-tools/pkg/privateorg"
 )
-
-// defaultFlattenOrgs contains organizations whose repos should not have org prefix by default
-// for backwards compatibility
-var defaultFlattenOrgs = []string{
-	"openshift",
-	"openshift-eng",
-	"operator-framework",
-	"redhat-cne",
-	"openshift-assisted",
-	"ViaQ",
-}
-
-type arrayFlags []string
-
-func (i *arrayFlags) String() string {
-	return fmt.Sprintf("%v", *i)
-}
-
-func (i *arrayFlags) Set(value string) error {
-	*i = append(*i, value)
-	return nil
-}
 
 type options struct {
 	config.WhitelistOptions
@@ -56,7 +35,7 @@ type options struct {
 	prefix      string
 	org         string
 	repo        string
-	flattenOrgs arrayFlags
+	flattenOrgs privateorg.ArrayFlags
 
 	gitName  string
 	gitEmail string
@@ -674,7 +653,7 @@ func main() {
 		grouped[key] = append(grouped[key], source)
 	}
 
-	flattenedOrgs := sets.New[string](defaultFlattenOrgs...)
+	flattenedOrgs := sets.New[string](privateorg.DefaultFlattenOrgs...)
 	flattenedOrgs.Insert(o.flattenOrgs...)
 	if o.org != "" {
 		flattenedOrgs.Insert(o.org)
@@ -711,9 +690,7 @@ func main() {
 
 			destination := source
 			destination.org = o.targetOrg
-			if !flattenedOrgs.Has(source.org) {
-				destination.repo = fmt.Sprintf("%s-%s", source.org, source.repo)
-			}
+			destination.repo = privateorg.MirroredRepoName(source.org, source.repo, flattenedOrgs)
 
 			if err := syncer.mirror(gitDir, source, destination); err != nil {
 				errs = append(errs, fmt.Errorf("%s->%s: %w", source.String(), destination.String(), err))

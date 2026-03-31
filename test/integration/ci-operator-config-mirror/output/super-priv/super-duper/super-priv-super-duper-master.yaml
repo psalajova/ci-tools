@@ -3,19 +3,23 @@ base_images:
     name: origin-v4.0
     namespace: openshift
     tag: base
+  os:
+    name: centos
+    namespace: ocp
+    tag: os
 build_root:
   image_stream_tag:
     name: release
     namespace: openshift
     tag: golang-1.10
-canonical_go_repository: github.com/foo/barry-white
+canonical_go_repository: github.com/super/duper
 images:
   items:
   - from: base
     to: test-image
 promotion:
   to:
-  - name: 4.5-priv
+  - name: other-priv
     namespace: ocp-private
 resources:
   '*':
@@ -32,6 +36,6 @@ tests:
   container:
     from: src
 zz_generated_metadata:
-  branch: official
+  branch: master
   org: super-priv
-  repo: barry-white
+  repo: super-duper

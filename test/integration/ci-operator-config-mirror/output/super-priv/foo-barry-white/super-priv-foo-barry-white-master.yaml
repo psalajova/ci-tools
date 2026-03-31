@@ -8,15 +8,16 @@ build_root:
     name: release
     namespace: openshift
     tag: golang-1.10
-canonical_go_repository: github.com/super/looper
+canonical_go_repository: github.com/foo/barry-white
 images:
   items:
   - from: base
     to: test-image
 promotion:
   to:
-  - namespace: ocp-private
-    tag: 4.14-priv
+  - disabled: true
+    name: satin-soul
+    namespace: non-ocp
 resources:
   '*':
     limits:
@@ -34,4 +35,4 @@ tests:
 zz_generated_metadata:
   branch: master
   org: super-priv
-  repo: looper
+  repo: foo-barry-white

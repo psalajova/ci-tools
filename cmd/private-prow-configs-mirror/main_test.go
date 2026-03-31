@@ -19,8 +19,14 @@ import (
 )
 
 var orgRepos = orgReposWithOfficialImages{
-	"openshift": sets.New("testRepo1", "testRepo2"),
-	"testshift": sets.New("testRepo3", "testRepo4"),
+	"openshift": {
+		"testRepo1": "testRepo1",
+		"testRepo2": "testRepo2",
+	},
+	"testshift": {
+		"testRepo3": "testshift-testRepo3",
+		"testRepo4": "testshift-testRepo4",
+	},
 }
 
 func pBool(b bool) *bool {
@@ -57,6 +63,9 @@ func TestInjectPrivateBranchProtection(t *testing.T) {
 					"openshift": {Repos: map[string]prowconfig.Repo{
 						"testRepo1": {Branches: map[string]prowconfig.Branch{
 							"branch1": {Policy: prowconfig.Policy{Protect: pBool(false)}}}}}},
+					"testshift": {Repos: map[string]prowconfig.Repo{
+						"testRepo3": {Branches: map[string]prowconfig.Branch{
+							"branch2": {Policy: prowconfig.Policy{Protect: pBool(true)}}}}}},
 				},
 			},
 			expected: prowconfig.BranchProtection{
@@ -64,10 +73,25 @@ func TestInjectPrivateBranchProtection(t *testing.T) {
 					"openshift": {Repos: map[string]prowconfig.Repo{
 						"testRepo1": {Branches: map[string]prowconfig.Branch{
 							"branch1": {Policy: prowconfig.Policy{Protect: pBool(false)}}}}}},
+					"testshift": {Repos: map[string]prowconfig.Repo{
+						"testRepo3": {Branches: map[string]prowconfig.Branch{
+							"branch2": {Policy: prowconfig.Policy{Protect: pBool(true)}}}}}},
 					"openshift-priv": {Repos: map[string]prowconfig.Repo{
-						"testRepo1": {Branches: map[string]prowconfig.Branch{
-							"branch1": {Policy: prowconfig.Policy{Protect: pBool(false)}}}}},
-					},
+						"testRepo1": {
+							Branches: map[string]prowconfig.Branch{
+								"branch1": {
+									Policy: prowconfig.Policy{Protect: pBool(false)},
+								},
+							},
+						},
+						"testshift-testRepo3": {
+							Branches: map[string]prowconfig.Branch{
+								"branch2": {
+									Policy: prowconfig.Policy{Protect: pBool(true)},
+								},
+							},
+						},
+					}},
 				},
 			},
 		},
@@ -130,6 +154,9 @@ func TestInjectPrivateTideOrgContextPolicy(t *testing.T) {
 					"openshift": {Repos: map[string]prowconfig.TideRepoContextPolicy{
 						"testRepo1": {TideContextPolicy: prowconfig.TideContextPolicy{
 							SkipUnknownContexts: pBool(true)}}}},
+					"testshift": {Repos: map[string]prowconfig.TideRepoContextPolicy{
+						"testRepo3": {TideContextPolicy: prowconfig.TideContextPolicy{
+							SkipUnknownContexts: pBool(false)}}}},
 				},
 			},
 			expected: prowconfig.TideContextPolicyOptions{
@@ -137,9 +164,15 @@ func TestInjectPrivateTideOrgContextPolicy(t *testing.T) {
 					"openshift": {Repos: map[string]prowconfig.TideRepoContextPolicy{
 						"testRepo1": {TideContextPolicy: prowconfig.TideContextPolicy{
 							SkipUnknownContexts: pBool(true)}}}},
+					"testshift": {Repos: map[string]prowconfig.TideRepoContextPolicy{
+						"testRepo3": {TideContextPolicy: prowconfig.TideContextPolicy{
+							SkipUnknownContexts: pBool(false)}}}},
 					"openshift-priv": {Repos: map[string]prowconfig.TideRepoContextPolicy{
 						"testRepo1": {TideContextPolicy: prowconfig.TideContextPolicy{
-							SkipUnknownContexts: pBool(true)}}}},
+							SkipUnknownContexts: pBool(true)}},
+						"testshift-testRepo3": {TideContextPolicy: prowconfig.TideContextPolicy{
+							SkipUnknownContexts: pBool(false)}},
+					}},
 				},
 			},
 		},
@@ -214,7 +247,7 @@ func TestInjectPrivateReposTideQueries(t *testing.T) {
 					Labels:           []string{"lgtm", "approved"},
 					MissingLabels:    []string{"needs-rebase", "do-not-merge/work-in-progress"},
 					Repos: []string{
-						"openshift-priv/testRepo1", "openshift-priv/testRepo3",
+						"openshift-priv/testRepo1", "openshift-priv/testshift-testRepo3",
 						"openshift/testRepo1", "testshift/testRepo3",
 					},
 				},
@@ -260,20 +293,21 @@ func TestInjectPrivateMergeType(t *testing.T) {
 		{
 			id: "changes expected",
 			tideMergeTypes: map[string]prowconfig.TideOrgMergeType{
-				"anotherOrg/Repo":       {MergeType: types.MergeMerge},
-				"openshift/testRepo1":   {MergeType: types.MergeSquash},
-				"openshift/anotherRepo": {MergeType: types.MergeSquash},
-				"testshift/anotherRepo": {MergeType: types.MergeMerge},
-				"testshift/testRepo3":   {MergeType: types.MergeMerge},
-			},
-			expected: map[string]prowconfig.TideOrgMergeType{
 				"anotherOrg/Repo":          {MergeType: types.MergeMerge},
 				"openshift/testRepo1":      {MergeType: types.MergeSquash},
 				"openshift/anotherRepo":    {MergeType: types.MergeSquash},
 				"testshift/anotherRepo":    {MergeType: types.MergeMerge},
 				"testshift/testRepo3":      {MergeType: types.MergeMerge},
-				"openshift-priv/testRepo1": {MergeType: types.MergeSquash},
 				"openshift-priv/testRepo3": {MergeType: types.MergeMerge},
+			},
+			expected: map[string]prowconfig.TideOrgMergeType{
+				"anotherOrg/Repo":                    {MergeType: types.MergeMerge},
+				"openshift/testRepo1":                {MergeType: types.MergeSquash},
+				"openshift/anotherRepo":              {MergeType: types.MergeSquash},
+				"testshift/anotherRepo":              {MergeType: types.MergeMerge},
+				"testshift/testRepo3":                {MergeType: types.MergeMerge},
+				"openshift-priv/testRepo1":           {MergeType: types.MergeSquash},
+				"openshift-priv/testshift-testRepo3": {MergeType: types.MergeMerge},
 			},
 		},
 	}
@@ -310,18 +344,20 @@ func TestInjectPrivatePRStatusBaseURLs(t *testing.T) {
 		{
 			id: "changes expected",
 			prStatusBaseURLs: map[string]string{
-				"openshift":              "https://test.com",
-				"openshift/anotherRepo1": "https://test.com",
-				"openshift/testRepo1":    "https://test.com",
-				"testshift/testRepo3":    "https://test.com",
+				"openshift":                  "https://test.com",
+				"openshift/anotherRepo1":     "https://test.com",
+				"openshift/testRepo1":        "https://test.com",
+				"testshift/testRepo3":        "https://test.com",
+				"openshift-priv/testRepo3":   "https://legacy.example.com",
+				"openshift-priv/testRepo100": "https://legacy.example.com",
 			},
 			expected: map[string]string{
-				"openshift":                "https://test.com",
-				"openshift-priv/testRepo1": "https://test.com",
-				"openshift-priv/testRepo3": "https://test.com",
-				"openshift/anotherRepo1":   "https://test.com",
-				"openshift/testRepo1":      "https://test.com",
-				"testshift/testRepo3":      "https://test.com",
+				"openshift":                          "https://test.com",
+				"openshift-priv/testRepo1":           "https://test.com",
+				"openshift-priv/testshift-testRepo3": "https://test.com",
+				"openshift/anotherRepo1":             "https://test.com",
+				"openshift/testRepo1":                "https://test.com",
+				"testshift/testRepo3":                "https://test.com",
 			},
 		},
 	}
@@ -356,8 +392,9 @@ func TestInjectPrivatePlankDefaultDecorationConfigs(t *testing.T) {
 		{
 			id: "changes expected",
 			defaultDecorationConfigs: map[string]*prowapi.DecorationConfig{
-				"openshift":           {GCSCredentialsSecret: ptr.To("gcs_secret"), SkipCloning: pBool(true)},
-				"openshift/testRepo1": {GCSCredentialsSecret: ptr.To("gcs_secret2"), SkipCloning: pBool(false)},
+				"openshift":                {GCSCredentialsSecret: ptr.To("gcs_secret"), SkipCloning: pBool(true)},
+				"openshift/testRepo1":      {GCSCredentialsSecret: ptr.To("gcs_secret2"), SkipCloning: pBool(false)},
+				"openshift-priv/testRepo3": {GCSCredentialsSecret: ptr.To("legacy"), SkipCloning: pBool(false)},
 			},
 			expected: map[string]*prowapi.DecorationConfig{
 				"openshift":                {GCSCredentialsSecret: ptr.To("gcs_secret"), SkipCloning: pBool(true)},
@@ -397,16 +434,18 @@ func TestInjectPrivateJobURLPrefixConfig(t *testing.T) {
 		{
 			id: "changes expected",
 			jobURLPrefixConfig: map[string]string{
-				"openshift":           "https://test.com",
-				"openshift/testRepo1": "https://test.com",
-				"testshift/testRepo3": "https://test.com",
+				"openshift":                  "https://test.com",
+				"openshift/testRepo1":        "https://test.com",
+				"testshift/testRepo3":        "https://test.com",
+				"openshift-priv/testRepo3":   "https://legacy.example.com",
+				"openshift-priv/testRepo100": "https://legacy.example.com",
 			},
 			expected: map[string]string{
-				"openshift":                "https://test.com",
-				"openshift/testRepo1":      "https://test.com",
-				"testshift/testRepo3":      "https://test.com",
-				"openshift-priv/testRepo1": "https://test.com",
-				"openshift-priv/testRepo3": "https://test.com",
+				"openshift":                          "https://test.com",
+				"openshift/testRepo1":                "https://test.com",
+				"testshift/testRepo3":                "https://test.com",
+				"openshift-priv/testRepo1":           "https://test.com",
+				"openshift-priv/testshift-testRepo3": "https://test.com",
 			},
 		},
 	}
@@ -460,12 +499,12 @@ func TestInjectPrivateApprovePlugin(t *testing.T) {
 				{
 					IgnoreReviewState: pBool(false),
 					LgtmActsAsApprove: true,
-					Repos:             []string{"openshift/testRepo1", "testshift/anotherRepo2"},
+					Repos:             []string{"openshift/testRepo1", "testshift/anotherRepo2", "openshift-priv/testRepo3"},
 				},
 				{
 					IgnoreReviewState: pBool(false),
 					LgtmActsAsApprove: true,
-					Repos:             []string{"openshift/anotherRepo3", "testshift/testRepo3"},
+					Repos:             []string{"openshift/anotherRepo3", "testshift/testRepo3", "openshift-priv/testRepo100"},
 				},
 			},
 			expected: []plugins.Approve{
@@ -477,7 +516,7 @@ func TestInjectPrivateApprovePlugin(t *testing.T) {
 				{
 					IgnoreReviewState: pBool(false),
 					LgtmActsAsApprove: true,
-					Repos:             []string{"openshift-priv/testRepo3", "openshift/anotherRepo3", "testshift/testRepo3"},
+					Repos:             []string{"openshift-priv/testshift-testRepo3", "openshift/anotherRepo3", "testshift/testRepo3"},
 				},
 			},
 		},
@@ -527,11 +566,11 @@ func TestInjectPrivateLGTMPlugin(t *testing.T) {
 			lgtms: []plugins.Lgtm{
 				{
 					ReviewActsAsLgtm: true,
-					Repos:            []string{"openshift/testRepo1", "testshift/anotherRepo2"},
+					Repos:            []string{"openshift/testRepo1", "testshift/anotherRepo2", "openshift-priv/testRepo3"},
 				},
 				{
 					ReviewActsAsLgtm: true,
-					Repos:            []string{"openshift/anotherRepo3", "testshift/testRepo3"},
+					Repos:            []string{"openshift/anotherRepo3", "testshift/testRepo3", "openshift-priv/testRepo100"},
 				},
 			},
 			expected: []plugins.Lgtm{
@@ -541,7 +580,7 @@ func TestInjectPrivateLGTMPlugin(t *testing.T) {
 				},
 				{
 					ReviewActsAsLgtm: true,
-					Repos:            []string{"openshift-priv/testRepo3", "openshift/anotherRepo3", "testshift/testRepo3"},
+					Repos:            []string{"openshift-priv/testshift-testRepo3", "openshift/anotherRepo3", "testshift/testRepo3"},
 				},
 			},
 		},
@@ -589,19 +628,14 @@ func TestInjectPrivateBugzillaPlugin(t *testing.T) {
 				Orgs: map[string]plugins.BugzillaOrgOptions{
 					"openshift": {Repos: map[string]plugins.BugzillaRepoOptions{
 						"testRepo1": {Branches: map[string]plugins.BugzillaBranchOptions{"master": {ExcludeDefaults: pBool(true)}}}}},
-					"testshift": {Repos: map[string]plugins.BugzillaRepoOptions{
-						"testRepo3": {Branches: map[string]plugins.BugzillaBranchOptions{"master": {ExcludeDefaults: pBool(true)}}}}},
 				},
 			},
 			expected: plugins.Bugzilla{
 				Orgs: map[string]plugins.BugzillaOrgOptions{
 					"openshift": {Repos: map[string]plugins.BugzillaRepoOptions{
 						"testRepo1": {Branches: map[string]plugins.BugzillaBranchOptions{"master": {ExcludeDefaults: pBool(true)}}}}},
-					"testshift": {Repos: map[string]plugins.BugzillaRepoOptions{
-						"testRepo3": {Branches: map[string]plugins.BugzillaBranchOptions{"master": {ExcludeDefaults: pBool(true)}}}}},
 					"openshift-priv": {Repos: map[string]plugins.BugzillaRepoOptions{
-						"testRepo1": {Branches: map[string]plugins.BugzillaBranchOptions{"master": {ExcludeDefaults: pBool(true)}}},
-						"testRepo3": {Branches: map[string]plugins.BugzillaBranchOptions{"master": {ExcludeDefaults: pBool(true)}}}},
+						"testRepo1": {Branches: map[string]plugins.BugzillaBranchOptions{"master": {ExcludeDefaults: pBool(true)}}}},
 					},
 				},
 			},
@@ -653,11 +687,11 @@ func TestInjectPrivatePlugins(t *testing.T) {
 				"openshift/testRepo1": {Plugins: []string{"approve"}},
 				"testshift/testRepo3": {Plugins: []string{"approve", "trigger"}},
 
-				"openshift-priv":           {Plugins: []string{"hold", "lgtm"}},
-				"openshift-priv/testRepo1": {Plugins: []string{"approve", "cat", "dog"}},
-				"openshift-priv/testRepo2": {Plugins: []string{"cat", "dog"}},
-				"openshift-priv/testRepo3": {Plugins: []string{"approve", "label", "milestone", "trigger"}},
-				"openshift-priv/testRepo4": {Plugins: []string{"label", "milestone"}},
+				"openshift-priv":                     {Plugins: []string{"hold", "lgtm"}},
+				"openshift-priv/testRepo1":           {Plugins: []string{"approve", "cat", "dog"}},
+				"openshift-priv/testRepo2":           {Plugins: []string{"cat", "dog"}},
+				"openshift-priv/testshift-testRepo3": {Plugins: []string{"approve", "label", "milestone", "trigger"}},
+				"openshift-priv/testshift-testRepo4": {Plugins: []string{"label", "milestone"}},
 			},
 		},
 	}
