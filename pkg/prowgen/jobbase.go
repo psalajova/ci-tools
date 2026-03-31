@@ -132,9 +132,6 @@ func NewProwJobBaseBuilderForTest(configSpec *cioperatorapi.ReleaseBuildConfigur
 	if test.ClusterClaim != nil {
 		p.PodSpec.Add(Claims())
 	}
-	if testContainsLease(&test) {
-		p.PodSpec.Add(LeaseClient())
-	}
 
 	p.PodSpec.Add(HTTPServer())
 
@@ -142,8 +139,8 @@ func NewProwJobBaseBuilderForTest(configSpec *cioperatorapi.ReleaseBuildConfigur
 	// to support full job name matching in excluded_job_patterns
 	switch {
 	case test.MultiStageTestConfigurationLiteral != nil:
+		p.PodSpec.Add(LeaseClient())
 		if clusterProfile := test.MultiStageTestConfigurationLiteral.ClusterProfile; clusterProfile != "" {
-			p.PodSpec.Add(LeaseClient())
 			p.WithLabel(cioperatorapi.CloudClusterProfileLabel, string(clusterProfile))
 			p.WithLabel(cioperatorapi.CloudLabel, clusterProfile.ClusterType())
 		}
@@ -156,8 +153,8 @@ func NewProwJobBaseBuilderForTest(configSpec *cioperatorapi.ReleaseBuildConfigur
 			)
 		}
 	case test.MultiStageTestConfiguration != nil:
+		p.PodSpec.Add(LeaseClient())
 		if clusterProfile := test.MultiStageTestConfiguration.ClusterProfile; clusterProfile != "" {
-			p.PodSpec.Add(LeaseClient())
 			p.WithLabel(cioperatorapi.CloudClusterProfileLabel, string(clusterProfile))
 			p.WithLabel(cioperatorapi.CloudLabel, clusterProfile.ClusterType())
 		}

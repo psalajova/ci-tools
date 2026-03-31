@@ -226,15 +226,6 @@ func handlePresubmit(g *prowJobBaseBuilder, element cioperatorapi.TestStepConfig
 	presubmits[orgrepo] = append(presubmits[orgrepo], *presubmit)
 }
 
-func testContainsLease(test *cioperatorapi.TestStepConfiguration) bool {
-	// this is predicated upon the config being fully resolved at this time.
-	if test.MultiStageTestConfigurationLiteral == nil {
-		return false
-	}
-
-	return len(cioperatorapi.LeasesForTest(test, "")) > 0
-}
-
 type generatePresubmitOptions struct {
 	pipelineRunIfChanged      string
 	pipelineSkipIfOnlyChanged string

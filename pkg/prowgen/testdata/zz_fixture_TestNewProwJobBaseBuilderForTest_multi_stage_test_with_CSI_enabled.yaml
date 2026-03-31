@@ -12,6 +12,7 @@ spec:
     - --gsm-credentials-file=/etc/gsm-credentials/key.json
     - --gsm-project-config=/etc/gsm-config/gsm-project-config.yaml
     - --image-import-pull-secret=/etc/pull-secret/.dockerconfigjson
+    - --lease-server-credentials-file=/etc/boskos/credentials
     - --report-credentials-file=/etc/report/credentials
     - --target=simple
     command:
@@ -31,6 +32,9 @@ spec:
       requests:
         cpu: 10m
     volumeMounts:
+    - mountPath: /etc/boskos
+      name: boskos
+      readOnly: true
     - mountPath: /secrets/gcs
       name: gcs-credentials
       readOnly: true
@@ -51,6 +55,12 @@ spec:
       readOnly: true
   serviceAccountName: ci-operator
   volumes:
+  - name: boskos
+    secret:
+      items:
+      - key: credentials
+        path: credentials
+      secretName: boskos-credentials
   - configMap:
       name: gsm-config
     name: gsm-config
