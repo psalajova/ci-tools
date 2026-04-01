@@ -1391,9 +1391,9 @@ func TestFromConfig(t *testing.T) {
 	}, {
 		name: "image build",
 		config: api.ReleaseBuildConfiguration{
-			Images: []api.ProjectDirectoryImageBuildStepConfiguration{
+			Images: api.ImageConfiguration{Items: []api.ProjectDirectoryImageBuildStepConfiguration{
 				{From: "from", To: "to"},
-			},
+			}},
 		},
 		expectedSteps: []string{
 			"to",
@@ -1785,11 +1785,13 @@ func TestFromConfig(t *testing.T) {
 	}, {
 		name: "image with BuildImagesIfAffected enabled but not targeted [images]",
 		config: api.ReleaseBuildConfiguration{
-			Images: []api.ProjectDirectoryImageBuildStepConfiguration{
-				{From: "from", To: "tool1"},
-				{From: "from", To: "tool2"},
+			Images: api.ImageConfiguration{
+				Items: []api.ProjectDirectoryImageBuildStepConfiguration{
+					{From: "from", To: "tool1"},
+					{From: "from", To: "tool2"},
+				},
+				BuildIfAffected: true,
 			},
-			BuildImagesIfAffected: true,
 		},
 		expectedSteps: []string{
 			"tool1",
@@ -1806,12 +1808,14 @@ func TestFromConfig(t *testing.T) {
 	}, {
 		name: "image with BuildImagesIfAffected enabled and targeted [images]",
 		config: api.ReleaseBuildConfiguration{
-			Images: []api.ProjectDirectoryImageBuildStepConfiguration{
-				{From: "from", To: "tool1"},
-				{From: "from", To: "tool2"},
-				{From: "from", To: "tool3"},
+			Images: api.ImageConfiguration{
+				Items: []api.ProjectDirectoryImageBuildStepConfiguration{
+					{From: "from", To: "tool1"},
+					{From: "from", To: "tool2"},
+					{From: "from", To: "tool3"},
+				},
+				BuildIfAffected: true,
 			},
-			BuildImagesIfAffected: true,
 		},
 		requiredTargets: []string{"[images]"},
 		skippedImages:   sets.New("tool2", "tool3"),

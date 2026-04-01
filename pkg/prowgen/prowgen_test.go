@@ -431,7 +431,7 @@ func TestGenerateJobs(t *testing.T) {
 				Tests: []ciop.TestStepConfiguration{
 					{As: "derTest", ContainerTestConfiguration: &ciop.ContainerTestConfiguration{From: "from"}},
 					{As: "leTest", ContainerTestConfiguration: &ciop.ContainerTestConfiguration{From: "from"}}},
-				Images:                 []ciop.ProjectDirectoryImageBuildStepConfiguration{{}},
+				Images:                 ciop.ImageConfiguration{Items: []ciop.ProjectDirectoryImageBuildStepConfiguration{{}}},
 				PromotionConfiguration: &ciop.PromotionConfiguration{},
 			},
 			repoInfo: &ProwgenInfo{Metadata: ciop.Metadata{
@@ -443,7 +443,7 @@ func TestGenerateJobs(t *testing.T) {
 		{
 			id: "promotion postsubmit and periodic ",
 			config: &ciop.ReleaseBuildConfiguration{
-				Images:                 []ciop.ProjectDirectoryImageBuildStepConfiguration{{}},
+				Images:                 ciop.ImageConfiguration{Items: []ciop.ProjectDirectoryImageBuildStepConfiguration{{}}},
 				PromotionConfiguration: &ciop.PromotionConfiguration{Cron: "5 4 * * *"},
 			},
 			repoInfo: &ProwgenInfo{Metadata: ciop.Metadata{
@@ -455,7 +455,7 @@ func TestGenerateJobs(t *testing.T) {
 			id: "Promotion configuration causes --promote job",
 			config: &ciop.ReleaseBuildConfiguration{
 				Tests:                  []ciop.TestStepConfiguration{},
-				Images:                 []ciop.ProjectDirectoryImageBuildStepConfiguration{{}},
+				Images:                 ciop.ImageConfiguration{Items: []ciop.ProjectDirectoryImageBuildStepConfiguration{{}}},
 				PromotionConfiguration: &ciop.PromotionConfiguration{Targets: []api.PromotionTarget{{Namespace: "ci"}}},
 			},
 			repoInfo: &ProwgenInfo{Metadata: ciop.Metadata{
@@ -468,10 +468,10 @@ func TestGenerateJobs(t *testing.T) {
 			keep: true,
 			config: &ciop.ReleaseBuildConfiguration{
 				Tests: []ciop.TestStepConfiguration{},
-				Images: []ciop.ProjectDirectoryImageBuildStepConfiguration{
+				Images: ciop.ImageConfiguration{Items: []ciop.ProjectDirectoryImageBuildStepConfiguration{
 					{To: "out-1", From: "base"},
 					{To: "out-2", From: "base"},
-				},
+				}},
 				PromotionConfiguration: &ciop.PromotionConfiguration{
 					Targets: []api.PromotionTarget{{
 						Namespace: "ci",
@@ -490,7 +490,7 @@ func TestGenerateJobs(t *testing.T) {
 			id: "no Promotion configuration has no branch job",
 			config: &ciop.ReleaseBuildConfiguration{
 				Tests:  []ciop.TestStepConfiguration{},
-				Images: []ciop.ProjectDirectoryImageBuildStepConfiguration{{}},
+				Images: ciop.ImageConfiguration{Items: []ciop.ProjectDirectoryImageBuildStepConfiguration{{}}},
 				InputConfiguration: ciop.InputConfiguration{
 					ReleaseTagConfiguration: &ciop.ReleaseTagConfiguration{Namespace: "openshift"},
 				},
@@ -689,7 +689,7 @@ func TestGenerateJobs(t *testing.T) {
 		{
 			id: "multiarch postsubmit images",
 			config: &ciop.ReleaseBuildConfiguration{
-				Images: []ciop.ProjectDirectoryImageBuildStepConfiguration{
+				Images: ciop.ImageConfiguration{Items: []ciop.ProjectDirectoryImageBuildStepConfiguration{
 					{
 						From:                    "os",
 						To:                      "ci-tools",
@@ -700,7 +700,7 @@ func TestGenerateJobs(t *testing.T) {
 						To:                      "test",
 						AdditionalArchitectures: []string{"arm64", "ppc64-le"},
 					},
-				},
+				}},
 				PromotionConfiguration: &ciop.PromotionConfiguration{},
 			},
 			repoInfo: &ProwgenInfo{
@@ -732,7 +732,7 @@ func TestGenerateJobs(t *testing.T) {
 		{
 			id: "images job is configured for slack reporting",
 			config: &ciop.ReleaseBuildConfiguration{
-				Images:                 []ciop.ProjectDirectoryImageBuildStepConfiguration{{}},
+				Images:                 ciop.ImageConfiguration{Items: []ciop.ProjectDirectoryImageBuildStepConfiguration{{}}},
 				PromotionConfiguration: &ciop.PromotionConfiguration{},
 			},
 			repoInfo: &ProwgenInfo{
@@ -785,6 +785,51 @@ func TestGenerateJobs(t *testing.T) {
 				Tests: []ciop.TestStepConfiguration{
 					{As: "unit", ShardCount: intPointer(3), ContainerTestConfiguration: &ciop.ContainerTestConfiguration{From: "bin"}},
 				},
+			},
+			repoInfo: &ProwgenInfo{Metadata: ciop.Metadata{
+				Org:    "organization",
+				Repo:   "repository",
+				Branch: "branch",
+			}},
+		},
+		{
+			id: "images job with skip_if_only_changed propagated to presubmit and postsubmit",
+			config: &ciop.ReleaseBuildConfiguration{
+				Images: ciop.ImageConfiguration{
+					Items:             []ciop.ProjectDirectoryImageBuildStepConfiguration{{}},
+					SkipIfOnlyChanged: `^(docs/|.*\.md$)`,
+				},
+				PromotionConfiguration: &ciop.PromotionConfiguration{},
+			},
+			repoInfo: &ProwgenInfo{Metadata: ciop.Metadata{
+				Org:    "organization",
+				Repo:   "repository",
+				Branch: "branch",
+			}},
+		},
+		{
+			id: "images job with run_if_changed propagated to presubmit and postsubmit",
+			config: &ciop.ReleaseBuildConfiguration{
+				Images: ciop.ImageConfiguration{
+					Items:        []ciop.ProjectDirectoryImageBuildStepConfiguration{{}},
+					RunIfChanged: `^(Dockerfile|src/)`,
+				},
+				PromotionConfiguration: &ciop.PromotionConfiguration{},
+			},
+			repoInfo: &ProwgenInfo{Metadata: ciop.Metadata{
+				Org:    "organization",
+				Repo:   "repository",
+				Branch: "branch",
+			}},
+		},
+		{
+			id: "images job with pipeline_skip_if_only_changed propagated to presubmit only",
+			config: &ciop.ReleaseBuildConfiguration{
+				Images: ciop.ImageConfiguration{
+					Items:                     []ciop.ProjectDirectoryImageBuildStepConfiguration{{}},
+					PipelineSkipIfOnlyChanged: `^(docs/|.*\.md$)`,
+				},
+				PromotionConfiguration: &ciop.PromotionConfiguration{},
 			},
 			repoInfo: &ProwgenInfo{Metadata: ciop.Metadata{
 				Org:    "organization",

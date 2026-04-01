@@ -261,7 +261,7 @@ func ciOperatorConfigsCallback(o options, configsByRepo configsByRepo) func(rbc 
 		repoInfo.Org = o.toOrg
 		rbc.Metadata.Org = o.toOrg
 
-		if len(rbc.Tests) > 0 || len(rbc.Images) > 0 {
+		if len(rbc.Tests) > 0 || len(rbc.Images.Items) > 0 {
 			configsByRepo[repoInfo.Repo] = append(configsByRepo[repoInfo.Repo], config.DataWithInfo{
 				Configuration: *rbc,
 				Info:          *repoInfo,
