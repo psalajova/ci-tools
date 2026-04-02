@@ -72,7 +72,9 @@ func (p *PodLifecyclePlugin) Record(ev MetricsEvent) {
 	}
 
 	e.CreationTime = &pod.CreationTimestamp.Time
-	e.StartTime = &pod.Status.StartTime.Time
+	if pod.Status.StartTime != nil {
+		e.StartTime = &pod.Status.StartTime.Time
+	}
 	e.CompletionTime = getPodCompletionTime(pod)
 	e.CIWorkload = pod.Labels[CIWorkloadLabel]
 
