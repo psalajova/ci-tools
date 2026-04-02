@@ -793,7 +793,7 @@ func TestGenerateJobs(t *testing.T) {
 			}},
 		},
 		{
-			id: "images job with skip_if_only_changed propagated to presubmit and postsubmit",
+			id: "images job with skip_if_only_changed propagated to presubmit",
 			config: &ciop.ReleaseBuildConfiguration{
 				Images: ciop.ImageConfiguration{
 					Items:             []ciop.ProjectDirectoryImageBuildStepConfiguration{{}},
@@ -808,7 +808,7 @@ func TestGenerateJobs(t *testing.T) {
 			}},
 		},
 		{
-			id: "images job with run_if_changed propagated to presubmit and postsubmit",
+			id: "images job with run_if_changed propagated to presubmit",
 			config: &ciop.ReleaseBuildConfiguration{
 				Images: ciop.ImageConfiguration{
 					Items:        []ciop.ProjectDirectoryImageBuildStepConfiguration{{}},

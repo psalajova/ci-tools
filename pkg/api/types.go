@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -829,6 +828,7 @@ type TestStepConfiguration struct {
 	Retry *prowconfig.Retry `json:"retry,omitempty"`
 
 	// RunIfChanged is a regex that will result in the test only running if something that matches it was changed.
+	// Only applicable to presubmits; postsubmits always run on every merge.
 	RunIfChanged string `json:"run_if_changed,omitempty"`
 
 	// PipelineRunIfChanged is a regex that will result in the test only running in second
@@ -842,6 +842,7 @@ type TestStepConfiguration struct {
 	Portable bool `json:"portable,omitempty"`
 
 	// SkipIfOnlyChanged is a regex that will result in the test being skipped if all changed files match that regex.
+	// Only applicable to presubmits; postsubmits always run on every merge.
 	SkipIfOnlyChanged string `json:"skip_if_only_changed,omitempty"`
 
 	// PipelineSkipIfOnlyChanged is a regex that will result in the test being skipped in second
@@ -2734,11 +2735,11 @@ func BundleName(index int) string {
 // along with the run conditions for the auto-generated images job.
 type ImageConfiguration struct {
 	// RunIfChanged is a regex that will cause the auto-generated images
-	// presubmit and postsubmit to only run if a file matching the regex is changed.
+	// presubmit to only run if a file matching the regex is changed.
 	RunIfChanged string `json:"run_if_changed,omitempty"`
 
 	// SkipIfOnlyChanged is a regex that will cause the auto-generated images
-	// presubmit and postsubmit to be skipped if all changed files match the regex.
+	// presubmit to be skipped if all changed files match the regex.
 	SkipIfOnlyChanged string `json:"skip_if_only_changed,omitempty"`
 
 	// PipelineRunIfChanged is a regex that will cause the auto-generated images
@@ -2756,18 +2757,6 @@ type ImageConfiguration struct {
 
 	// Items is the list of images to build.
 	Items []ProjectDirectoryImageBuildStepConfiguration `json:"items,omitempty"`
-}
-
-// TODO: Remove custom UnmarshalJSON after migration from plain list to ImageConfiguration struct is complete.
-
-func (ic *ImageConfiguration) UnmarshalJSON(data []byte) error {
-	var items []ProjectDirectoryImageBuildStepConfiguration
-	if err := json.Unmarshal(data, &items); err == nil {
-		ic.Items = items
-		return nil
-	}
-	type rawImageConfiguration ImageConfiguration
-	return json.Unmarshal(data, (*rawImageConfiguration)(ic))
 }
 
 // ProjectDirectoryImageBuildStepConfiguration describes an

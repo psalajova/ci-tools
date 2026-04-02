@@ -121,7 +121,7 @@ postsubmits:
         secret:
           secretName: result-aggregator
   - agent: kubernetes
-    always_run: false
+    always_run: true
     branches:
     - ^master$
     decorate: true
@@ -133,7 +133,6 @@ postsubmits:
       ci.openshift.io/generator: prowgen
     max_concurrency: 1
     name: branch-ci-super-duper-master-images-changed-images
-    run_if_changed: ^images/
     spec:
       containers:
       - args:
@@ -244,7 +243,7 @@ postsubmits:
         secret:
           secretName: result-aggregator
   - agent: kubernetes
-    always_run: false
+    always_run: true
     branches:
     - ^master$
     decorate: true
@@ -256,7 +255,6 @@ postsubmits:
       ci.openshift.io/generator: prowgen
     max_concurrency: 1
     name: branch-ci-super-duper-master-images-skip-docs-images
-    skip_if_only_changed: ^docs/
     spec:
       containers:
       - args:
