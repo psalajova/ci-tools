@@ -1,11 +1,10 @@
 postsubmits:
   organization/repository:
-  - always_run: false
+  - always_run: true
     labels:
       ci-operator.openshift.io/is-promotion: "true"
     max_concurrency: 1
     name: branch-ci-organization-repository-branch-images
-    run_if_changed: ^(Dockerfile|src/)
 presubmits:
   organization/repository:
   - always_run: false

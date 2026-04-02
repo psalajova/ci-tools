@@ -243,10 +243,10 @@ const ciOperatorReferenceYaml = "# The list of base images describe\n" +
 	"    # presubmit to be skipped in the second stage of the pipeline if all changed files match the regex.\n" +
 	"    pipeline_skip_if_only_changed: ' '\n" +
 	"    # RunIfChanged is a regex that will cause the auto-generated images\n" +
-	"    # presubmit and postsubmit to only run if a file matching the regex is changed.\n" +
+	"    # presubmit to only run if a file matching the regex is changed.\n" +
 	"    run_if_changed: ' '\n" +
 	"    # SkipIfOnlyChanged is a regex that will cause the auto-generated images\n" +
-	"    # presubmit and postsubmit to be skipped if all changed files match the regex.\n" +
+	"    # presubmit to be skipped if all changed files match the regex.\n" +
 	"    skip_if_only_changed: ' '\n" +
 	"# Operator describes the operator bundle(s) that is built by the project\n" +
 	"operator:\n" +
@@ -1069,6 +1069,7 @@ const ciOperatorReferenceYaml = "# The list of base images describe\n" +
 	"            interval: ' '\n" +
 	"            run_all: true\n" +
 	"        # RunIfChanged is a regex that will result in the test only running if something that matches it was changed.\n" +
+	"        # Only applicable to presubmits; postsubmits always run on every merge.\n" +
 	"        run_if_changed: ' '\n" +
 	"        # Secret is an optional secret object which\n" +
 	"        # will be mounted inside the test container.\n" +
@@ -1095,6 +1096,7 @@ const ciOperatorReferenceYaml = "# The list of base images describe\n" +
 	"        # Only applicable to presubmits and periodics\n" +
 	"        shard_count: 0\n" +
 	"        # SkipIfOnlyChanged is a regex that will result in the test being skipped if all changed files match that regex.\n" +
+	"        # Only applicable to presubmits; postsubmits always run on every merge.\n" +
 	"        skip_if_only_changed: ' '\n" +
 	"        steps:\n" +
 	"            # AllowBestEffortPostSteps defines if any `post` steps can be ignored when\n" +
@@ -1987,6 +1989,7 @@ const ciOperatorReferenceYaml = "# The list of base images describe\n" +
 	"        interval: ' '\n" +
 	"        run_all: true\n" +
 	"      # RunIfChanged is a regex that will result in the test only running if something that matches it was changed.\n" +
+	"      # Only applicable to presubmits; postsubmits always run on every merge.\n" +
 	"      run_if_changed: ' '\n" +
 	"      # Secret is an optional secret object which\n" +
 	"      # will be mounted inside the test container.\n" +
@@ -2013,6 +2016,7 @@ const ciOperatorReferenceYaml = "# The list of base images describe\n" +
 	"      # Only applicable to presubmits and periodics\n" +
 	"      shard_count: 0\n" +
 	"      # SkipIfOnlyChanged is a regex that will result in the test being skipped if all changed files match that regex.\n" +
+	"      # Only applicable to presubmits; postsubmits always run on every merge.\n" +
 	"      skip_if_only_changed: ' '\n" +
 	"      steps:\n" +
 	"        # AllowBestEffortPostSteps defines if any `post` steps can be ignored when\n" +
