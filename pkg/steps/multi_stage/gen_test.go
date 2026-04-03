@@ -71,6 +71,7 @@ func TestGeneratePods(t *testing.T) {
 		secretVolumes             []coreapi.Volume
 		secretVolumeMounts        []coreapi.VolumeMount
 		leaseProxyServerAvailable bool
+		paramsFunc                func() api.Parameters
 	}{
 		{
 			name: "generate pods",
@@ -115,6 +116,13 @@ func TestGeneratePods(t *testing.T) {
 				Name:      "secret",
 				MountPath: "/secret",
 			}},
+			paramsFunc: func() api.Parameters {
+				params := api.NewDeferredParameters(nil)
+				params.Add(api.ClusterProfileSecretNameParam, func() (string, error) {
+					return "cluster-secrets-aws-5", nil
+				})
+				return params
+			},
 		},
 		{
 			name: "enable nested podman",
@@ -157,8 +165,13 @@ func TestGeneratePods(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			var params api.Parameters = api.NewDeferredParameters(nil)
+			if tc.paramsFunc != nil {
+				params = tc.paramsFunc()
+			}
+
 			js := jobSpec()
-			step := newMultiStageTestStep(tc.config.Tests[0], tc.config, nil, nil, &js, nil, "node-name", "", nil, false, nil, tc.leaseProxyServerAvailable, wait.Backoff{})
+			step := newMultiStageTestStep(tc.config.Tests[0], tc.config, params, nil, &js, nil, "node-name", "", nil, false, nil, tc.leaseProxyServerAvailable, wait.Backoff{})
 			step.test[0].Resources = resourceRequirements
 
 			ret, _, err := step.generatePods(tc.config.Tests[0].MultiStageTestConfigurationLiteral.Test, tc.env, tc.secretVolumes, tc.secretVolumeMounts, nil)

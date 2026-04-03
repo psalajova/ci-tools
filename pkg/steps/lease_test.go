@@ -282,11 +282,12 @@ func TestAcquireLeases(t *testing.T) {
 				},
 			},
 			wantProvides: map[string]string{
-				api.ClusterProfileSetEnv: "",
-				api.ClusterProfileParam:  "",
-				"lease-0":                "res-type-0",
-				"lease-1":                "res-type-1",
-				"parameter":              "map",
+				api.ClusterProfileSetEnv:          "",
+				api.ClusterProfileParam:           "",
+				api.ClusterProfileSecretNameParam: "",
+				"lease-0":                         "res-type-0",
+				"lease-1":                         "res-type-1",
+				"parameter":                       "map",
 			},
 			wantCalls: []string{
 				"acquireWaitWithPriority owner res-type-0 free leased random",
@@ -299,11 +300,10 @@ func TestAcquireLeases(t *testing.T) {
 		{
 			name: "Cluster profile lease",
 			leases: []api.StepLease{{
-				ResourceType:         "aws",
-				Env:                  api.DefaultLeaseEnv,
-				Count:                1,
-				ClusterProfile:       "aws",
-				ClusterProfileTarget: "e2e-aws-ovn",
+				ResourceType:   "aws",
+				Env:            api.DefaultLeaseEnv,
+				Count:          1,
+				ClusterProfile: "aws",
 			}},
 			resources: map[string]*common.Resource{
 				"acquireWaitWithPriority_aws_free_leased_random": {
@@ -327,10 +327,11 @@ func TestAcquireLeases(t *testing.T) {
 				},
 			},
 			wantProvides: map[string]string{
-				"parameter":              "map",
-				api.ClusterProfileSetEnv: "",
-				api.ClusterProfileParam:  "aws",
-				api.DefaultLeaseEnv:      "us-east-1",
+				"parameter":                       "map",
+				api.ClusterProfileSetEnv:          "",
+				api.ClusterProfileParam:           "aws",
+				api.ClusterProfileSecretNameParam: "cluster-secrets-aws",
+				api.DefaultLeaseEnv:               "us-east-1",
 			},
 			wantSecrets: corev1.SecretList{
 				Items: []corev1.Secret{
@@ -348,7 +349,7 @@ func TestAcquireLeases(t *testing.T) {
 					{
 						ObjectMeta: v1.ObjectMeta{
 							Namespace:       ns,
-							Name:            "e2e-aws-ovn-cluster-profile",
+							Name:            "cluster-secrets-aws",
 							ResourceVersion: "1",
 						},
 						Data: map[string][]byte{
@@ -367,11 +368,10 @@ func TestAcquireLeases(t *testing.T) {
 		{
 			name: "Cluster profile and regular lease",
 			leases: []api.StepLease{{
-				ResourceType:         "aws",
-				Env:                  api.DefaultLeaseEnv,
-				Count:                1,
-				ClusterProfile:       "aws",
-				ClusterProfileTarget: "e2e-aws-ovn",
+				ResourceType:   "aws",
+				Env:            api.DefaultLeaseEnv,
+				Count:          1,
+				ClusterProfile: "aws",
 			}, {
 				ResourceType: "foobar",
 				Env:          "FOOBAR_RESOURCE",
@@ -402,11 +402,12 @@ func TestAcquireLeases(t *testing.T) {
 				},
 			},
 			wantProvides: map[string]string{
-				"parameter":              "map",
-				api.ClusterProfileSetEnv: "",
-				api.ClusterProfileParam:  "aws",
-				api.DefaultLeaseEnv:      "us-east-1",
-				"FOOBAR_RESOURCE":        "foobar-res-0",
+				"parameter":                       "map",
+				api.ClusterProfileSetEnv:          "",
+				api.ClusterProfileParam:           "aws",
+				api.ClusterProfileSecretNameParam: "cluster-secrets-aws",
+				api.DefaultLeaseEnv:               "us-east-1",
+				"FOOBAR_RESOURCE":                 "foobar-res-0",
 			},
 			wantSecrets: corev1.SecretList{
 				Items: []corev1.Secret{
@@ -424,7 +425,7 @@ func TestAcquireLeases(t *testing.T) {
 					{
 						ObjectMeta: v1.ObjectMeta{
 							Namespace:       ns,
-							Name:            "e2e-aws-ovn-cluster-profile",
+							Name:            "cluster-secrets-aws",
 							ResourceVersion: "1",
 						},
 						Data: map[string][]byte{
@@ -445,11 +446,10 @@ func TestAcquireLeases(t *testing.T) {
 		{
 			name: "Nested cluster profile",
 			leases: []api.StepLease{{
-				ResourceType:         "openshift-org-aws",
-				Env:                  api.DefaultLeaseEnv,
-				Count:                1,
-				ClusterProfile:       "aws-set",
-				ClusterProfileTarget: "e2e-aws-ovn",
+				ResourceType:   "openshift-org-aws",
+				Env:            api.DefaultLeaseEnv,
+				Count:          1,
+				ClusterProfile: "aws-set",
 			}},
 			resources: map[string]*common.Resource{
 				"acquireWaitWithPriority_openshift-org-aws_free_leased_random": {
@@ -476,10 +476,11 @@ func TestAcquireLeases(t *testing.T) {
 				},
 			},
 			wantProvides: map[string]string{
-				"parameter":              "map",
-				api.ClusterProfileSetEnv: "aws-set",
-				api.ClusterProfileParam:  "aws",
-				api.DefaultLeaseEnv:      "us-east-1",
+				"parameter":                       "map",
+				api.ClusterProfileSetEnv:          "aws-set",
+				api.ClusterProfileParam:           "aws",
+				api.ClusterProfileSecretNameParam: "cluster-secrets-aws",
+				api.DefaultLeaseEnv:               "us-east-1",
 			},
 			wantSecrets: corev1.SecretList{
 				Items: []corev1.Secret{
@@ -497,7 +498,7 @@ func TestAcquireLeases(t *testing.T) {
 					{
 						ObjectMeta: v1.ObjectMeta{
 							Namespace:       ns,
-							Name:            "e2e-aws-ovn-cluster-profile",
+							Name:            "cluster-secrets-aws",
 							ResourceVersion: "1",
 						},
 						Data: map[string][]byte{

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -9,19 +8,14 @@ import (
 // LeasesForTest aggregates all the lease configurations in a test.
 // It is assumed that they have been validated and contain only valid and
 // unique values.
-func LeasesForTest(test *TestStepConfiguration, targetAdditionalSuffix string) (ret []StepLease) {
+func LeasesForTest(test *TestStepConfiguration) (ret []StepLease) {
 	multiStageTest := test.MultiStageTestConfigurationLiteral
 	if p := multiStageTest.ClusterProfile; p != "" {
-		clusterProfileTarget := test.As
-		if targetAdditionalSuffix != "" {
-			clusterProfileTarget = strings.TrimSuffix(clusterProfileTarget, fmt.Sprintf("-%s", targetAdditionalSuffix))
-		}
 		ret = append(ret, StepLease{
-			ResourceType:         p.LeaseType(),
-			Env:                  DefaultLeaseEnv,
-			Count:                1,
-			ClusterProfile:       multiStageTest.ClusterProfile.Name(),
-			ClusterProfileTarget: clusterProfileTarget,
+			ResourceType:   p.LeaseType(),
+			Env:            DefaultLeaseEnv,
+			Count:          1,
+			ClusterProfile: multiStageTest.ClusterProfile.Name(),
 		})
 	}
 	for _, step := range append(multiStageTest.Pre, append(multiStageTest.Test, multiStageTest.Post...)...) {

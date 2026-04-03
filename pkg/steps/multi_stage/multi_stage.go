@@ -206,12 +206,17 @@ func newMultiStageTestStep(
 	return s
 }
 
-func (s *multiStageTestStep) profileSecretName() string {
-	name := s.name
-	if s.additionalSuffix != "" {
-		name = strings.TrimSuffix(name, fmt.Sprintf("-%s", s.additionalSuffix))
+func (s *multiStageTestStep) profileSecretName() (string, error) {
+	if s.params == nil {
+		return "", nil
 	}
-	return name + "-cluster-profile"
+
+	cpSecretName, err := s.params.Get(api.ClusterProfileSecretNameParam)
+	if err != nil {
+		return "", fmt.Errorf("get param %s: %w", api.ClusterProfileSecretNameParam, err)
+	}
+
+	return cpSecretName, nil
 }
 
 func (s *multiStageTestStep) Inputs() (api.InputDefinition, error) {
@@ -422,7 +427,10 @@ func (s *multiStageTestStep) SubTests() []*junit.TestCase { return s.subTests }
 // namespace and to gather information used when generating the test pods.
 func (s *multiStageTestStep) getProfileData(ctx context.Context) error {
 	var secret coreapi.Secret
-	name := s.profileSecretName()
+	name, err := s.profileSecretName()
+	if err != nil {
+		return fmt.Errorf("get profile secret name: %w", err)
+	}
 	if err := s.client.Get(ctx, ctrlruntimeclient.ObjectKey{Namespace: s.jobSpec.Namespace(), Name: name}, &secret); err != nil {
 		return fmt.Errorf("could not get cluster profile secret %q: %w", name, err)
 	}

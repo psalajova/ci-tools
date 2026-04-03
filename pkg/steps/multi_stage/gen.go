@@ -233,7 +233,11 @@ func (s *multiStageTestStep) generatePods(
 			addDshmVolume(shmSize, pod, container)
 		}
 		if s.profile != "" {
-			addProfile(s.profileSecretName(), s.profile, pod)
+			profileSecret, err := s.profileSecretName()
+			if err != nil {
+				return nil, nil, fmt.Errorf("get profile secret name: %w", err)
+			}
+			addProfile(profileSecret, s.profile, pod)
 		}
 		if step.Cli != "" {
 			dependency := api.StepDependency{Name: fmt.Sprintf("%s:cli", api.ReleaseStreamFor(step.Cli))}

@@ -43,9 +43,10 @@ type leaseStep struct {
 	clusterProfileGetter ClusterProfileGetter
 
 	// for sending heartbeats during lease acquisition
-	namespace             func() string
-	clusterProfileSetName string
-	clusterProfileName    string
+	namespace                func() string
+	clusterProfileSetName    string
+	clusterProfileName       string
+	clusterProfileSecretName string
 }
 
 func LeaseStep(client *lease.Client, leases []api.StepLease, wrapped api.Step, namespace func() string, metricsAgent *metrics.MetricsAgent,
@@ -91,6 +92,8 @@ func (s *leaseStep) Provides() api.ParameterMap {
 	parameters[api.ClusterProfileSetEnv] = func() (string, error) { return s.clusterProfileSetName, nil }
 	// nolint:unparam
 	parameters[api.ClusterProfileParam] = func() (string, error) { return s.clusterProfileName, nil }
+	// nolint:unparam
+	parameters[api.ClusterProfileSecretNameParam] = func() (string, error) { return s.clusterProfileSecretName, nil }
 
 	for _, l := range s.leases {
 		// nolint:unparam
@@ -264,16 +267,17 @@ func (s *leaseStep) handleClusterProfile(ctx context.Context, l *stepLease, name
 		return fmt.Errorf("resolve cluster profile %s: %w", s.clusterProfileName, err)
 	}
 
-	if err := s.importClusterProfileSecret(ctx, cpDetails.Secret, l.ClusterProfileTarget); err != nil {
+	if err := s.importClusterProfileSecret(ctx, cpDetails.Secret); err != nil {
 		return fmt.Errorf("import secret %s for cluster profile %s: %w", cpDetails.Secret, s.clusterProfileName, err)
 	}
 
+	s.clusterProfileSecretName = cpDetails.Secret
 	return nil
 }
 
 // importClusterProfileSecret retrieves the cluster profile secret name using config resolver,
 // and gets the secret from the ci namespace
-func (s *leaseStep) importClusterProfileSecret(ctx context.Context, secretName, testName string) error {
+func (s *leaseStep) importClusterProfileSecret(ctx context.Context, secretName string) error {
 	ciSecret := &coreapi.Secret{}
 	err := s.kubeClient.Get(ctx, ctrlruntimeclient.ObjectKey{Namespace: "ci", Name: secretName}, ciSecret)
 	if err != nil {
@@ -284,7 +288,7 @@ func (s *leaseStep) importClusterProfileSecret(ctx context.Context, secretName, 
 		Data: ciSecret.Data,
 		Type: ciSecret.Type,
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-cluster-profile", testName),
+			Name:      secretName,
 			Namespace: s.namespace(),
 		},
 	}

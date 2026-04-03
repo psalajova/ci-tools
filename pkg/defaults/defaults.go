@@ -356,7 +356,7 @@ func stepForTest(cfg *Config, inputImages inputImageSet, c *api.TestStepConfigur
 ) []api.Step {
 	if test := c.MultiStageTestConfigurationLiteral; test != nil {
 		params := cfg.params
-		leases := api.LeasesForTest(c, cfg.TargetAdditionalSuffix)
+		leases := api.LeasesForTest(c)
 		ipPoolLease := api.IPPoolLeaseForTest(test, cfg.CIConfig.Metadata)
 		if len(leases) != 0 || ipPoolLease.ResourceType != "" {
 			params = api.NewDeferredParameters(params)
