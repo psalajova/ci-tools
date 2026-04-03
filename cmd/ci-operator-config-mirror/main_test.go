@@ -7,10 +7,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 
 	"github.com/openshift/ci-tools/pkg/api"
 	"github.com/openshift/ci-tools/pkg/config"
+	"github.com/openshift/ci-tools/pkg/privateorg"
 )
 
 func TestPrivateReleaseTagConfiguration(t *testing.T) {
@@ -274,7 +276,7 @@ func TestCIOperatorConfigsCallback(t *testing.T) {
 			wantConfigsByRepo: configsByRepo{
 				"kubernetes": []config.DataWithInfo{{
 					Configuration: api.ReleaseBuildConfiguration{
-						Metadata:              api.Metadata{Org: "openshift-priv"},
+						Metadata:              api.Metadata{Org: "openshift-priv", Repo: "kubernetes"},
 						CanonicalGoRepository: ptr.To("github.com/openshift/kubernetes"),
 						Tests:                 []api.TestStepConfiguration{{As: "e2e"}},
 					},
@@ -304,10 +306,83 @@ func TestCIOperatorConfigsCallback(t *testing.T) {
 			},
 			wantConfigsByRepo: configsByRepo{},
 		},
+		{
+			name: "Mirror a non-default org with prefixed repo name in openshift-priv",
+			opts: options{
+				toOrg: "openshift-priv",
+				WhitelistOptions: config.WhitelistOptions{
+					WhitelistConfig: config.WhitelistConfig{
+						Whitelist: map[string][]string{
+							"migtools": {"filebrowser"},
+						},
+					},
+				},
+			},
+			rbc: &api.ReleaseBuildConfiguration{
+				Tests: []api.TestStepConfiguration{{
+					As: "e2e",
+				}},
+			},
+			repoInfo: &config.Info{
+				Metadata: api.Metadata{
+					Org:  "migtools",
+					Repo: "filebrowser",
+				},
+			},
+			wantConfigsByRepo: configsByRepo{
+				"migtools-filebrowser": []config.DataWithInfo{{
+					Configuration: api.ReleaseBuildConfiguration{
+						Metadata:              api.Metadata{Org: "openshift-priv", Repo: "migtools-filebrowser"},
+						CanonicalGoRepository: ptr.To("github.com/migtools/filebrowser"),
+						Tests:                 []api.TestStepConfiguration{{As: "e2e"}},
+					},
+					Info: config.Info{Metadata: api.Metadata{Org: "openshift-priv", Repo: "migtools-filebrowser"}},
+				}},
+			},
+		},
+		{
+			name: "Mirror a non-default org with prefixed repo name in non-openshift-priv org",
+			opts: options{
+				toOrg: "some-org",
+				WhitelistOptions: config.WhitelistOptions{
+					WhitelistConfig: config.WhitelistConfig{
+						Whitelist: map[string][]string{
+							"migtools": {"filebrowser"},
+						},
+					},
+				},
+			},
+			rbc: &api.ReleaseBuildConfiguration{
+				Tests: []api.TestStepConfiguration{{
+					As: "e2e",
+				}},
+			},
+			repoInfo: &config.Info{
+				Metadata: api.Metadata{
+					Org:  "migtools",
+					Repo: "filebrowser",
+				},
+			},
+			wantConfigsByRepo: configsByRepo{
+				"migtools-filebrowser": []config.DataWithInfo{{
+					Configuration: api.ReleaseBuildConfiguration{
+						Metadata:              api.Metadata{Org: "some-org", Repo: "migtools-filebrowser"},
+						CanonicalGoRepository: ptr.To("github.com/migtools/filebrowser"),
+						Tests:                 []api.TestStepConfiguration{{As: "e2e"}},
+					},
+					Info: config.Info{Metadata: api.Metadata{Org: "some-org", Repo: "migtools-filebrowser"}},
+				}},
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			gotConfigsByRepo := make(configsByRepo)
-			callback := ciOperatorConfigsCallback(tc.opts, gotConfigsByRepo)
+			flattenedOrgs := sets.New[string](privateorg.DefaultFlattenOrgs...)
+			flattenedOrgs.Insert(tc.opts.flattenOrgs...)
+			if tc.opts.onlyOrg != "" {
+				flattenedOrgs.Insert(tc.opts.onlyOrg)
+			}
+			callback := ciOperatorConfigsCallback(tc.opts, gotConfigsByRepo, flattenedOrgs)
 
 			if err := callback(tc.rbc, tc.repoInfo); err != nil {
 				t.Fatalf("callback error: %s", err)

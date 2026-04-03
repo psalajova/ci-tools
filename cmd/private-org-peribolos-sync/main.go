@@ -20,33 +20,12 @@ import (
 
 	"github.com/openshift/ci-tools/pkg/api"
 	"github.com/openshift/ci-tools/pkg/config"
+	"github.com/openshift/ci-tools/pkg/privateorg"
 	"github.com/openshift/ci-tools/pkg/util/gzip"
 )
 
-// defaultFlattenOrgs contains organizations whose repos should not have org prefix by default
-// for backwards compatibility
-var defaultFlattenOrgs = []string{
-	"openshift",
-	"openshift-eng",
-	"operator-framework",
-	"redhat-cne",
-	"openshift-assisted",
-	"ViaQ",
-}
-
 type gitHubClient interface {
 	GetRepo(owner, name string) (github.FullRepo, error)
-}
-
-type arrayFlags []string
-
-func (i *arrayFlags) String() string {
-	return fmt.Sprintf("%v", *i)
-}
-
-func (i *arrayFlags) Set(value string) error {
-	*i = append(*i, value)
-	return nil
 }
 
 type options struct {
@@ -55,7 +34,7 @@ type options struct {
 	peribolosConfig string
 	destOrg         string
 	onlyOrg         string
-	flattenOrgs     arrayFlags
+	flattenOrgs     privateorg.ArrayFlags
 	releaseRepoPath string
 	github          flagutil.GitHubOptions
 }
@@ -156,7 +135,7 @@ func generateRepositories(gc gitHubClient, orgRepos map[string]sets.Set[string],
 
 	// Create a set of flattened orgs for efficient lookup
 	// Start with the default flattened orgs for backwards compatibility
-	flattenedOrgs := sets.New[string](defaultFlattenOrgs...)
+	flattenedOrgs := sets.New[string](privateorg.DefaultFlattenOrgs...)
 	// Add any additional orgs specified via --flatten-org
 	flattenedOrgs.Insert(flattenOrgs...)
 	// The --only-org is also flattened if specified
@@ -173,11 +152,7 @@ func generateRepositories(gc gitHubClient, orgRepos map[string]sets.Set[string],
 				logger.WithError(err).Fatal("couldn't get repo details")
 			}
 
-			// Use <org>-<repo> naming for repos from organizations not in the flatten list
-			destRepoName := fullRepo.Name
-			if !flattenedOrgs.Has(orgName) {
-				destRepoName = fmt.Sprintf("%s-%s", orgName, fullRepo.Name)
-			}
+			destRepoName := privateorg.MirroredRepoName(orgName, fullRepo.Name, flattenedOrgs)
 
 			peribolosRepos[destRepoName] = org.PruneRepoDefaults(org.Repo{
 				Description:      &fullRepo.Description,

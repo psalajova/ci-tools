@@ -23,6 +23,7 @@ import (
 
 	"github.com/openshift/ci-tools/pkg/api"
 	"github.com/openshift/ci-tools/pkg/config"
+	"github.com/openshift/ci-tools/pkg/privateorg"
 	"github.com/openshift/ci-tools/pkg/prowconfigsharding"
 	"github.com/openshift/ci-tools/pkg/prowconfigutils"
 )
@@ -39,24 +40,31 @@ type options struct {
 
 	github prowflagutil.GitHubOptions
 	dryRun bool
+
+	flattenOrgs privateorg.ArrayFlags
 }
 
-type orgReposWithOfficialImages map[string]sets.Set[string]
+type orgReposWithOfficialImages map[string]map[string]string
 
-func (o orgReposWithOfficialImages) isOfficialRepo(org, repo string) bool {
-	if _, ok := o[org]; ok {
-		if o[org].Has(repo) {
-			return true
+func (o orgReposWithOfficialImages) privateRepoName(org, repo string) (string, bool) {
+	reposByOrg, ok := o[org]
+	if !ok {
+		return "", false
+	}
+	privateRepo, ok := reposByOrg[repo]
+	if !ok {
+		return "", false
+	}
+	return privateRepo, true
+}
+
+func (o *orgReposWithOfficialImages) privateOrgRepoFull(orgRepo string) (string, bool) {
+	if orgRepoList := strings.Split(orgRepo, "/"); len(orgRepoList) == 2 {
+		if privateRepo, ok := o.privateRepoName(orgRepoList[0], orgRepoList[1]); ok {
+			return fmt.Sprintf("%s/%s", openshiftPrivOrg, privateRepo), true
 		}
 	}
-	return false
-}
-
-func (o *orgReposWithOfficialImages) isOfficialRepoFull(orgRepo string) bool {
-	if orgRepoList := strings.Split(orgRepo, "/"); len(orgRepoList) == 2 {
-		return o.isOfficialRepo(orgRepoList[0], orgRepoList[1])
-	}
-	return false
+	return "", false
 }
 
 func gatherOptions() (options, error) {
@@ -66,6 +74,7 @@ func gatherOptions() (options, error) {
 	fs.StringVar(&o.releaseRepoPath, "release-repo-path", "", "Path to a openshift/release repository directory")
 
 	fs.BoolVar(&o.dryRun, "dry-run", true, "Dry run for testing. Uses API tokens but does not mutate.")
+	fs.Var(&o.flattenOrgs, "flatten-org", "Organizations whose repos should not have org prefix (can be specified multiple times)")
 	o.github.AddFlags(fs)
 	o.Options.Bind(fs)
 	o.WhitelistOptions.Bind(fs)
@@ -123,21 +132,19 @@ func updateProwPlugins(pluginsFile string, config *plugins.Configuration) error 
 	return os.WriteFile(pluginsFile, data, 0644)
 }
 
-func privateOrgRepo(repo string) string {
-	return fmt.Sprintf("%s/%s", openshiftPrivOrg, repo)
-}
-
-func getOrgReposWithOfficialImages(configDir string, whitelist map[string][]string, reposInOpenShiftPrivOrg sets.Set[string]) (orgReposWithOfficialImages, error) {
+func getOrgReposWithOfficialImages(configDir string, whitelist map[string][]string, reposInOpenShiftPrivOrg sets.Set[string], flattenedOrgs sets.Set[string]) (orgReposWithOfficialImages, error) {
 	ret := make(orgReposWithOfficialImages)
 
 	for org, repos := range whitelist {
 		for _, repo := range repos {
 			if _, ok := ret[org]; !ok {
-				ret[org] = sets.New(repo)
-			} else if reposInOpenShiftPrivOrg.Has(repo) {
-				ret[org].Insert(repo)
+				ret[org] = map[string]string{}
+			}
+			privateRepo := privateorg.MirroredRepoName(org, repo, flattenedOrgs)
+			if reposInOpenShiftPrivOrg.Has(privateRepo) {
+				ret[org][repo] = privateRepo
 			} else {
-				logrus.WithField("repo", repo).Info("the repo does not exist in the openshift-priv org")
+				logrus.WithField("source_repo", fmt.Sprintf("%s/%s", org, repo)).WithField("private_repo", privateRepo).Info("the repo does not exist in the openshift-priv org")
 			}
 		}
 	}
@@ -148,17 +155,14 @@ func getOrgReposWithOfficialImages(configDir string, whitelist map[string][]stri
 			return nil
 		}
 
-		if i.Org != "openshift" {
-			logrus.WithField("org", i.Org).WithField("repo", i.Repo).Warn("Dropping repo in non-openshift org, this is currently not supported")
-			return nil
-		}
-
 		if _, ok := ret[i.Org]; !ok {
-			ret[i.Org] = sets.New(i.Repo)
-		} else if reposInOpenShiftPrivOrg.Has(i.Repo) {
-			ret[i.Org].Insert(i.Repo)
+			ret[i.Org] = map[string]string{}
+		}
+		privateRepo := privateorg.MirroredRepoName(i.Org, i.Repo, flattenedOrgs)
+		if reposInOpenShiftPrivOrg.Has(privateRepo) {
+			ret[i.Org][i.Repo] = privateRepo
 		} else {
-			logrus.WithField("repo", i.Repo).Info("the repo does not exist in the openshift-priv org")
+			logrus.WithField("source_repo", fmt.Sprintf("%s/%s", i.Org, i.Repo)).WithField("private_repo", privateRepo).Info("the repo does not exist in the openshift-priv org")
 		}
 
 		return nil
@@ -181,9 +185,9 @@ func injectPrivateBranchProtection(branchProtection prowconfig.BranchProtection,
 	logrus.Info("Processing...")
 	for orgName, orgValue := range branchProtection.Orgs {
 		for repoName, repoValue := range orgValue.Repos {
-			if orgRepos.isOfficialRepo(orgName, repoName) {
-				logrus.WithField("repo", repoName).Info("Found")
-				privateOrg.Repos[repoName] = repoValue
+			if privateRepoName, ok := orgRepos.privateRepoName(orgName, repoName); ok {
+				logrus.WithField("source_repo", fmt.Sprintf("%s/%s", orgName, repoName)).WithField("private_repo", privateRepoName).Info("Found")
+				privateOrg.Repos[privateRepoName] = repoValue
 			}
 		}
 
@@ -200,9 +204,9 @@ func injectPrivateTideOrgContextPolicy(contextOptions prowconfig.TideContextPoli
 
 	for orgName, orgValue := range contextOptions.Orgs {
 		for repoName, repoValue := range orgValue.Repos {
-			if orgRepos.isOfficialRepo(orgName, repoName) {
-				logrus.WithField("repo", repoName).Info("Found")
-				privateOrgRepos[repoName] = repoValue
+			if privateRepoName, ok := orgRepos.privateRepoName(orgName, repoName); ok {
+				logrus.WithField("source_repo", fmt.Sprintf("%s/%s", orgName, repoName)).WithField("private_repo", privateRepoName).Info("Found")
+				privateOrgRepos[privateRepoName] = repoValue
 			}
 		}
 	}
@@ -219,11 +223,9 @@ func setPrivateReposTideQueries(tideQueries []prowconfig.TideQuery, orgRepos org
 		repos := sets.New(tideQuery.Repos...)
 
 		for _, orgRepo := range tideQuery.Repos {
-			if orgRepos.isOfficialRepoFull(orgRepo) {
-				repo := strings.Split(orgRepo, "/")[1]
-
-				logrus.WithField("repo", repo).Info("Found")
-				repos.Insert(privateOrgRepo(repo))
+			if privateOrgRepoName, ok := orgRepos.privateOrgRepoFull(orgRepo); ok {
+				logrus.WithField("source_repo", orgRepo).WithField("private_repo", privateOrgRepoName).Info("Found")
+				repos.Insert(privateOrgRepoName)
 			} else if strings.HasPrefix(orgRepo, openshiftPrivOrg) {
 				repos.Delete(orgRepo)
 			}
@@ -236,35 +238,59 @@ func setPrivateReposTideQueries(tideQueries []prowconfig.TideQuery, orgRepos org
 func injectPrivateMergeType(tideMergeTypes map[string]prowconfig.TideOrgMergeType, orgRepos orgReposWithOfficialImages) {
 	logrus.Info("Processing...")
 
-	// FIXME(danilo-gemoli): iteration isn't deterministic as tideMergeTypes is a map
+	sourceMergeTypes := make(map[string]prowconfig.TideOrgMergeType)
 	for orgRepoBranch, orgMergeType := range tideMergeTypes {
+		org, repo, _ := prowconfigutils.ExtractOrgRepoBranch(orgRepoBranch)
+		if org == openshiftPrivOrg {
+			// Drop existing openshift-priv repo-level entries to avoid retaining stale
+			// legacy names (for example openshift-priv/testRepo3).
+			if repo != "" {
+				delete(tideMergeTypes, orgRepoBranch)
+				continue
+			}
+			// Keep org-level settings while rebuilding mirrored repo entries.
+			orgMergeType.Repos = map[string]prowconfig.TideRepoMergeType{}
+			tideMergeTypes[orgRepoBranch] = orgMergeType
+			continue
+		}
+		sourceMergeTypes[orgRepoBranch] = orgMergeType
+	}
+
+	// FIXME(danilo-gemoli): iteration isn't deterministic as tideMergeTypes is a map
+	for orgRepoBranch, orgMergeType := range sourceMergeTypes {
 		org, repo, branch := prowconfigutils.ExtractOrgRepoBranch(orgRepoBranch)
 		switch {
 		// org/repo@branch shorthand
 		case org != "" && repo != "" && branch != "":
-			if orgRepos.isOfficialRepoFull(org + "/" + repo) {
-				logrus.WithField("repo", repo).Info("Found")
-				tideMergeTypes[privateOrgRepo(repo)+"@"+branch] = orgMergeType
+			if privateRepoName, ok := orgRepos.privateRepoName(org, repo); ok {
+				logrus.WithField("source_repo", fmt.Sprintf("%s/%s", org, repo)).WithField("private_repo", privateRepoName).Info("Found")
+				tideMergeTypes[fmt.Sprintf("%s/%s@%s", openshiftPrivOrg, privateRepoName, branch)] = orgMergeType
 			}
 		// org/repo shorthand
 		case org != "" && repo != "":
-			if orgRepos.isOfficialRepoFull(org + "/" + repo) {
-				logrus.WithField("repo", repo).Info("Found")
-				tideMergeTypes[privateOrgRepo(repo)] = orgMergeType
+			if privateRepoName, ok := orgRepos.privateRepoName(org, repo); ok {
+				logrus.WithField("source_repo", fmt.Sprintf("%s/%s", org, repo)).WithField("private_repo", privateRepoName).Info("Found")
+				tideMergeTypes[fmt.Sprintf("%s/%s", openshiftPrivOrg, privateRepoName)] = orgMergeType
 			}
 		// org config
 		default:
 			// FIXME(danilo-gemoli): iteration isn't deterministic as orgMergeType.Repos is a map
 			for repo, repoMergeType := range orgMergeType.Repos {
-				if orgRepos.isOfficialRepoFull(org + "/" + repo) {
-					logrus.WithField("repo", repo).Info("Found")
+				if privateRepoName, ok := orgRepos.privateRepoName(org, repo); ok {
+					logrus.WithField("source_repo", fmt.Sprintf("%s/%s", org, repo)).WithField("private_repo", privateRepoName).Info("Found")
 					if _, ok := tideMergeTypes[openshiftPrivOrg]; !ok {
-						tideMergeTypes[openshiftPrivOrg] = prowconfig.TideOrgMergeType{}
+						tideMergeTypes[openshiftPrivOrg] = prowconfig.TideOrgMergeType{
+							Repos: make(map[string]prowconfig.TideRepoMergeType),
+						}
 					}
 					privateOrgConfig := tideMergeTypes[openshiftPrivOrg]
-					if _, ok := privateOrgConfig.Repos[repo]; !ok {
-						privateOrgConfig.Repos[repo] = repoMergeType
+					if privateOrgConfig.Repos == nil {
+						privateOrgConfig.Repos = map[string]prowconfig.TideRepoMergeType{}
 					}
+					if _, ok := privateOrgConfig.Repos[privateRepoName]; !ok {
+						privateOrgConfig.Repos[privateRepoName] = repoMergeType
+					}
+					tideMergeTypes[openshiftPrivOrg] = privateOrgConfig
 
 				}
 			}
@@ -275,12 +301,19 @@ func injectPrivateMergeType(tideMergeTypes map[string]prowconfig.TideOrgMergeTyp
 func injectPrivatePRStatusBaseURLs(prStatusBaseURLs map[string]string, orgRepos orgReposWithOfficialImages) {
 	logrus.Info("Processing...")
 
+	sourcePRStatusBaseURLs := make(map[string]string)
 	for orgRepo, value := range prStatusBaseURLs {
-		if orgRepos.isOfficialRepoFull(orgRepo) {
-			repo := strings.Split(orgRepo, "/")[1]
+		if strings.HasPrefix(orgRepo, fmt.Sprintf("%s/", openshiftPrivOrg)) {
+			delete(prStatusBaseURLs, orgRepo)
+			continue
+		}
+		sourcePRStatusBaseURLs[orgRepo] = value
+	}
 
-			logrus.WithField("repo", repo).Info("Found")
-			prStatusBaseURLs[privateOrgRepo(repo)] = value
+	for orgRepo, value := range sourcePRStatusBaseURLs {
+		if privateOrgRepoName, ok := orgRepos.privateOrgRepoFull(orgRepo); ok {
+			logrus.WithField("source_repo", orgRepo).WithField("private_repo", privateOrgRepoName).Info("Found")
+			prStatusBaseURLs[privateOrgRepoName] = value
 		}
 	}
 }
@@ -288,12 +321,19 @@ func injectPrivatePRStatusBaseURLs(prStatusBaseURLs map[string]string, orgRepos 
 func injectPrivatePlankDefaultDecorationConfigs(defaultDecorationConfigs map[string]*prowapi.DecorationConfig, orgRepos orgReposWithOfficialImages) {
 	logrus.Info("Processing...")
 
+	sourceDefaultDecorationConfigs := make(map[string]*prowapi.DecorationConfig)
 	for orgRepo, value := range defaultDecorationConfigs {
-		if orgRepos.isOfficialRepoFull(orgRepo) {
-			repo := strings.Split(orgRepo, "/")[1]
+		if strings.HasPrefix(orgRepo, fmt.Sprintf("%s/", openshiftPrivOrg)) {
+			delete(defaultDecorationConfigs, orgRepo)
+			continue
+		}
+		sourceDefaultDecorationConfigs[orgRepo] = value
+	}
 
-			logrus.WithField("repo", repo).Info("Found")
-			defaultDecorationConfigs[privateOrgRepo(repo)] = value
+	for orgRepo, value := range sourceDefaultDecorationConfigs {
+		if privateOrgRepoName, ok := orgRepos.privateOrgRepoFull(orgRepo); ok {
+			logrus.WithField("source_repo", orgRepo).WithField("private_repo", privateOrgRepoName).Info("Found")
+			defaultDecorationConfigs[privateOrgRepoName] = value
 		}
 	}
 }
@@ -301,12 +341,19 @@ func injectPrivatePlankDefaultDecorationConfigs(defaultDecorationConfigs map[str
 func injectPrivateJobURLPrefixConfig(jobURLPrefixConfig map[string]string, orgRepos orgReposWithOfficialImages) {
 	logrus.Info("Processing...")
 
+	sourceJobURLPrefixConfig := make(map[string]string)
 	for orgRepo, value := range jobURLPrefixConfig {
-		if orgRepos.isOfficialRepoFull(orgRepo) {
-			repo := strings.Split(orgRepo, "/")[1]
+		if strings.HasPrefix(orgRepo, fmt.Sprintf("%s/", openshiftPrivOrg)) {
+			delete(jobURLPrefixConfig, orgRepo)
+			continue
+		}
+		sourceJobURLPrefixConfig[orgRepo] = value
+	}
 
-			logrus.WithField("repo", repo).Info("Found")
-			jobURLPrefixConfig[privateOrgRepo(repo)] = value
+	for orgRepo, value := range sourceJobURLPrefixConfig {
+		if privateOrgRepoName, ok := orgRepos.privateOrgRepoFull(orgRepo); ok {
+			logrus.WithField("source_repo", orgRepo).WithField("private_repo", privateOrgRepoName).Info("Found")
+			jobURLPrefixConfig[privateOrgRepoName] = value
 		}
 	}
 }
@@ -315,14 +362,18 @@ func injectPrivateApprovePlugin(approves []plugins.Approve, orgRepos orgReposWit
 	logrus.Info("Processing...")
 
 	for index, approve := range approves {
-		repos := sets.New(approve.Repos...)
-
+		repos := sets.New[string]()
 		for _, orgRepo := range approve.Repos {
-			if orgRepos.isOfficialRepoFull(orgRepo) {
-				repo := strings.Split(orgRepo, "/")[1]
+			if strings.HasPrefix(orgRepo, fmt.Sprintf("%s/", openshiftPrivOrg)) {
+				continue
+			}
+			repos.Insert(orgRepo)
+		}
 
-				logrus.WithField("repo", repo).Info("Found")
-				repos.Insert(privateOrgRepo(repo))
+		for orgRepo := range repos {
+			if privateOrgRepoName, ok := orgRepos.privateOrgRepoFull(orgRepo); ok {
+				logrus.WithField("source_repo", orgRepo).WithField("private_repo", privateOrgRepoName).Info("Found")
+				repos.Insert(privateOrgRepoName)
 			}
 		}
 
@@ -334,14 +385,18 @@ func injectPrivateLGTMPlugin(lgtms []plugins.Lgtm, orgRepos orgReposWithOfficial
 	logrus.Info("Processing...")
 
 	for index, lgtm := range lgtms {
-		repos := sets.New(lgtm.Repos...)
-
+		repos := sets.New[string]()
 		for _, orgRepo := range lgtm.Repos {
-			if orgRepos.isOfficialRepoFull(orgRepo) {
-				repo := strings.Split(orgRepo, "/")[1]
+			if strings.HasPrefix(orgRepo, fmt.Sprintf("%s/", openshiftPrivOrg)) {
+				continue
+			}
+			repos.Insert(orgRepo)
+		}
 
-				logrus.WithField("repo", repo).Info("Found")
-				repos.Insert(privateOrgRepo(repo))
+		for orgRepo := range repos {
+			if privateOrgRepoName, ok := orgRepos.privateOrgRepoFull(orgRepo); ok {
+				logrus.WithField("source_repo", orgRepo).WithField("private_repo", privateOrgRepoName).Info("Found")
+				repos.Insert(privateOrgRepoName)
 			}
 		}
 
@@ -355,9 +410,9 @@ func injectPrivateBugzillaPlugin(bugzillaPlugins plugins.Bugzilla, orgRepos orgR
 	privateRepos := make(map[string]plugins.BugzillaRepoOptions)
 	for org, orgValue := range bugzillaPlugins.Orgs {
 		for repo, value := range orgValue.Repos {
-			if orgRepos.isOfficialRepo(org, repo) {
-				logrus.WithField("repo", repo).Info("Found")
-				privateRepos[repo] = value
+			if privateRepoName, ok := orgRepos.privateRepoName(org, repo); ok {
+				logrus.WithField("source_repo", fmt.Sprintf("%s/%s", org, repo)).WithField("private_repo", privateRepoName).Info("Found")
+				privateRepos[privateRepoName] = value
 			}
 		}
 	}
@@ -378,7 +433,11 @@ func injectPrivatePlugins(prowPlugins plugins.Plugins, orgRepos orgReposWithOffi
 			if repoValues, ok := prowPlugins[fmt.Sprintf("%s/%s", org, repo)]; ok {
 				values.Insert(repoValues.Plugins...)
 			}
-			privateRepoPlugins[privateOrgRepo(repo)] = sets.List(values)
+			privateOrgRepoName, ok := orgRepos.privateRepoName(org, repo)
+			if !ok {
+				continue
+			}
+			privateRepoPlugins[fmt.Sprintf("%s/%s", openshiftPrivOrg, privateOrgRepoName)] = sets.List(values)
 		}
 	}
 
@@ -484,7 +543,9 @@ func main() {
 	}
 
 	logrus.Info("Getting a summary of the orgs/repos that promote official images")
-	orgRepos, err := getOrgReposWithOfficialImages(o.ConfigDir, o.WhitelistOptions.WhitelistConfig.Whitelist, reposInOpenShiftPrivOrg)
+	flattenedOrgs := sets.New[string](privateorg.DefaultFlattenOrgs...)
+	flattenedOrgs.Insert(o.flattenOrgs...)
+	orgRepos, err := getOrgReposWithOfficialImages(o.ConfigDir, o.WhitelistOptions.WhitelistConfig.Whitelist, reposInOpenShiftPrivOrg, flattenedOrgs)
 	if err != nil {
 		logrus.WithError(err).Fatal("couldn't get the list of org/repos that promote official images")
 	}
