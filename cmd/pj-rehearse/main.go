@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -28,6 +29,31 @@ import (
 
 	"github.com/openshift/ci-tools/pkg/rehearse"
 )
+
+var concurrentHandlersInFlight = prometheus.NewGauge(prometheus.GaugeOpts{
+	Name: "pj_rehearse_handlers_in_flight",
+	Help: "Current number of concurrent webhook handler goroutines running in pj-rehearse.",
+})
+
+func init() {
+	prometheus.MustRegister(concurrentHandlersInFlight)
+}
+
+func trackPullRequestHandler(handler githubeventserver.PullRequestHandler) githubeventserver.PullRequestHandler {
+	return func(l *logrus.Entry, event github.PullRequestEvent) {
+		concurrentHandlersInFlight.Inc()
+		defer concurrentHandlersInFlight.Dec()
+		handler(l, event)
+	}
+}
+
+func trackIssueCommentHandler(handler githubeventserver.IssueCommentEventHandler) githubeventserver.IssueCommentEventHandler {
+	return func(l *logrus.Entry, event github.IssueCommentEvent) {
+		concurrentHandlersInFlight.Inc()
+		defer concurrentHandlersInFlight.Dec()
+		handler(l, event)
+	}
+}
 
 type options struct {
 	logLevel               string
@@ -226,9 +252,9 @@ func main() {
 
 		logger.Debug("starting eventServer")
 		eventServer := githubeventserver.New(o.githubEventServerOptions, webhookTokenGenerator, logger)
-		eventServer.RegisterHandlePullRequestEvent(s.handlePullRequestCreation)
-		eventServer.RegisterHandlePullRequestEvent(s.handleNewPush)
-		eventServer.RegisterHandleIssueCommentEvent(s.handleIssueComment)
+		eventServer.RegisterHandlePullRequestEvent(trackPullRequestHandler(s.handlePullRequestCreation))
+		eventServer.RegisterHandlePullRequestEvent(trackPullRequestHandler(s.handleNewPush))
+		eventServer.RegisterHandleIssueCommentEvent(trackIssueCommentHandler(s.handleIssueComment))
 		eventServer.RegisterHelpProvider(s.helpProvider, logger)
 
 		interrupts.OnInterrupt(func() {
