@@ -410,27 +410,33 @@ func TestEnvironment(t *testing.T) {
 func TestProfileSecretName(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
-		name             string
-		stepName         string
-		additionalSuffix string
-		expected         string
+		name       string
+		stepName   string
+		paramsFunc func() api.Parameters
+		expected   string
 	}{
 		{
-			name:     "no additional suffix",
-			stepName: "step",
-			expected: "step-cluster-profile",
-		},
-		{
-			name:             "additional suffix",
-			stepName:         "step-0",
-			additionalSuffix: "0",
-			expected:         "step-cluster-profile",
+			name:     "cluster profile secret name from param",
+			stepName: "step-0",
+			paramsFunc: func() api.Parameters {
+				params := api.NewDeferredParameters(nil)
+				params.Add(api.ClusterProfileSecretNameParam, func() (string, error) {
+					return "foobar", nil
+				})
+				return params
+			},
+			expected: "foobar",
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			step := multiStageTestStep{name: tc.stepName, additionalSuffix: tc.additionalSuffix}
-			result := step.profileSecretName()
+			step := multiStageTestStep{name: tc.stepName, params: tc.paramsFunc()}
+
+			result, err := step.profileSecretName()
+			if err != nil {
+				t.Fatalf("unexpected get profile secret name error: %s", err)
+			}
+
 			if diff := cmp.Diff(tc.expected, result); diff != "" {
 				t.Fatalf("result does not match expected, diff: %s", diff)
 			}

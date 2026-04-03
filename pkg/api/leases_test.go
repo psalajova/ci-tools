@@ -29,22 +29,6 @@ func TestLeasesForTest(t *testing.T) {
 			ClusterProfile: string(ClusterProfileAWS),
 		}},
 	}, {
-		name: "cluster profile target trim suffix",
-		tests: TestStepConfiguration{
-			As: "e2e-6",
-			MultiStageTestConfigurationLiteral: &MultiStageTestConfigurationLiteral{
-				ClusterProfile: ClusterProfileAWS,
-			},
-		},
-		targetAdditionalSuffix: "6",
-		expected: []StepLease{{
-			ResourceType:         "aws-quota-slice",
-			Env:                  DefaultLeaseEnv,
-			Count:                1,
-			ClusterProfile:       string(ClusterProfileAWS),
-			ClusterProfileTarget: "e2e",
-		}},
-	}, {
 		name: "explicit configuration, lease",
 		tests: TestStepConfiguration{
 			MultiStageTestConfigurationLiteral: &MultiStageTestConfigurationLiteral{
@@ -64,7 +48,7 @@ func TestLeasesForTest(t *testing.T) {
 		expected: []StepLease{{ResourceType: "aws-quota-slice"}},
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
-			ret := LeasesForTest(&tc.tests, tc.targetAdditionalSuffix)
+			ret := LeasesForTest(&tc.tests)
 			if diff := cmp.Diff(tc.expected, ret); diff != "" {
 				t.Errorf("incorrect leases, diff: %s", diff)
 			}
