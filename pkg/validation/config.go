@@ -14,26 +14,43 @@ import (
 	"github.com/openshift/ci-tools/pkg/api"
 )
 
+type ClusterProfileDetails struct {
+	Name string `json:"name"`
+}
+
+type ClusterProfileSetDetails map[api.ClusterProfile][]string
+
 // Validator holds data used across validations.
 type Validator struct {
 	validClusterProfiles    api.ClusterProfilesMap
 	validClusterClaimOwners api.ClusterClaimOwnersMap
 	// hasTrapCache avoids redundant regexp searches on step commands.
 	hasTrapCache map[string]bool
+	cpsDetails   ClusterProfileSetDetails
+}
+
+type ValidatorOption func(*Validator)
+
+func WithClusterProfileSetDetails(cpsDetails ClusterProfileSetDetails) func(*Validator) {
+	return func(v *Validator) { v.cpsDetails = cpsDetails }
 }
 
 // NewValidator creates an object that optimizes bulk validations.
-func NewValidator(profiles api.ClusterProfilesMap, clusterClaimOwners api.ClusterClaimOwnersMap) Validator {
-	ret := Validator{
+func NewValidator(profiles api.ClusterProfilesMap, clusterClaimOwners api.ClusterClaimOwnersMap, opts ...ValidatorOption) Validator {
+	v := Validator{
 		hasTrapCache: make(map[string]bool),
+		cpsDetails:   make(map[api.ClusterProfile][]string),
+	}
+	for _, f := range opts {
+		f(&v)
 	}
 	if profiles != nil {
-		ret.validClusterProfiles = profiles
+		v.validClusterProfiles = profiles
 	}
 	if clusterClaimOwners != nil {
-		ret.validClusterClaimOwners = clusterClaimOwners
+		v.validClusterClaimOwners = clusterClaimOwners
 	}
-	return ret
+	return v
 }
 
 func newSingleUseValidator() Validator {

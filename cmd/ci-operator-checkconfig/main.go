@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -30,22 +31,25 @@ type promotedTag struct {
 type options struct {
 	config.Options
 
-	resolver           registry.Resolver
-	ciOPConfigAgent    agents.ConfigAgent
-	clusterProfiles    api.ClusterProfilesMap
-	clusterClaimOwners api.ClusterClaimOwnersMap
+	resolver                 registry.Resolver
+	ciOPConfigAgent          agents.ConfigAgent
+	clusterProfiles          api.ClusterProfilesMap
+	clusterClaimOwners       api.ClusterClaimOwnersMap
+	clusterProfileSetDetails validation.ClusterProfileSetDetails
 }
 
 func (o *options) parse() error {
 	var registryDir string
 	var profilesConfigPath string
 	var clusterClaimConfigPath string
+	var clusterProfileSetDetailsPath string
 
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 
 	fs.StringVar(&registryDir, "registry", "", "Path to the step registry directory")
 	fs.StringVar(&profilesConfigPath, "cluster-profiles-config", "", "Path to the cluster profile config file")
 	fs.StringVar(&clusterClaimConfigPath, "cluster-claim-owners-config", "", "Path to the cluster claim owners config file")
+	fs.StringVar(&clusterProfileSetDetailsPath, "cluster-profile-set-details", "", "Path to the cluster profile set details file")
 	o.Options.Bind(fs)
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
@@ -74,6 +78,12 @@ func (o *options) parse() error {
 	}
 	o.ciOPConfigAgent = ciOPConfigAgent
 
+	if clusterProfileSetDetailsPath != "" {
+		if err := o.loadClusterProfileDetails(clusterProfileSetDetailsPath); err != nil {
+			return fmt.Errorf("load cluster profile set details: %w", err)
+		}
+	}
+
 	if err := o.Options.Validate(); err != nil {
 		return fmt.Errorf("failed to validate config options: %w", err)
 	}
@@ -99,7 +109,8 @@ func (o *options) validate() (ret []error) {
 	outputCh := make(chan promotedTag)
 	errCh := make(chan error)
 	map_ := func() error {
-		validator := validation.NewValidator(o.clusterProfiles, o.clusterClaimOwners)
+		validator := validation.NewValidator(o.clusterProfiles, o.clusterClaimOwners,
+			validation.WithClusterProfileSetDetails(o.clusterProfileSetDetails))
 		for c := range inputCh {
 			if err := o.validateConfiguration(&validator, outputCh, c); err != nil {
 				errCh <- fmt.Errorf("failed to validate configuration %s: %w", c.Metadata.RelativePath(), err)
@@ -119,6 +130,20 @@ func (o *options) validate() (ret []error) {
 		ret = append(ret, err)
 	}
 	return append(ret, validateTags(seen)...)
+}
+
+func (o *options) loadClusterProfileDetails(p string) error {
+	cpsDetailsBytes, err := os.ReadFile(p)
+	if err != nil {
+		return fmt.Errorf("read file %s: %w", p, err)
+	}
+
+	o.clusterProfileSetDetails = make(map[api.ClusterProfile][]string)
+	if err := json.Unmarshal(cpsDetailsBytes, &o.clusterProfileSetDetails); err != nil {
+		return fmt.Errorf("unmarshal cluster profile set details: %w", err)
+	}
+
+	return nil
 }
 
 func (o *options) loadResolver(path string) error {

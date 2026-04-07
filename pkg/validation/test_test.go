@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	aggerrs "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/diff"
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -2216,6 +2217,56 @@ func TestVerifyClusterClaimOwnership(t *testing.T) {
 			actual := verifyClusterClaimOwnership(tc.claim, tc.metadata)
 			if d := cmp.Diff(tc.expected, actual, testhelper.EquateErrorMessage); d != "" {
 				t.Errorf("expected differs from actual: %s\n", d)
+			}
+		})
+	}
+}
+
+func TestValidateClusterProfiles(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name               string
+		clusterProfile     api.ClusterProfile
+		metadata           *api.Metadata
+		clusterProfilesMap api.ClusterProfilesMap
+		cpsDetails         ClusterProfileSetDetails
+		wantErrs           []error
+	}{
+		{
+			name:           "Valid cluster profile",
+			clusterProfile: api.ClusterProfileAROHCPDev,
+		},
+		{
+			name:           "invalid cluster profile",
+			clusterProfile: "foobar",
+			wantErrs:       []error{errors.New(`foo: invalid cluster profile "foobar"`)},
+		},
+		{
+			name:           "Use cluster profile set",
+			clusterProfile: "azure-2",
+			cpsDetails: ClusterProfileSetDetails{
+				"openshift-org-azure": []string{"azure-2"},
+			},
+			wantErrs: []error{errors.New(`foo: invalid cluster profile "azure-2", use the cluster profile set "openshift-org-azure" instead`)},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := NewValidator(tc.clusterProfilesMap, nil, WithClusterProfileSetDetails(tc.cpsDetails))
+			gotErrs := v.validateClusterProfile("foo", tc.clusterProfile, tc.metadata)
+
+			wantErrMsg := "<nil>"
+			if tc.wantErrs != nil {
+				wantErrMsg = aggerrs.NewAggregate(tc.wantErrs).Error()
+			}
+			gotErrMsg := "<nil>"
+			if gotErrs != nil {
+				gotErrMsg = aggerrs.NewAggregate(gotErrs).Error()
+			}
+
+			if diff := cmp.Diff(wantErrMsg, gotErrMsg); diff != "" {
+				t.Errorf("unexpected errors: %s", diff)
 			}
 		})
 	}
