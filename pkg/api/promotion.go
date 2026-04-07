@@ -137,6 +137,15 @@ func getQuayProxyTarget(target string, tag ImageStreamTagReference) string {
 	return proxyTarget
 }
 
+func qciPullSpec(pipelineSource string) (string, bool) {
+	idx := strings.LastIndex(pipelineSource, "@sha256:")
+	if idx == -1 {
+		return "", false
+	}
+	digest := pipelineSource[idx+1:]
+	return fmt.Sprintf("%s/openshift/ci@%s", QCIAPPCIDomain, digest), true
+}
+
 var (
 	// DefaultMirrorFunc is the default mirroring function
 	DefaultMirrorFunc = func(source, target string, _ ImageStreamTagReference, _ string, mirror map[string]string) {
@@ -171,7 +180,6 @@ var (
 
 	// QuayCombinedMirrorFunc does both quay mirroring and quay-proxy tagging
 	QuayCombinedMirrorFunc = func(source, target string, tag ImageStreamTagReference, time string, mirror map[string]string) {
-		// quay mirroring
 		if time == "" {
 			logrus.Warn("Found time is empty string and skipped the promotion to quay for this image")
 		} else {
@@ -181,7 +189,9 @@ var (
 		}
 
 		proxyTarget := getQuayProxyTarget(target, tag)
-		quayProxySource := QuayImageReference(tag)
-		mirror[proxyTarget] = quayProxySource
+		mirror[proxyTarget] = source
+		if proxySrc, ok := qciPullSpec(source); ok {
+			mirror[proxyTarget] = proxySrc
+		}
 	}
 )
