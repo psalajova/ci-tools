@@ -1498,6 +1498,7 @@ const (
 	ClusterProfileAWS5                    ClusterProfile = "aws-5"
 	ClusterProfileOpenshiftOrgAWS         ClusterProfile = "openshift-org-aws"
 	ClusterProfileOpenshiftOrgAzure       ClusterProfile = "openshift-org-azure"
+	ClusterProfileOpenshiftOrgGCP         ClusterProfile = "openshift-org-gcp"
 	ClusterProfileGCPVirtualization       ClusterProfile = "gcp-virtualization"
 	ClusterProfileAWSVirtualization       ClusterProfile = "aws-virtualization"
 	ClusterProfileAzureVirtualization     ClusterProfile = "azure-virtualization"
@@ -1565,6 +1566,7 @@ func ClusterProfiles() []ClusterProfile {
 		ClusterProfileAWS5,
 		ClusterProfileOpenshiftOrgAWS,
 		ClusterProfileOpenshiftOrgAzure,
+		ClusterProfileOpenshiftOrgGCP,
 		ClusterProfileAWSC2SQE,
 		ClusterProfileAWSCPaaS,
 		ClusterProfileAWSCSPIQE,
@@ -1913,7 +1915,8 @@ func (p ClusterProfile) ClusterType() string {
 		ClusterProfileGCPPerfScaleQE,
 		ClusterProfileGCPSDCICD,
 		ClusterProfileGCPQUAYQE,
-		ClusterProfileOSLGCP:
+		ClusterProfileOSLGCP,
+		ClusterProfileOpenshiftOrgGCP:
 		return string(CloudGCP)
 	case
 		ClusterProfileIBMCloud,
@@ -2399,6 +2402,8 @@ func (p ClusterProfile) LeaseType() string {
 		return "openshift-org-aws-quota-slice"
 	case ClusterProfileOpenshiftOrgAzure:
 		return "openshift-org-azure-quota-slice"
+	case ClusterProfileOpenshiftOrgGCP:
+		return "openshift-org-gcp-quota-slice"
 	case ClusterProfileOCIAgent:
 		return "oci-agent-qe-quota-slice"
 	case ClusterProfileOCIAssisted:
