@@ -731,12 +731,6 @@ func main() {
 		logger.WithError(err).Fatal("failed to register kubeconfig callback")
 	}
 
-	if o.github.TokenPath != "" {
-		if err := secret.Add(o.github.TokenPath); err != nil {
-			logger.WithError(err).Fatal("error reading GitHub credentials")
-		}
-	}
-
 	githubClient, err := o.github.GitHubClient(o.dryrun)
 	if err != nil {
 		logger.WithError(err).Fatal("error getting GitHub client")
@@ -836,7 +830,7 @@ func main() {
 	}
 	go reconciler.cleanOldIds(24 * time.Hour)
 
-	if err = secret.Add(o.github.TokenPath, o.webhookSecretFile); err != nil {
+	if err = secret.Add(o.webhookSecretFile); err != nil {
 		logger.WithError(err).Fatal("error starting secrets agent")
 	}
 	webhookTokenGenerator := secret.GetTokenGenerator(o.webhookSecretFile)
