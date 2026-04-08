@@ -31,8 +31,8 @@ function find_tests() {
 
     full_test_list=($(
         find "${OS_ROOT}/test/integration" \
-            ! \( -path "${OS_ROOT}/test/integration/pj-rehearse" -prune \) \
-            -a -name '*.sh'
+            -not -path "${OS_ROOT}/test/integration/pj-rehearse/*" \
+            -name '*.sh'
     ))
     for test in "${full_test_list[@]}"; do
         if grep -q -E "${test_regex}" <<< "${test}"; then
@@ -46,7 +46,7 @@ function find_tests() {
         echo "${selected_tests[@]}"
     fi
 }
-tests=( $(find_tests ${1:-.*}) )
+tests=( $(find_tests "${1:-.*}") )
 
 os::cleanup::tmpdir
 
