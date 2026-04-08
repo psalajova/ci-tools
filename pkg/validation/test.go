@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -436,16 +437,22 @@ func (v *Validator) validateClusterProfile(fieldRoot string, p api.ClusterProfil
 			if err := verifyClusterProfileOwnership(v.validClusterProfiles[p], metadata); err != nil {
 				return []error{err}
 			}
-			return nil
 		}
 	} else {
-		for _, x := range api.ClusterProfiles() {
-			if x == p {
-				return nil
+		if !slices.Contains(api.ClusterProfiles(), p) {
+			return []error{fmt.Errorf("%s: invalid cluster profile %q", fieldRoot, p)}
+		}
+	}
+
+	for cpsName, cpDetails := range v.cpsDetails {
+		for _, cpDetail := range cpDetails {
+			if string(p) == cpDetail {
+				return []error{fmt.Errorf("%s: invalid cluster profile %q, use the cluster profile set %q instead", fieldRoot, p, cpsName)}
 			}
 		}
 	}
-	return []error{fmt.Errorf("%s: invalid cluster profile %q", fieldRoot, p)}
+
+	return nil
 }
 
 // verifyClusterProfileOwnership checks if metadata's org and repo match those in the profile,
