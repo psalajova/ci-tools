@@ -240,7 +240,7 @@ func main() {
 		pprofutil.Instrument(o.instrumentationOptions)
 		metrics.ExposeMetrics("pj-rehearse", prowConfig.PushGateway{}, o.instrumentationOptions.MetricsPort)
 
-		if err = secret.Add(o.github.TokenPath, o.webhookSecretFile); err != nil {
+		if err = secret.Add(o.webhookSecretFile); err != nil {
 			logger.WithError(err).Fatal("Error starting secrets agent.")
 		}
 		webhookTokenGenerator := secret.GetTokenGenerator(o.webhookSecretFile)
