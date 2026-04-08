@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -145,6 +146,8 @@ func main() {
 		boundsToPullspec[versionBounds] = pullSpec
 	}
 
+	poolFilesByBounds, boundsToPullspec = mergeCollidingBounds(poolFilesByBounds, boundsToPullspec)
+
 	// keep list of outdated or removed cluster image set definitions to delete
 	var toDelete []string
 	if err := filepath.WalkDir(o.outputDir, func(path string, info fs.DirEntry, err error) error {
@@ -166,18 +169,8 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("Failed to parse version labels for clusterimageset %s: %w", imageset.Name, err)
 		}
-		if bounds != nil {
-			isCurrent := false
-			for poolBounds := range poolFilesByBounds {
-				if poolBounds == *bounds {
-					isCurrent = imageset.Spec.ReleaseImage == boundsToPullspec[poolBounds]
-					break
-				}
-			}
-			if !isCurrent {
-				toDelete = append(toDelete, path)
-				return nil
-			}
+		if bounds != nil && !clusterImageSetFileIsCurrent(path, o.outputDir, imageset, bounds, boundsToPullspec) {
+			toDelete = append(toDelete, path)
 		}
 		return nil
 	}); err != nil {
@@ -187,8 +180,11 @@ func main() {
 	// make as much progress as possible and print list of errors at end of command
 	var errs []error
 
+	boundsOrder := sortedBounds(boundsToPullspec)
+
 	// any remaining items in autopools/versionToPullspec need to be updated
-	for bounds, pullspec := range boundsToPullspec {
+	for _, bounds := range boundsOrder {
+		pullspec := boundsToPullspec[bounds]
 		name := nameFromPullspec(pullspec, bounds)
 		clusterimageset := hivev1.ClusterImageSet{
 			TypeMeta: v1.TypeMeta{
@@ -214,7 +210,7 @@ func main() {
 			errs = append(errs, fmt.Errorf("Could not marshal yaml for clusterimageset %s: %w", name, err))
 			continue
 		}
-		if err := os.WriteFile(filepath.Join(o.outputDir, fmt.Sprintf("%s_clusterimageset.yaml", name)), raw, 0644); err != nil {
+		if err := os.WriteFile(clusterImageSetYAMLPath(o.outputDir, pullspec, bounds), raw, 0644); err != nil {
 			errs = append(errs, fmt.Errorf("Failed to write file for clusterimageset %s: %w", name, err))
 		}
 	}
@@ -227,7 +223,8 @@ func main() {
 	}
 
 	// update all clusterpool specs
-	for bounds, files := range poolFilesByBounds {
+	for _, bounds := range boundsOrder {
+		files := poolFilesByBounds[bounds]
 		imagesetName := nameFromPullspec(boundsToPullspec[bounds], bounds)
 		for _, path := range files {
 			raw, err := os.ReadFile(path)
@@ -302,6 +299,90 @@ func ensureLabels(pool hivev1.ClusterPool) (hivev1.ClusterPool, bool) {
 	return pool, modified
 }
 
+func clusterImageSetFileIsCurrent(path, outputDir string, imageset hivev1.ClusterImageSet, bounds *api.VersionBounds, boundsToPullspec map[api.VersionBounds]string) bool {
+	if bounds == nil {
+		return true
+	}
+	wantPull, ok := boundsToPullspec[*bounds]
+	if ok {
+		return imageset.Spec.ReleaseImage == wantPull
+	}
+	cleanPath := filepath.Clean(path)
+	for b, pull := range boundsToPullspec {
+		if pull != imageset.Spec.ReleaseImage {
+			continue
+		}
+		if cleanPath == filepath.Clean(clusterImageSetYAMLPath(outputDir, pull, b)) {
+			return true
+		}
+	}
+	return false
+}
+
+func mergeVersionStreams(a, b string) string {
+	if b == "" || a > b {
+		return a
+	}
+	return b
+}
+
+type boundsPullspecKey struct {
+	pullspec, lower, upper string
+}
+
+func mergeCollidingBounds(
+	poolFilesByBounds map[api.VersionBounds][]string,
+	boundsToPullspec map[api.VersionBounds]string,
+) (map[api.VersionBounds][]string, map[api.VersionBounds]string) {
+	groups := make(map[boundsPullspecKey][]api.VersionBounds)
+	for b := range poolFilesByBounds {
+		k := boundsPullspecKey{
+			pullspec: boundsToPullspec[b],
+			lower:    b.Lower,
+			upper:    b.Upper,
+		}
+		groups[k] = append(groups[k], b)
+	}
+
+	newPools := make(map[api.VersionBounds][]string, len(groups))
+	newPull := make(map[api.VersionBounds]string, len(groups))
+	for _, bs := range groups {
+		b0 := bs[0]
+		canon := api.VersionBounds{Lower: b0.Lower, Upper: b0.Upper}
+		merged := ""
+		var files []string
+		for _, b := range bs {
+			merged = mergeVersionStreams(merged, b.Stream)
+			files = append(files, poolFilesByBounds[b]...)
+		}
+		canon.Stream = merged
+		if len(files) > 1 {
+			sort.Strings(files)
+		}
+		newPools[canon] = files
+		newPull[canon] = boundsToPullspec[b0]
+	}
+	return newPools, newPull
+}
+
+func sortedBounds(boundsToPullspec map[api.VersionBounds]string) []api.VersionBounds {
+	out := make([]api.VersionBounds, 0, len(boundsToPullspec))
+	for b := range boundsToPullspec {
+		out = append(out, b)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		ai, aj := out[i], out[j]
+		if ai.Lower != aj.Lower {
+			return ai.Lower < aj.Lower
+		}
+		if ai.Upper != aj.Upper {
+			return ai.Upper < aj.Upper
+		}
+		return ai.Stream < aj.Stream
+	})
+	return out
+}
+
 func nameFromPullspec(pullspec string, bounds api.VersionBounds) string {
 	baseName := pullspec[strings.LastIndex(pullspec, "ocp-release"):]
 	// handle names like ocp-release:4.8.3-x86_64, generated by a version_in like ">4.8.0-0 <4.9.0-0"
@@ -311,6 +392,10 @@ func nameFromPullspec(pullspec string, bounds api.VersionBounds) string {
 	// replace the `_` in `x86_64`, as `_` is an invalid character for k8s object names
 	baseName = strings.ReplaceAll(baseName, "_", "-")
 	return fmt.Sprintf("%s-for-%s-to-%s", baseName, bounds.Lower, bounds.Upper)
+}
+
+func clusterImageSetYAMLPath(outputDir, pullspec string, bounds api.VersionBounds) string {
+	return filepath.Join(outputDir, fmt.Sprintf("%s_clusterimageset.yaml", nameFromPullspec(pullspec, bounds)))
 }
 
 func labelsToBounds(labels map[string]string) (*api.VersionBounds, error) {
