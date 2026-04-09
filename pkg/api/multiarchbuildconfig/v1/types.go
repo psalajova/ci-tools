@@ -1,15 +1,7 @@
 package v1
 
 import (
-	"context"
-	"fmt"
-
-	"github.com/sirupsen/logrus"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
-	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	buildv1 "github.com/openshift/api/build/v1"
 )
@@ -61,21 +53,3 @@ const (
 	// FailureState means that all builds were completed with errors (exit non-zero)
 	FailureState MultiArchBuildConfigState = "failure"
 )
-
-func UpdateMultiArchBuildConfig(ctx context.Context, logger *logrus.Entry, client ctrlruntimeclient.Client, namespacedName types.NamespacedName, mutateFn func(mabcToMutate *MultiArchBuildConfig)) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		mabc := &MultiArchBuildConfig{}
-		if err := client.Get(ctx, namespacedName, mabc); err != nil {
-			return fmt.Errorf("failed to get the MultiArchBuildConfig during update: %w", err)
-		}
-
-		mabc = mabc.DeepCopy()
-		mutateFn(mabc)
-
-		logger.Info("Updating MultiArchBuildConfig...")
-		if err := client.Update(ctx, mabc); err != nil {
-			return fmt.Errorf("failed to update MultiArchBuildConfig %s: %w", mabc.Name, err)
-		}
-		return nil
-	})
-}
