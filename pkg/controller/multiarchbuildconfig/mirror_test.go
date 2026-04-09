@@ -1,7 +1,6 @@
 package multiarchbuildconfig
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -11,7 +10,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	v1 "github.com/openshift/ci-tools/pkg/api/multiarchbuildconfig/v1"
@@ -82,19 +80,15 @@ func TestOCImageMirrorArgs(t *testing.T) {
 }
 
 func TestHandleMirrorImage(t *testing.T) {
-	pushImageManifestCondition := &metav1.Condition{
-		Type:   PushImageManifestDone,
-		Status: metav1.ConditionTrue,
-	}
 	imageMirrorCmdFactory := func(err error) func([]string) error {
 		return func([]string) error { return err }
 	}
 
-	for _, testCase := range []struct {
-		name           string
-		mabc           v1.MultiArchBuildConfig
-		imageMirrorErr error
-		want           v1.MultiArchBuildConfigStatus
+	for _, tc := range []struct {
+		name       string
+		mabc       v1.MultiArchBuildConfig
+		wantErr    error
+		wantStatus v1.MultiArchBuildConfigStatus
 	}{
 		{
 			name: "No output set, do nothing",
@@ -104,36 +98,30 @@ func TestHandleMirrorImage(t *testing.T) {
 				},
 				Status: v1.MultiArchBuildConfigStatus{State: ""},
 			},
-			want: v1.MultiArchBuildConfigStatus{State: ""},
+			wantStatus: v1.MultiArchBuildConfigStatus{
+				Conditions: []metav1.Condition{{
+					Type:    MirrorImageManifestDone,
+					Status:  metav1.ConditionTrue,
+					Reason:  ImageMirrorSkipedReason,
+					Message: ImageMirrorNoExtRegistriesMsg,
+				}},
+				State: "",
+			},
 		},
 		{
-			name: "Status shows image has been mirrored already, do nothing",
+			name: "No registries, do nothing",
 			mabc: v1.MultiArchBuildConfig{
 				Spec: v1.MultiArchBuildConfigSpec{
 					ExternalRegistries: []string{},
 				},
-				Status: v1.MultiArchBuildConfigStatus{
-					Conditions: []metav1.Condition{
-						*pushImageManifestCondition,
-						{
-							Type:               MirrorImageManifestDone,
-							Status:             metav1.ConditionTrue,
-							LastTransitionTime: metav1.Time{Time: time.Time{}},
-							Reason:             ImageMirrorSuccessReason,
-						},
-					},
-				},
 			},
-			want: v1.MultiArchBuildConfigStatus{
-				Conditions: []metav1.Condition{
-					*pushImageManifestCondition,
-					{
-						Type:               MirrorImageManifestDone,
-						Status:             metav1.ConditionTrue,
-						LastTransitionTime: metav1.Time{Time: time.Time{}},
-						Reason:             ImageMirrorSuccessReason,
-					},
-				},
+			wantStatus: v1.MultiArchBuildConfigStatus{
+				Conditions: []metav1.Condition{{
+					Type:    MirrorImageManifestDone,
+					Status:  metav1.ConditionTrue,
+					Reason:  ImageMirrorSkipedReason,
+					Message: ImageMirrorNoExtRegistriesMsg,
+				}},
 			},
 		},
 		{
@@ -146,23 +134,15 @@ func TestHandleMirrorImage(t *testing.T) {
 				Spec: v1.MultiArchBuildConfigSpec{
 					ExternalRegistries: []string{"dst-reg.com/dst-image:latest"},
 				},
-				Status: v1.MultiArchBuildConfigStatus{
-					State: "",
-					Conditions: []metav1.Condition{
-						*pushImageManifestCondition,
-					},
-				},
+				Status: v1.MultiArchBuildConfigStatus{},
 			},
-			want: v1.MultiArchBuildConfigStatus{
-				Conditions: []metav1.Condition{
-					*pushImageManifestCondition,
-					{
-						Type:               MirrorImageManifestDone,
-						Status:             metav1.ConditionTrue,
-						LastTransitionTime: metav1.Time{Time: time.Time{}},
-						Reason:             ImageMirrorSuccessReason,
-					},
-				},
+			wantStatus: v1.MultiArchBuildConfigStatus{
+				Conditions: []metav1.Condition{{
+					Type:               MirrorImageManifestDone,
+					Status:             metav1.ConditionTrue,
+					LastTransitionTime: metav1.Time{Time: time.Time{}},
+					Reason:             ImageMirrorSuccessReason,
+				}},
 			},
 		},
 		{
@@ -175,50 +155,46 @@ func TestHandleMirrorImage(t *testing.T) {
 				Spec: v1.MultiArchBuildConfigSpec{
 					ExternalRegistries: []string{"dst-reg.com/dst-image:latest"},
 				},
-				Status: v1.MultiArchBuildConfigStatus{
-					State: "",
-					Conditions: []metav1.Condition{
-						*pushImageManifestCondition,
-					},
-				},
+				Status: v1.MultiArchBuildConfigStatus{},
 			},
-			imageMirrorErr: errors.New("an error"),
-			want: v1.MultiArchBuildConfigStatus{
-				Conditions: []metav1.Condition{
-					*pushImageManifestCondition,
-					{
-						Type:               MirrorImageManifestDone,
-						Status:             metav1.ConditionFalse,
-						LastTransitionTime: metav1.Time{Time: time.Time{}},
-						Reason:             ImageMirrorErrorReason,
-						Message:            "oc image mirror: an error",
-					},
-				},
+			wantErr: errors.New("an error"),
+			wantStatus: v1.MultiArchBuildConfigStatus{
+				Conditions: []metav1.Condition{{
+					Type:               MirrorImageManifestDone,
+					Status:             metav1.ConditionFalse,
+					LastTransitionTime: metav1.Time{Time: time.Time{}},
+					Reason:             ImageMirrorErrorReason,
+					Message:            "oc image mirror: an error",
+				}},
 				State: v1.FailureState,
 			},
 		},
 	} {
-		testCase := testCase
-
-		t.Run(testCase.name, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			client := fake.NewClientBuilder().WithObjects(&testCase.mabc).Build()
+			client := fake.NewClientBuilder().WithObjects(&tc.mabc).Build()
 			r := reconciler{
 				logger:        logrus.NewEntry(logrus.StandardLogger()),
 				client:        client,
-				imageMirrorer: newFakeOCImage(imageMirrorCmdFactory(testCase.imageMirrorErr)),
+				imageMirrorer: newFakeOCImage(imageMirrorCmdFactory(tc.wantErr)),
 			}
 
-			if _, err := r.handleMirrorImage(context.TODO(), logrus.NewEntry(logrus.StandardLogger()), "fake-image", &testCase.mabc); err != nil {
-				t.Fatalf("Failed to mirror %v", err)
+			observedStatus := v1.MultiArchBuildConfigStatus{}
+			gotErr := r.handleMirrorImage(logrus.NewEntry(logrus.StandardLogger()), "fake-image", &tc.mabc, &observedStatus)
+
+			goErrMsg, wantErrMsg := "<nil>", "<nil>"
+			if gotErr != nil {
+				goErrMsg = gotErr.Error()
+			}
+			if tc.wantErr != nil {
+				wantErrMsg = tc.wantErr.Error()
 			}
 
-			actualMabc := &v1.MultiArchBuildConfig{}
-			if err := client.Get(context.TODO(), ctrlruntimeclient.ObjectKey{Name: testCase.mabc.Name, Namespace: testCase.mabc.Namespace}, actualMabc); err != nil {
-				t.Fatalf("Failed to retrieve MultiArchBuildConfig: %v", err)
+			if diff := cmp.Diff(wantErrMsg, goErrMsg); diff != "" {
+				t.Fatalf("unexpected err: %s", diff)
 			}
 
-			if diff := cmp.Diff(testCase.want, actualMabc.Status,
+			if diff := cmp.Diff(tc.wantStatus, observedStatus,
 				cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime"),
 			); diff != "" {
 				t.Errorf("unexpected mabc:\n%s", diff)

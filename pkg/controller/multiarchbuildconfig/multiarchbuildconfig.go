@@ -2,16 +2,19 @@ package multiarchbuildconfig
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
-	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/sirupsen/logrus"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	ctrlruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,13 +39,21 @@ const (
 	registryURL = "image-registry.openshift-image-registry.svc:5000"
 
 	// Conditions
+	CreateBuildsDone        = "CreateBuildsDone"
+	CreateBuildsErrorReason = "CreateBuildsError"
+
+	BuildsCompleted            = "BuildsCompleted"
+	BuildsCompletedErrorReason = "BuildsCompletedError"
+
 	PushImageManifestDone     = "PushManifestDone"
 	PushManifestSuccessReason = "PushManifestSuccess"
 	PushManifestErrorReason   = "PushManifestError"
 
-	MirrorImageManifestDone  = "ImageMirrorDone"
-	ImageMirrorSuccessReason = "ImageMirrorSuccess"
-	ImageMirrorErrorReason   = "ImageMirrorError"
+	MirrorImageManifestDone       = "ImageMirrorDone"
+	ImageMirrorSuccessReason      = "ImageMirrorSuccess"
+	ImageMirrorErrorReason        = "ImageMirrorError"
+	ImageMirrorSkipedReason       = "ImageMirrorSkipped"
+	ImageMirrorNoExtRegistriesMsg = "No external registries configured"
 
 	MABCNameLogField          = "multiarchbuildconfig_name"
 	PushTargetImageLogField   = "target_image"
@@ -129,29 +140,48 @@ func (r *reconciler) reconcile(ctx context.Context, logger *logrus.Entry, req re
 		return nil
 	}
 
-	if err := r.handleMultiArchBuildConfig(ctx, logger, mabc); err != nil {
+	observedStatus := &v1.MultiArchBuildConfigStatus{}
+	if err := r.handleMultiArchBuildConfig(ctx, logger, mabc, observedStatus); err != nil {
+		if updateErr := r.updateStatus(ctx, mabc, observedStatus); updateErr != nil {
+			msg := utilerrors.NewAggregate([]error{updateErr, err}).Error()
+			return errors.New(msg)
+		}
 		return err
 	}
 
-	return nil
+	return r.updateStatus(ctx, mabc, observedStatus)
 }
 
-func (r *reconciler) handleMultiArchBuildConfig(ctx context.Context, logger *logrus.Entry, mabc *v1.MultiArchBuildConfig) error {
+func (r *reconciler) handleMultiArchBuildConfig(ctx context.Context, logger *logrus.Entry, mabc *v1.MultiArchBuildConfig, observedStatus *v1.MultiArchBuildConfigStatus) error {
 	builds, err := r.listBuilds(ctx, mabc.Name)
 	if err != nil {
 		return fmt.Errorf("couldn't list builds: %w", err)
 	}
 
+	upsertCondition(observedStatus, &metav1.Condition{
+		Type:               CreateBuildsDone,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+	})
 	if len(r.architectures) != len(builds.Items) {
-		if createBuildErr := r.createBuilds(ctx, logger, mabc); createBuildErr != nil {
-			mutateFn := func(mabcToMutate *v1.MultiArchBuildConfig) { mabcToMutate.Status.State = v1.FailureState }
-			if err := v1.UpdateMultiArchBuildConfig(ctx, logger, r.client, ctrlruntimeclient.ObjectKey{Namespace: mabc.Namespace, Name: mabc.Name}, mutateFn); err != nil {
-				return fmt.Errorf("%s: %w", err.Error(), createBuildErr)
-			}
-			return fmt.Errorf("couldn't create builds for architectures: %s: %w", strings.Join(r.architectures, ","), createBuildErr)
+		if err = r.createBuilds(ctx, logger, mabc); err != nil {
+			upsertCondition(observedStatus, &metav1.Condition{
+				Type:               CreateBuildsDone,
+				Status:             metav1.ConditionFalse,
+				LastTransitionTime: metav1.Now(),
+				Reason:             CreateBuildsErrorReason,
+				Message:            err.Error(),
+			})
+			return fmt.Errorf("couldn't create builds for architectures: %s: %w", strings.Join(r.architectures, ","), err)
 		}
 		return nil
 	}
+
+	upsertCondition(observedStatus, &metav1.Condition{
+		Type:               BuildsCompleted,
+		Status:             metav1.ConditionFalse,
+		LastTransitionTime: metav1.Now(),
+	})
 
 	if !checkAllBuildsFinished(builds) {
 		logger.Info("Waiting for the builds to complete")
@@ -159,41 +189,40 @@ func (r *reconciler) handleMultiArchBuildConfig(ctx context.Context, logger *log
 	}
 
 	if !checkAllBuildsSuccessful(logger, builds) {
-		mutateFn := func(mabcToMutate *v1.MultiArchBuildConfig) { mabcToMutate.Status.State = v1.FailureState }
-		if err := v1.UpdateMultiArchBuildConfig(ctx, logger, r.client, ctrlruntimeclient.ObjectKey{Namespace: mabc.Namespace, Name: mabc.Name}, mutateFn); err != nil {
-			return err
-		}
+		upsertCondition(observedStatus, &metav1.Condition{
+			Type:               BuildsCompleted,
+			Status:             metav1.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+			Reason:             BuildsCompletedErrorReason,
+			Message:            "Some builds have failed",
+		})
+		observedStatus.State = v1.FailureState
 		return nil
 	}
+
+	upsertCondition(observedStatus, &metav1.Condition{
+		Type:               BuildsCompleted,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+	})
 
 	targetImageRef := fmt.Sprintf("%s/%s", mabc.Spec.BuildSpec.CommonSpec.Output.To.Namespace, mabc.Spec.BuildSpec.CommonSpec.Output.To.Name)
-
 	if !isPushImageManifestDone(mabc) {
-		if err := r.handlePushImageWithManifest(ctx, logger, mabc, targetImageRef, builds); err != nil {
-			return fmt.Errorf("couldn't push the manifest: %w", err)
-		}
+		r.handlePushImageWithManifest(logger, targetImageRef, builds, observedStatus)
 		return nil
 	}
 
+	upsertCondition(observedStatus, getConditionByType(mabc, PushImageManifestDone))
+
 	if !isImageMirrorDone(mabc) {
-		done, err := r.handleMirrorImage(ctx, logger, targetImageRef, mabc)
-		if err != nil {
-			return fmt.Errorf("couldn't mirror the image: %w", err)
+		if err := r.handleMirrorImage(logger, targetImageRef, mabc, observedStatus); err != nil {
+			return fmt.Errorf("mirror images: %w", err)
 		}
-		// Image mirroring is an optional step, therefore wait for the next reconcile
-		// to set the whole status to success if it has been done successfully,
-		// otherwise go ahead and update the mabc right away
-		if done {
-			return nil
-		}
+	} else if mirrorDoneCond := getConditionByType(mabc, MirrorImageManifestDone); mirrorDoneCond != nil {
+		upsertCondition(observedStatus, getConditionByType(mabc, MirrorImageManifestDone))
 	}
 
-	// So far everything went well, the mabc status can be set to success
-	mutateFn := func(mabcToMutate *v1.MultiArchBuildConfig) { mabcToMutate.Status.State = v1.SuccessState }
-	if err := v1.UpdateMultiArchBuildConfig(ctx, logger, r.client, ctrlruntimeclient.ObjectKey{Namespace: mabc.Namespace, Name: mabc.Name}, mutateFn); err != nil {
-		return err
-	}
-
+	observedStatus.State = v1.SuccessState
 	return nil
 }
 
@@ -231,61 +260,55 @@ func (r *reconciler) createBuilds(ctx context.Context, logger *logrus.Entry, mab
 	return nil
 }
 
-func (r *reconciler) handlePushImageWithManifest(ctx context.Context, logger *logrus.Entry, mabc *v1.MultiArchBuildConfig, targetImageRef string, builds *buildv1.BuildList) error {
+func (r *reconciler) handlePushImageWithManifest(logger *logrus.Entry, targetImageRef string, builds *buildv1.BuildList, observedStatus *v1.MultiArchBuildConfigStatus) {
 	logger = logger.WithField(PushTargetImageLogField, targetImageRef)
 
 	logger.Info("Pushing manifest")
-
-	mutateFn := func(mabcToMutate *v1.MultiArchBuildConfig) {
-		mabcToMutate.Status.Conditions = append(mabcToMutate.Status.Conditions, metav1.Condition{
-			Type:               PushImageManifestDone,
-			Status:             metav1.ConditionTrue,
-			LastTransitionTime: metav1.Time{Time: time.Now()},
-			Reason:             PushManifestSuccessReason,
-		})
-	}
+	upsertCondition(observedStatus, &metav1.Condition{
+		Type:               PushImageManifestDone,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             PushManifestSuccessReason,
+	})
 
 	if err := r.manifestPusher.PushImageWithManifest(builds.Items, targetImageRef); err != nil {
 		logger.Errorf("Failed to push manifest: %s", err)
-		mutateFn = func(mabcToMutate *v1.MultiArchBuildConfig) {
-			mabcToMutate.Status.Conditions = append(mabcToMutate.Status.Conditions, metav1.Condition{
-				Type:               PushImageManifestDone,
-				Status:             metav1.ConditionFalse,
-				LastTransitionTime: metav1.Time{Time: time.Now()},
-				Reason:             PushManifestErrorReason,
-				Message:            err.Error(),
-			})
-			mabcToMutate.Status.State = v1.FailureState
-		}
+		upsertCondition(observedStatus, &metav1.Condition{
+			Type:               PushImageManifestDone,
+			Status:             metav1.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+			Reason:             PushManifestErrorReason,
+			Message:            err.Error(),
+		})
+		observedStatus.State = v1.FailureState
 	} else {
 		logger.Info("Manifest pushed")
 	}
-
-	if err := v1.UpdateMultiArchBuildConfig(ctx, logger, r.client, ctrlruntimeclient.ObjectKey{Namespace: mabc.Namespace, Name: mabc.Name}, mutateFn); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // handleMirrorImage pushes an image to the locations specified in .spec.external_registries. The image
 // required has to exist on local registry.
-func (r *reconciler) handleMirrorImage(ctx context.Context, logger *logrus.Entry, targetImageRef string, mabc *v1.MultiArchBuildConfig) (bool, error) {
+func (r *reconciler) handleMirrorImage(logger *logrus.Entry, targetImageRef string, mabc *v1.MultiArchBuildConfig, observedStatus *v1.MultiArchBuildConfigStatus) error {
 	logger = logger.WithField(MirrorTargetImageLogField, targetImageRef)
 
 	if len(mabc.Spec.ExternalRegistries) == 0 {
 		logger.Info("No registries set, skip mirroring")
-		return false, nil
-	}
-
-	mutateFn := func(mabcToMutate *v1.MultiArchBuildConfig) {
-		mabcToMutate.Status.Conditions = append(mabcToMutate.Status.Conditions, metav1.Condition{
+		upsertCondition(observedStatus, &metav1.Condition{
 			Type:               MirrorImageManifestDone,
 			Status:             metav1.ConditionTrue,
-			LastTransitionTime: metav1.Time{Time: time.Now()},
-			Reason:             ImageMirrorSuccessReason,
+			LastTransitionTime: metav1.Now(),
+			Reason:             ImageMirrorSkipedReason,
+			Message:            ImageMirrorNoExtRegistriesMsg,
 		})
+		return nil
 	}
+
+	upsertCondition(observedStatus, &metav1.Condition{
+		Type:               MirrorImageManifestDone,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             ImageMirrorSuccessReason,
+	})
 
 	logger = logger.WithField(MirrorRegistriesLogField, strings.Join(mabc.Spec.ExternalRegistries, ","))
 	logger.Info("Mirroring image")
@@ -293,25 +316,20 @@ func (r *reconciler) handleMirrorImage(ctx context.Context, logger *logrus.Entry
 	imageMirrorArgs := ocImageMirrorArgs(targetImageRef, mabc.Spec.ExternalRegistries)
 	if err := r.imageMirrorer.mirror(imageMirrorArgs); err != nil {
 		logger.Errorf("Failed to mirror image: %s", err)
-		mutateFn = func(mabcToMutate *v1.MultiArchBuildConfig) {
-			mabcToMutate.Status.Conditions = append(mabcToMutate.Status.Conditions, metav1.Condition{
-				Type:               MirrorImageManifestDone,
-				Status:             metav1.ConditionFalse,
-				LastTransitionTime: metav1.Time{Time: time.Now()},
-				Reason:             ImageMirrorErrorReason,
-				Message:            fmt.Sprintf("oc image mirror: %s", err),
-			})
-			mabcToMutate.Status.State = v1.FailureState
-		}
+		upsertCondition(observedStatus, &metav1.Condition{
+			Type:               MirrorImageManifestDone,
+			Status:             metav1.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+			Reason:             ImageMirrorErrorReason,
+			Message:            fmt.Sprintf("oc image mirror: %s", err),
+		})
+		observedStatus.State = v1.FailureState
+		return err
 	} else {
 		logger.Info("Image mirrored")
 	}
 
-	if err := v1.UpdateMultiArchBuildConfig(ctx, logger, r.client, ctrlruntimeclient.ObjectKey{Namespace: mabc.Namespace, Name: mabc.Name}, mutateFn); err != nil {
-		return false, err
-	}
-
-	return true, nil
+	return nil
 }
 
 func (r *reconciler) listBuilds(ctx context.Context, mabcName string) (*buildv1.BuildList, error) {
@@ -363,6 +381,51 @@ func getCondition(mabc *v1.MultiArchBuildConfig, condType, reason string, status
 		if c.Type == condType && c.Reason == reason && c.Status == status {
 			return c
 		}
+	}
+	return nil
+}
+
+func getConditionByType(mabc *v1.MultiArchBuildConfig, condType string) *metav1.Condition {
+	for i := range mabc.Status.Conditions {
+		c := &mabc.Status.Conditions[i]
+		if c.Type == condType {
+			return c
+		}
+	}
+	return nil
+}
+
+func upsertCondition(status *v1.MultiArchBuildConfigStatus, newCond *metav1.Condition) {
+	conditionsEqual := func(a, b *metav1.Condition) bool {
+		return a.Message == b.Message && a.Reason == b.Reason &&
+			a.Status == b.Status && a.Type == b.Type
+	}
+
+	for i := range status.Conditions {
+		cond := &status.Conditions[i]
+		if cond.Type == newCond.Type {
+			if conditionsEqual(cond, newCond) {
+				return
+			}
+			status.Conditions[i] = *newCond
+			return
+		}
+	}
+
+	status.Conditions = append(status.Conditions, *newCond)
+}
+
+func (r *reconciler) updateStatus(ctx context.Context, mabc *v1.MultiArchBuildConfig, observedStatus *v1.MultiArchBuildConfigStatus) error {
+	if !cmp.Equal(&mabc.Status, observedStatus, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")) {
+		mabc.Status = *observedStatus
+		return r.updateMABC(ctx, mabc)
+	}
+	return nil
+}
+
+func (r *reconciler) updateMABC(ctx context.Context, mabc *v1.MultiArchBuildConfig) error {
+	if err := r.client.Update(ctx, mabc); err != nil {
+		return fmt.Errorf("update mabc: %w", err)
 	}
 	return nil
 }
