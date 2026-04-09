@@ -14,7 +14,6 @@ import (
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	v1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	prowconfig "sigs.k8s.io/prow/pkg/config"
-	"sigs.k8s.io/prow/pkg/config/secret"
 	"sigs.k8s.io/prow/pkg/flagutil"
 	prowgithub "sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/pjutil"
@@ -64,10 +63,6 @@ func main() {
 	}
 	if err := validateOptions(o); err != nil {
 		logrus.WithError(err).Fatal("invalid options")
-	}
-
-	if err := secret.Add(o.GitHubOptions.TokenPath); err != nil {
-		logrus.WithError(err).Fatal("error starting secrets agent.")
 	}
 
 	githubClient, err := o.GitHubOptions.GitHubClient(o.dryRun)
