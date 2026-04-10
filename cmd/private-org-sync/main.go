@@ -394,7 +394,11 @@ func (g gitSyncer) mirror(repoDir string, src, dst location) error {
 	}
 	srcCommitHash, ok := srcHeads[src.branch]
 	if !ok {
-		logger.WithError(err).Error("Branch does not exist in source remote")
+		if api.FlavorForBranch(src.branch) == "misc" {
+			logger.Warn("Non-release branch does not exist in source remote, likely deleted; skipping")
+			return nil
+		}
+		logger.Error("Release/main branch does not exist in source remote; this may indicate the branch was deleted")
 		return fmt.Errorf("branch does not exist in source remote")
 	}
 
@@ -598,7 +602,7 @@ func main() {
 	} else {
 		token = strings.TrimSpace(string(rawToken))
 		getter := func() sets.Set[string] {
-			return sets.New[string](token)
+			return sets.New(token)
 		}
 		logrus.SetFormatter(logrusutil.NewCensoringFormatter(logrus.StandardLogger().Formatter, getter))
 	}
@@ -653,7 +657,7 @@ func main() {
 		grouped[key] = append(grouped[key], source)
 	}
 
-	flattenedOrgs := sets.New[string](privateorg.DefaultFlattenOrgs...)
+	flattenedOrgs := sets.New(privateorg.DefaultFlattenOrgs...)
 	flattenedOrgs.Insert(o.flattenOrgs...)
 	if o.org != "" {
 		flattenedOrgs.Insert(o.org)
@@ -712,10 +716,9 @@ func getWhitelistedLocations(whitelist map[string][]string, git gitFunc, prefix,
 			remoteURL, err := url.Parse(fmt.Sprintf("%s/%s/%s", prefix, org, repo))
 			if err != nil {
 				logrus.WithError(err).Error("Failed to construct URL for the remote")
-				if err != nil {
-					errs = append(errs, err)
-					continue
-				}
+				errs = append(errs, err)
+				continue
+
 			}
 			if token != "" {
 				remoteURL.User = url.User(token)
