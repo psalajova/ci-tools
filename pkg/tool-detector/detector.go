@@ -21,6 +21,7 @@ import (
 const (
 	ModulePrefix = "github.com/openshift/ci-tools"
 	CmdPrefix    = ModulePrefix + "/cmd"
+	imageCommand = "/image"
 )
 
 // Detector detects which cmd tools are affected by code changes
@@ -56,6 +57,16 @@ func (d *Detector) AffectedTools() (sets.Set[string], error) {
 			baseRef += "^"
 		}
 	}
+
+	forcedImages, forceAll, err := d.getForcedImagesFromCommitMessages(baseRef)
+	if err != nil {
+		logrus.WithError(err).Warn("Failed to parse commit messages for forced image directives; falling back to affected-tools detection")
+		forcedImages = sets.New[string]()
+	}
+	if forceAll {
+		return d.getAllImageNames(), nil
+	}
+
 	changedFiles, err := d.getChangedFiles(baseRef)
 	if err != nil {
 		return nil, fmt.Errorf("get changed files: %w", err)
@@ -76,8 +87,9 @@ func (d *Detector) AffectedTools() (sets.Set[string], error) {
 	}
 
 	if len(goFiles) == 0 {
-		combined := affectedByImageChanges.Union(d.getAffectedToolsByBinaryInputs(affectedByImageChanges))
-		return combined, nil
+		binaryInputSeed := affectedByImageChanges.Union(forcedImages)
+		combined := affectedByImageChanges.Union(d.getAffectedToolsByBinaryInputs(binaryInputSeed))
+		return combined.Union(forcedImages), nil
 	}
 
 	changedPackages, err := d.loadChangedPackages(goFiles)
@@ -87,8 +99,9 @@ func (d *Detector) AffectedTools() (sets.Set[string], error) {
 
 	logrus.WithField("count", len(changedPackages)).WithField("packages", sets.List(changedPackages)).Info("Detected changed packages")
 	if len(changedPackages) == 0 {
-		combined := affectedByImageChanges.Union(d.getAffectedToolsByBinaryInputs(affectedByImageChanges))
-		return combined, nil
+		binaryInputSeed := affectedByImageChanges.Union(forcedImages)
+		combined := affectedByImageChanges.Union(d.getAffectedToolsByBinaryInputs(binaryInputSeed))
+		return combined.Union(forcedImages), nil
 	}
 
 	cmdTools, allPackages, err := d.loadCmdTools()
@@ -98,16 +111,74 @@ func (d *Detector) AffectedTools() (sets.Set[string], error) {
 
 	affectedByPackages := d.findAffectedToolsFromPackages(cmdTools, allPackages, changedPackages, baseRef)
 
-	combined := affectedByPackages.Union(affectedByImageChanges)
+	combined := affectedByPackages.Union(affectedByImageChanges).Union(forcedImages)
 	affectedByBinaryInputs := d.getAffectedToolsByBinaryInputs(combined)
 
 	logrus.WithField("affectedByPackages", sets.List(affectedByPackages)).
 		WithField("affectedByImages", sets.List(affectedByImageChanges)).
 		WithField("affectedByBinaryInputs", sets.List(affectedByBinaryInputs)).
+		WithField("forcedByCommitMessage", sets.List(forcedImages)).
 		WithField("total", combined.Union(affectedByBinaryInputs).Len()).
 		Info("Detected affected tools")
 
 	return combined.Union(affectedByBinaryInputs), nil
+}
+
+func (d *Detector) getAllImageNames() sets.Set[string] {
+	imageNames := sets.New[string]()
+	if d.config == nil {
+		return imageNames
+	}
+	for _, image := range d.config.Images.Items {
+		imageNames.Insert(string(image.To))
+	}
+	return imageNames
+}
+
+// getForcedImagesFromCommitMessages scans commit messages in baseRef..HEAD for
+// /image directives. This is only called when build_if_affected is enabled
+// (gated in determineSkippedImages in cmd/ci-operator/main.go).
+func (d *Detector) getForcedImagesFromCommitMessages(baseRef string) (sets.Set[string], bool, error) {
+	cmd := exec.Command("git", "log", "--format=%B%x00", baseRef+"..HEAD")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, false, fmt.Errorf("git log %s..HEAD: %w", baseRef, err)
+	}
+
+	messages := strings.Split(string(output), "\x00")
+	forced, forceAll := parseForcedImagesFromCommitMessages(messages, d.getAllImageNames())
+	return forced, forceAll, nil
+}
+
+func parseForcedImagesFromCommitMessages(messages []string, allowedImageNames sets.Set[string]) (sets.Set[string], bool) {
+	forced := sets.New[string]()
+	for _, message := range messages {
+		scanner := bufio.NewScanner(strings.NewReader(message))
+		for scanner.Scan() {
+			line := scanner.Text()
+			if !strings.HasPrefix(line, imageCommand) {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) < 2 || fields[0] != imageCommand {
+				continue
+			}
+			for _, imageName := range fields[1:] {
+				if imageName == "all" {
+					return allowedImageNames, true
+				}
+				if allowedImageNames.Has(imageName) {
+					forced.Insert(imageName)
+					continue
+				}
+				logrus.WithField("image", imageName).Warn("Ignoring unknown forced image requested via /image commit directive")
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			logrus.WithError(err).Warn("Error scanning commit message for /image directives")
+		}
+	}
+	return forced, false
 }
 
 func (d *Detector) getChangedFiles(baseRef string) ([]string, error) {
