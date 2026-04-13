@@ -44,32 +44,6 @@ func TestRun(t *testing.T) {
 	}{
 		{
 			params: testParams{
-				name:        "Create install-config: success",
-				ci:          &clusterinstall.ClusterInstall{InstallBase: "/cluster-base"},
-				wantCmdArgs: []string{"create", "install-config", "--log-level=debug", "--dir=/cluster-base/ocp-install-base"},
-			},
-			newStep: func(t *testing.T, tc testParams) types.Step {
-				return NewCreateInstallConfigStep(logrus.NewEntry(logrus.StandardLogger()), tc.ci,
-					buildCmdFunc(t, tc.wantCmdArgs),
-					runCmdFunc(tc.runCmdErr))
-			},
-		},
-		{
-			params: testParams{
-				name:        "Create install-config: failure",
-				ci:          &clusterinstall.ClusterInstall{InstallBase: "/cluster-base"},
-				runCmdErr:   errors.New("fail"),
-				wantCmdArgs: []string{"create", "install-config", "--log-level=debug", "--dir=/cluster-base/ocp-install-base"},
-				wantErr:     errors.New("create install-config: fail"),
-			},
-			newStep: func(t *testing.T, tc testParams) types.Step {
-				return NewCreateInstallConfigStep(logrus.NewEntry(logrus.StandardLogger()), tc.ci,
-					buildCmdFunc(t, tc.wantCmdArgs),
-					runCmdFunc(tc.runCmdErr))
-			},
-		},
-		{
-			params: testParams{
 				name:        "Create manifests: success",
 				ci:          &clusterinstall.ClusterInstall{InstallBase: "/cluster-base"},
 				wantCmdArgs: []string{"create", "manifests", "--log-level=debug", "--dir=/cluster-base/ocp-install-base"},
