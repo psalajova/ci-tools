@@ -382,11 +382,30 @@ func TestMirror(t *testing.T) {
 			},
 		},
 		{
-			description: "source branch does not exist -> error",
+			description: "non-release source branch does not exist -> no error, skip with warning",
 			src:         location{org: org, repo: repo, branch: branch},
 			dst:         location{org: destOrg, repo: repo, branch: branch},
 			expectedGitCalls: []mockGitCall{
 				{call: "ls-remote --heads https://TOKEN@github.com/dest/repo", output: "source-sha refs/heads/branch"},
+				{call: "ls-remote --heads org-repo", output: "some-sha refs/heads/not-the-branch"},
+			},
+		},
+		{
+			description: "release source branch does not exist -> error",
+			src:         location{org: org, repo: repo, branch: "release-4.21"},
+			dst:         location{org: destOrg, repo: repo, branch: "release-4.21"},
+			expectedGitCalls: []mockGitCall{
+				{call: "ls-remote --heads https://TOKEN@github.com/dest/repo", output: "source-sha refs/heads/release-4.21"},
+				{call: "ls-remote --heads org-repo", output: "some-sha refs/heads/not-the-branch"},
+			},
+			expectError: true,
+		},
+		{
+			description: "main source branch does not exist -> error",
+			src:         location{org: org, repo: repo, branch: "main"},
+			dst:         location{org: destOrg, repo: repo, branch: "main"},
+			expectedGitCalls: []mockGitCall{
+				{call: "ls-remote --heads https://TOKEN@github.com/dest/repo", output: "source-sha refs/heads/main"},
 				{call: "ls-remote --heads org-repo", output: "some-sha refs/heads/not-the-branch"},
 			},
 			expectError: true,
