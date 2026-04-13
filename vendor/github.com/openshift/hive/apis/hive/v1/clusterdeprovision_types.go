@@ -3,6 +3,7 @@ package v1
 import (
 	"github.com/openshift/hive/apis/hive/v1/aws"
 	"github.com/openshift/hive/apis/hive/v1/azure"
+	"github.com/openshift/hive/apis/hive/v1/nutanix"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -19,6 +20,9 @@ type ClusterDeprovisionSpec struct {
 	// some resource tagging, and other instances where a friendly name for the
 	// cluster is useful.
 	ClusterName string `json:"clusterName,omitempty"`
+
+	// BaseDomain is the DNS base domain.
+	BaseDomain string `json:"baseDomain,omitempty"`
 
 	// Platform contains platform-specific configuration for a ClusterDeprovision
 	Platform ClusterDeprovisionPlatform `json:"platform,omitempty"`
@@ -37,8 +41,6 @@ type ClusterDeprovisionStatus struct {
 // ClusterDeprovisionPlatform contains platform-specific configuration for the
 // deprovision
 type ClusterDeprovisionPlatform struct {
-	// AlibabaCloud contains Alibaba Cloud specific deprovision settings
-	AlibabaCloud *AlibabaCloudClusterDeprovision `json:"alibabacloud,omitempty"`
 	// AWS contains AWS-specific deprovision settings
 	AWS *AWSClusterDeprovision `json:"aws,omitempty"`
 	// Azure contains Azure-specific deprovision settings
@@ -53,16 +55,8 @@ type ClusterDeprovisionPlatform struct {
 	Ovirt *OvirtClusterDeprovision `json:"ovirt,omitempty"`
 	// IBMCloud contains IBM Cloud specific deprovision settings
 	IBMCloud *IBMClusterDeprovision `json:"ibmcloud,omitempty"`
-}
-
-// AlibabaCloudClusterDeprovision contains AlibabaCloud-specific configuration for a ClusterDeprovision
-type AlibabaCloudClusterDeprovision struct {
-	// Region is the Alibaba region for this deprovision
-	Region string `json:"region"`
-	// BaseDomain is the DNS base domain
-	BaseDomain string `json:"baseDomain"`
-	// CredentialsSecretRef is the Alibaba account credentials to use for deprovisioning the cluster
-	CredentialsSecretRef corev1.LocalObjectReference `json:"credentialsSecretRef"`
+	// Nutanix contains Nutanix-specific deprovision settings
+	Nutanix *NutanixClusterDeprovision `json:"nutanix,omitempty"`
 }
 
 // AWSClusterDeprovision contains AWS-specific configuration for a ClusterDeprovision
@@ -78,6 +72,11 @@ type AWSClusterDeprovision struct {
 	// AWS account access for deprovisioning the cluster.
 	// +optional
 	CredentialsAssumeRole *aws.AssumeRole `json:"credentialsAssumeRole,omitempty"`
+
+	// HostedZoneRole is the role to assume when performing operations
+	// on a hosted zone owned by another account.
+	// +optional
+	HostedZoneRole *string `json:"hostedZoneRole,omitempty"`
 }
 
 // AzureClusterDeprovision contains Azure-specific configuration for a ClusterDeprovision
@@ -93,6 +92,10 @@ type AzureClusterDeprovision struct {
 	// Required for new deprovisions (schema notwithstanding).
 	// +optional
 	ResourceGroupName *string `json:"resourceGroupName,omitempty"`
+	// BaseDomainResourceGroupName is the name of the resource group where the cluster's DNS records
+	// were created, if different from the default or the custom ResourceGroupName.
+	// +optional
+	BaseDomainResourceGroupName *string `json:"baseDomainResourceGroupName,omitempty"`
 }
 
 // GCPClusterDeprovision contains GCP-specific configuration for a ClusterDeprovision
@@ -101,6 +104,10 @@ type GCPClusterDeprovision struct {
 	Region string `json:"region"`
 	// CredentialsSecretRef is the GCP account credentials to use for deprovisioning the cluster
 	CredentialsSecretRef *corev1.LocalObjectReference `json:"credentialsSecretRef,omitempty"`
+
+	// NetworkProjectID is used for shared VPC setups
+	// +optional
+	NetworkProjectID *string `json:"networkProjectID,omitempty"`
 }
 
 // OpenStackClusterDeprovision contains OpenStack-specific configuration for a ClusterDeprovision
@@ -145,8 +152,25 @@ type IBMClusterDeprovision struct {
 	CredentialsSecretRef corev1.LocalObjectReference `json:"credentialsSecretRef"`
 	// Region specifies the IBM Cloud region
 	Region string `json:"region"`
-	// BaseDomain is the DNS base domain
+	// BaseDomain is the DNS base domain.
+	// TODO: Use the non-platform-specific BaseDomain field.
 	BaseDomain string `json:"baseDomain"`
+}
+
+// NutanixClusterDeprovision contains Nutanix-specific configuration for a ClusterDeprovision
+type NutanixClusterDeprovision struct {
+	// PrismCentral is the endpoint (address and port) to connect to the Prism Central.
+	// This serves as the default Prism-Central.
+	PrismCentral nutanix.PrismEndpoint `json:"prismCentral"`
+
+	// CredentialsSecretRef refers to a secret that contains the Nutanix account access
+	// credentials.
+	CredentialsSecretRef corev1.LocalObjectReference `json:"credentialsSecretRef"`
+
+	// CertificatesSecretRef refers to a secret that contains the Nutanix CA certificates
+	// necessary for communicating with the Prism Central.
+	// +optional
+	CertificatesSecretRef corev1.LocalObjectReference `json:"certificatesSecretRef"`
 }
 
 // +genclient

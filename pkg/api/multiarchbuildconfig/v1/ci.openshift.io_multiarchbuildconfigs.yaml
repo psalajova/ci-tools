@@ -103,7 +103,7 @@ spec:
                         type: array
                       pushSecret:
                         description: |-
-                          PushSecret is the name of a Secret that would be used for setting
+                          pushSecret is the name of a Secret that would be used for setting
                           up the authentication for executing the Docker push to authentication
                           enabled Docker Registry (or Docker Hub).
                         properties:
@@ -269,7 +269,7 @@ spec:
                       This is optional.
                     properties:
                       git:
-                        description: Git contains information about git-based build
+                        description: git contains information about git-based build
                           source
                         properties:
                           author:
@@ -311,7 +311,7 @@ spec:
                     type: object
                   runPolicy:
                     description: |-
-                      RunPolicy describes how the new build created from this build
+                      runPolicy describes how the new build created from this build
                       configuration will be scheduled for execution.
                       This is optional, if not specified we default to "Serial".
                     type: string
@@ -1435,7 +1435,7 @@ spec:
                         type: object
                       jenkinsPipelineStrategy:
                         description: |-
-                          JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy.
+                          jenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy.
                           Deprecated: use OpenShift Pipelines
                         properties:
                           env:
@@ -1561,12 +1561,12 @@ spec:
                               type: object
                             type: array
                           jenkinsfile:
-                            description: Jenkinsfile defines the optional raw contents
+                            description: jenkinsfile defines the optional raw contents
                               of a Jenkinsfile which defines a Jenkins pipeline build.
                             type: string
                           jenkinsfilePath:
                             description: |-
-                              JenkinsfilePath is the optional path of the Jenkinsfile that will be used to configure the pipeline
+                              jenkinsfilePath is the optional path of the Jenkinsfile that will be used to configure the pipeline
                               relative to the root of the context (contextDir). If both JenkinsfilePath & Jenkinsfile are
                               both not specified, this defaults to Jenkinsfile in the root of the specified contextDir.
                             type: string
@@ -2064,7 +2064,7 @@ spec:
                                 of which will be checked against the value supplied in the webhook invocation.
                               properties:
                                 name:
-                                  description: Name is the name of the resource in
+                                  description: name is the name of the resource in
                                     the same namespace being referenced
                                   type: string
                               required:
@@ -2093,7 +2093,7 @@ spec:
                                 of which will be checked against the value supplied in the webhook invocation.
                               properties:
                                 name:
-                                  description: Name is the name of the resource in
+                                  description: name is the name of the resource in
                                     the same namespace being referenced
                                   type: string
                               required:
@@ -2122,7 +2122,7 @@ spec:
                                 of which will be checked against the value supplied in the webhook invocation.
                               properties:
                                 name:
-                                  description: Name is the name of the resource in
+                                  description: name is the name of the resource in
                                     the same namespace being referenced
                                   type: string
                               required:
@@ -2151,7 +2151,7 @@ spec:
                                 of which will be checked against the value supplied in the webhook invocation.
                               properties:
                                 name:
-                                  description: Name is the name of the resource in
+                                  description: name is the name of the resource in
                                     the same namespace being referenced
                                   type: string
                               required:
