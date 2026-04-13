@@ -9,9 +9,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	kyaml "sigs.k8s.io/yaml"
+
 	"github.com/openshift/ci-tools/pkg/clusterinit/clusterinstall"
 	"github.com/openshift/ci-tools/pkg/clusterinit/types"
-	kyaml "sigs.k8s.io/yaml"
 )
 
 type CreateInstallConfigStepOption func(*createInstallConfigStep)
