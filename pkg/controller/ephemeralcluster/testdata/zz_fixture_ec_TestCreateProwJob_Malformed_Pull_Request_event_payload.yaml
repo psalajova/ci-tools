@@ -1,5 +1,7 @@
 metadata:
   creationTimestamp: null
+  finalizers:
+  - ephemeralcluster.ci.openshift.io/dependent-prowjob
   name: ec
   namespace: ns
   resourceVersion: "1000"
@@ -22,8 +24,7 @@ spec:
 status:
   conditions:
   - lastTransitionTime: "2025-04-02T12:12:12Z"
-    message: 'parse pull request meta: malformed PR event payload'
-    reason: CIOperatorJobsGenerateFailure
-    status: "False"
+    status: "True"
     type: ProwJobCreating
-  phase: Failed
+  phase: Provisioning
+  prowJobId: 37dfc176-b4c5-4254-bf59-092d6550b005

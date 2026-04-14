@@ -3,13 +3,12 @@ package ephemeralcluster
 import (
 	"context"
 	_ "embed"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -30,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	prowconfig "sigs.k8s.io/prow/pkg/config"
-	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/pjutil"
 
 	"github.com/openshift/ci-tools/pkg/api"
@@ -51,8 +49,6 @@ const (
 	EphemeralClusterNamespace = "ephemeral-cluster"
 	AbortProwJobDeleteEC      = "Ephemeral Cluster deleted"
 	DependentProwJobFinalizer = "ephemeralcluster.ci.openshift.io/dependent-prowjob"
-	PREventPayload            = "ephemeralcluster.ci.openshift.io/pr-event-payload"
-	PREventHeaders            = "ephemeralcluster.ci.openshift.io/pr-event-headers"
 	UnresolvedConfigVar       = "UNRESOLVED_CONFIG"
 	ProwJobCreatingDoneReason = "ProwJob has been properly created"
 	ProwJobNamePrefix         = "ephemeralcluster"
@@ -76,14 +72,12 @@ var (
 		polling: 3 * time.Second,
 	}
 
-	isTagRegexp        = regexp.MustCompile(`(?P<Namespace>.+)/(?P<Name>.+)\:(?P<Tag>.+)`)
-	prOrgRepoNumRegexp = regexp.MustCompile(PROrgRepoNumRegexpPattern)
+	isTagRegexp = regexp.MustCompile(`(?P<Namespace>.+)/(?P<Name>.+)\:(?P<Tag>.+)`)
 )
 
 type reconcilerOptions struct {
 	polling     time.Duration
 	cliISTagRef string
-	ghClient    GitHubClient
 }
 
 type ReconcilerOption func(*reconcilerOptions)
@@ -101,45 +95,19 @@ func WithCLIISTagRef(isTagRef string) ReconcilerOption {
 	}
 }
 
-func WithGHClient(ghClient GitHubClient) ReconcilerOption {
-	return func(o *reconcilerOptions) {
-		o.ghClient = ghClient
-	}
-}
-
-type GitHubClient interface {
-	GetPullRequest(org, repo string, number int) (*github.PullRequest, error)
-}
-
-type PRMeta struct {
-	Event   *PullRequestEvent
-	Headers map[string]string
-}
-
-func (prm PRMeta) GitHubGUID() string {
-	return prm.Headers[GitHubGUID]
-}
-
-// pullRequestEvent contains more information than the `pull_request` defined here.
-// So far, that's the only field we need. Check https://docs.github.com/en/rest/using-the-rest-api/github-event-types?apiVersion=2022-11-28#pullrequestevent.
-type PullRequestEvent struct {
-	PullRequest *github.PullRequest `json:"pull_request,omitempty"`
-}
-
-type NewPresubmitFunc func(pr github.PullRequest, baseSHA string, job prowconfig.Presubmit, eventGUID string, additionalLabels map[string]string, modifiers ...pjutil.Modifier) prowv1.ProwJob
+type NewProwJobFunc func(spec prowv1.ProwJobSpec, extraLabels, extraAnnotations map[string]string, modifiers ...pjutil.Modifier) prowv1.ProwJob
 
 type reconciler struct {
 	logger          *logrus.Entry
 	masterClient    ctrlruntimeclient.Client
 	buildClients    map[string]ctrlruntimeclient.Client
-	newPresubmit    NewPresubmitFunc
+	newProwJob      NewProwJobFunc
 	prowConfigAgent *prowconfig.Agent
 
 	// Mock for testing
 	now         func() time.Time
 	polling     func() time.Duration
 	cliISTagRef api.ImageStreamTagReference
-	ghClient    GitHubClient
 }
 
 func ECPredicateFilter(object ctrlruntimeclient.Object) bool {
@@ -167,11 +135,10 @@ func AddToManager(log *logrus.Entry, mgr manager.Manager, allManagers map[string
 		masterClient:    mgr.GetClient(),
 		buildClients:    buildClients,
 		prowConfigAgent: prowConfigAgent,
-		newPresubmit:    pjutil.NewPresubmit,
+		newProwJob:      pjutil.NewProwJob,
 		now:             time.Now,
 		polling:         func() time.Duration { return defaultReconcilerOpts.polling },
 		cliISTagRef:     cliISTagRef,
-		ghClient:        defaultReconcilerOpts.ghClient,
 	}
 
 	if err := ctrlbldr.ControllerManagedBy(mgr).
@@ -267,7 +234,7 @@ func (r *reconciler) handleGetProwJobError(ctx context.Context, log *logrus.Entr
 	}
 }
 
-func (r *reconciler) generateCIOperatorConfig(log *logrus.Entry, ec *ephemeralclusterv1.EphemeralCluster, prMeta PRMeta) (*api.ReleaseBuildConfiguration, error) {
+func (r *reconciler) generateCIOperatorConfig(log *logrus.Entry, ec *ephemeralclusterv1.EphemeralCluster) (*api.ReleaseBuildConfiguration, error) {
 	resources := ec.Spec.CIOperator.Resources
 	if len(resources) == 0 {
 		log.Info("Resources not set, using default values")
@@ -289,10 +256,6 @@ func (r *reconciler) generateCIOperatorConfig(log *logrus.Entry, ec *ephemeralcl
 		cliImgName = r.injectCLIIntoBaseImages(baseImages)
 	}
 
-	org := prMeta.Event.PullRequest.Base.Repo.Owner.Login
-	repo := prMeta.Event.PullRequest.Base.Repo.Name
-	branch := prMeta.Event.PullRequest.Base.Ref
-
 	return &api.ReleaseBuildConfiguration{
 		InputConfiguration: api.InputConfiguration{
 			BuildRootImage: ec.Spec.CIOperator.BuildRootImage,
@@ -303,6 +266,7 @@ func (r *reconciler) generateCIOperatorConfig(log *logrus.Entry, ec *ephemeralcl
 		Resources: resources,
 		Tests: []api.TestStepConfiguration{{
 			As:           EphemeralClusterTestName,
+			Cron:         ptr.To("@yearly"),
 			ClusterClaim: ec.Spec.CIOperator.Test.ClusterClaim,
 			MultiStageTestConfiguration: &api.MultiStageTestConfiguration{
 				Workflow: &ec.Spec.CIOperator.Test.Workflow,
@@ -321,7 +285,7 @@ func (r *reconciler) generateCIOperatorConfig(log *logrus.Entry, ec *ephemeralcl
 				ClusterProfile: api.ClusterProfile(ec.Spec.CIOperator.Test.ClusterProfile),
 			},
 		}},
-		Metadata: api.Metadata{Org: org, Repo: repo, Branch: branch},
+		Metadata: api.Metadata{Org: "org", Repo: "repo", Branch: "branch"},
 	}, nil
 }
 
@@ -400,29 +364,7 @@ func (r *reconciler) createProwJob(ctx context.Context, log *logrus.Entry, ec *e
 		upsertCondition(&ec.Status, ephemeralclusterv1.ProwJobCreating, status, r.now(), reason, msg)
 	}
 
-	annotations := ec.Annotations
-	if annotations == nil {
-		annotations = map[string]string{}
-	}
-
-	prMeta, err := parsePRMeta(annotations[PREventPayload], annotations[PREventHeaders])
-	if err != nil {
-		log.WithError(err).Error("parse pull request meta")
-		err = fmt.Errorf("parse pull request meta: %w", err)
-		upsertProvisioningCond(ephemeralclusterv1.ConditionFalse, ephemeralclusterv1.CIOperatorJobsGenerateFailureReason, err.Error())
-		ec.Status.Phase = ephemeralclusterv1.EphemeralClusterFailed
-		return reconcile.TerminalError(err)
-	}
-
-	if err := injectPRMetadata(r.ghClient, &prMeta, annotations[PREventPayload]); err != nil {
-		log.WithError(err).Error("inject pull request metadata")
-		err = fmt.Errorf("inject pull request meta: %w", err)
-		upsertProvisioningCond(ephemeralclusterv1.ConditionFalse, ephemeralclusterv1.CIOperatorJobsGenerateFailureReason, err.Error())
-		ec.Status.Phase = ephemeralclusterv1.EphemeralClusterFailed
-		return reconcile.TerminalError(err)
-	}
-
-	ciOperatorConfig, err := r.generateCIOperatorConfig(log, ec, prMeta)
+	ciOperatorConfig, err := r.generateCIOperatorConfig(log, ec)
 	if err != nil {
 		log.WithError(err).Error("generate ci-operator config")
 		err = fmt.Errorf("generate ci-operator config: %w", err)
@@ -431,7 +373,7 @@ func (r *reconciler) createProwJob(ctx context.Context, log *logrus.Entry, ec *e
 		return reconcile.TerminalError(err)
 	}
 
-	pj, err := r.makeProwJob(ciOperatorConfig, ec, prMeta)
+	pj, err := r.makeProwJob(ciOperatorConfig, ec)
 	if err != nil {
 		log.WithError(err).Error("make prowjob")
 		upsertProvisioningCond(ephemeralclusterv1.ConditionFalse, ephemeralclusterv1.CIOperatorJobsGenerateFailureReason, err.Error())
@@ -455,49 +397,44 @@ func (r *reconciler) createProwJob(ctx context.Context, log *logrus.Entry, ec *e
 	return nil
 }
 
-func (r *reconciler) makeProwJob(ciOperatorConfig *api.ReleaseBuildConfiguration, ec *ephemeralclusterv1.EphemeralCluster, prMeta PRMeta) (*prowv1.ProwJob, error) {
+func (r *reconciler) makeProwJob(ciOperatorConfig *api.ReleaseBuildConfiguration, ec *ephemeralclusterv1.EphemeralCluster) (*prowv1.ProwJob, error) {
 	jobConfig, err := prowgen.GenerateJobs(ciOperatorConfig, &prowgen.ProwgenInfo{
 		Metadata: api.Metadata{
-			Org:    prMeta.Event.PullRequest.Base.Repo.Owner.Login,
-			Repo:   prMeta.Event.PullRequest.Base.Repo.Name,
-			Branch: prMeta.Event.PullRequest.Base.Ref,
+			Org:    "org",
+			Repo:   "repo",
+			Branch: "branch",
 		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("generate jobs: %w", err)
 	}
 
-	orgRepo := ciOperatorConfig.Metadata.Org + "/" + ciOperatorConfig.Metadata.Repo
-	presubs, ok := jobConfig.PresubmitsStatic[orgRepo]
-	if !ok {
-		return nil, errors.New("no presubmits generated")
+	if len(jobConfig.Periodics) != 1 {
+		return nil, errors.New("periodic job not found")
 	}
 
-	if len(presubs) != 1 {
-		return nil, errors.New("presubmit job not found")
+	periodic := &jobConfig.Periodics[0]
+	if err := r.prowConfigAgent.Config().DefaultPeriodic(periodic); err != nil {
+		return nil, fmt.Errorf("default periodic: %w", err)
 	}
 
-	presub := &presubs[0]
-	jobNameWithoutPrefix, prefixCut := strings.CutPrefix(presub.JobBase.Name, jobconfig.PresubmitPrefix)
+	jobNameWithoutPrefix, prefixCut := strings.CutPrefix(periodic.JobBase.Name, jobconfig.PeriodicPrefix)
 	if !prefixCut {
-		return nil, fmt.Errorf("failed to strip %s prefix from %s", jobconfig.PresubmitPrefix, presub.JobBase.Name)
+		return nil, fmt.Errorf("failed to strip %s prefix from %s", jobconfig.PeriodicPrefix, periodic.JobBase.Name)
 	}
-	presub.JobBase.Name = ProwJobNamePrefix + jobNameWithoutPrefix
+	periodic.JobBase.Name = ProwJobNamePrefix + jobNameWithoutPrefix
+	periodic.UtilityConfig.ExtraRefs = []prowv1.Refs{}
 
-	prowYAML := prowconfig.ProwYAML{Presubmits: presubs}
-	// This is a workaround to apply some defaults to the prowjob
-	if err := prowconfig.DefaultAndValidateProwYAML(r.prowConfigAgent.Config(), &prowYAML, ""); err != nil {
-		return nil, fmt.Errorf("validate and default presubmit: %w", err)
-	}
+	labels := make(map[string]string)
+	maps.Copy(labels, periodic.Labels)
+	labels[EphemeralClusterLabel] = ec.Name
 
-	presubmit := &prowYAML.Presubmits[0]
-	labels := map[string]string{EphemeralClusterLabel: ec.Name}
-	pj := r.newPresubmit(*prMeta.Event.PullRequest, prMeta.Event.PullRequest.Base.SHA, *presubmit, prMeta.GitHubGUID(), labels, pjutil.RequireScheduling(true))
+	pj := r.newProwJob(pjutil.PeriodicSpec(*periodic), labels, periodic.Annotations, pjutil.RequireScheduling(true))
 	// The cluster will be chosen by the dispatcher. Set a default one here in case things go sideways.
 	pj.Spec.Cluster = string(api.ClusterBuild01)
 	pj.Namespace = r.prowConfigAgent.Config().ProwJobNamespace
-	// Do not report, we are not managing this PR as it's likely it's not comining from the OpenShift CI.
 	pj.Spec.Report = false
+	pj.Spec.Refs = nil
 
 	// Inline ci-operator config
 	ciOperatorConfigYaml, err := yaml.Marshal(ciOperatorConfig)
@@ -768,35 +705,6 @@ func (r *reconciler) findCIOperatorTestNS(ctx context.Context, buildClient ctrlr
 	return nss.Items[0].Name, nil
 }
 
-// injectPRMetadata retrieves the PR metadata from the GitHub api. In some cases (ex.: a check run being rerun)
-// the PR event payload doesn't contain the PR information anymore. We can't keep going this scenario,
-// therefore we make our best effort trying to extract the org, repo and PR number and then manually pull
-// the metadata.
-func injectPRMetadata(ghClient GitHubClient, prMeta *PRMeta, prEventPayload string) error {
-	// The PR exists already, there is nothing to do here
-	if prMeta.Event.PullRequest != nil {
-		return nil
-	}
-
-	matches := prOrgRepoNumRegexp.FindStringSubmatch(prEventPayload)
-	if matches == nil || len(matches) != 4 {
-		return errors.New("unable to extract org, repo and PR number from the PR event payload")
-	}
-
-	org, repo := matches[1], matches[2]
-	prNum, err := strconv.Atoi(matches[3])
-	if err != nil {
-		return fmt.Errorf("failed to parse PR number %s: %w", matches[3], err)
-	}
-
-	prMeta.Event.PullRequest, err = ghClient.GetPullRequest(org, repo, prNum)
-	if err != nil {
-		return fmt.Errorf("failed to get PR %s/%s/pulls/%d: %w", org, repo, prNum, err)
-	}
-
-	return nil
-}
-
 func upsertCondition(ecStatus *ephemeralclusterv1.EphemeralClusterStatus, t ephemeralclusterv1.EphemeralClusterConditionType, status ephemeralclusterv1.ConditionStatus, now time.Time, reason, msg string) {
 	newCond := ephemeralclusterv1.EphemeralClusterCondition{
 		Type:               t,
@@ -823,28 +731,6 @@ func upsertCondition(ecStatus *ephemeralclusterv1.EphemeralClusterStatus, t ephe
 func conditionsEqual(a, b *ephemeralclusterv1.EphemeralClusterCondition) bool {
 	return a.Message == b.Message && a.Reason == b.Reason &&
 		a.Status == b.Status && a.Type == b.Type
-}
-
-func parsePRMeta(event, headers string) (PRMeta, error) {
-	prMeta := PRMeta{}
-
-	if event == "" || headers == "" {
-		return prMeta, errors.New("malformed PR event payload")
-	}
-
-	if err := json.Unmarshal([]byte(event), &prMeta.Event); err != nil {
-		return prMeta, fmt.Errorf("unmarshal event: %w", err)
-	}
-
-	if err := json.Unmarshal([]byte(headers), &prMeta.Headers); err != nil {
-		return prMeta, fmt.Errorf("unmarshal headers: %w", err)
-	}
-
-	if _, ok := prMeta.Headers[GitHubGUID]; !ok {
-		return prMeta, errors.New("unsupported PR event payload")
-	}
-
-	return prMeta, nil
 }
 
 func parseCLIISTagRef(isTag string) (api.ImageStreamTagReference, error) {
