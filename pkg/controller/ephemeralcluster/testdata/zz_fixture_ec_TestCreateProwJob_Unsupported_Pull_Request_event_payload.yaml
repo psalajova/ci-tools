@@ -1,8 +1,7 @@
 metadata:
-  annotations:
-    ephemeralcluster.ci.openshift.io/pr-event-headers: '{}'
-    ephemeralcluster.ci.openshift.io/pr-event-payload: '{}'
   creationTimestamp: null
+  finalizers:
+  - ephemeralcluster.ci.openshift.io/dependent-prowjob
   name: ec
   namespace: ns
   resourceVersion: "1000"
@@ -25,8 +24,7 @@ spec:
 status:
   conditions:
   - lastTransitionTime: "2025-04-02T12:12:12Z"
-    message: 'parse pull request meta: unsupported PR event payload'
-    reason: CIOperatorJobsGenerateFailure
-    status: "False"
+    status: "True"
     type: ProwJobCreating
-  phase: Failed
+  phase: Provisioning
+  prowJobId: 6ae257a9-545d-422a-858d-ca0b96a09cc2

@@ -3,31 +3,21 @@ items:
   kind: ProwJob
   metadata:
     annotations:
-      prow.k8s.io/context: ci/prow/cluster-provisioning
-      prow.k8s.io/job: ephemeralcluster-ci-owner-repo-base-ref-cluster-provisioning
+      prow.k8s.io/context: ""
+      prow.k8s.io/job: ephemeralcluster-ci-no-org-no-repo-no-branch-cluster-provisioning
     creationTimestamp: null
     labels:
-      ci-operator.openshift.io/cloud: aws
-      ci-operator.openshift.io/cloud-cluster-profile: aws
       ci.openshift.io/ephemeral-cluster: ec
       created-by-prow: "true"
-      event-GUID: aa9ede40-8fbb-11f0-8717-9eed0c1315d0
-      pj-rehearse.openshift.io/can-be-rehearsed: "true"
-      prow.k8s.io/context: cluster-provisioning
-      prow.k8s.io/is-optional: "false"
-      prow.k8s.io/job: ephemeralcluster-ci-owner-repo-base-ref-cluster-provisioning
-      prow.k8s.io/refs.base_ref: base-ref
-      prow.k8s.io/refs.org: owner
-      prow.k8s.io/refs.pull: "24"
-      prow.k8s.io/refs.repo: repo
-      prow.k8s.io/type: presubmit
-    name: foobar
+      prow.k8s.io/context: ""
+      prow.k8s.io/job: ephemeralcluster-ci-no-org-no-repo-no-branch-cluster-provisioni
+      prow.k8s.io/type: periodic
+    name: 1e3d3ebb-8f80-4527-8689-63ecad9fc85a
     namespace: ci
     resourceVersion: "1"
   spec:
     agent: kubernetes
     cluster: build01
-    context: ci/prow/cluster-provisioning
     decoration_config:
       gcs_configuration:
         default_org: org
@@ -39,7 +29,7 @@ items:
         entrypoint: entrypoint
         initupload: initupload
         sidecar: sidecar
-    job: ephemeralcluster-ci-owner-repo-base-ref-cluster-provisioning
+    job: ephemeralcluster-ci-no-org-no-repo-no-branch-cluster-provisioning
     namespace: ci
     pod_spec:
       containers:
@@ -92,6 +82,7 @@ items:
                   cpu: 200m
             tests:
             - as: cluster-provisioning
+              cron: '@yearly'
               steps:
                 cluster_profile: aws
                 env:
@@ -121,9 +112,9 @@ items:
                       cpu: 10m
                 workflow: test-workflow
             zz_generated_metadata:
-              branch: base-ref
-              org: owner
-              repo: repo
+              branch: no-branch
+              org: no-org
+              repo: no-repo
         image: quay-proxy.ci.openshift.org/openshift/ci:ci_ci-operator_latest
         imagePullPolicy: Always
         name: ""
@@ -174,23 +165,8 @@ items:
           secretName: result-aggregator
     prowjob_defaults:
       tenant_id: GlobalDefaultID
-    refs:
-      base_link: repo-link/commit/
-      base_ref: base-ref
-      org: owner
-      pulls:
-      - author: author
-        author_link: author-link
-        commit_link: repo-link/pull/24/commits/head-sha
-        head_ref: head-ref
-        number: 24
-        sha: head-sha
-        title: pr-title
-      repo: repo
-      repo_link: repo-link
-    rerun_command: /test cluster-provisioning
-    type: presubmit
+    type: periodic
   status:
-    startTime: "2025-04-02T12:12:12Z"
+    startTime: "2026-04-13T14:24:03Z"
     state: scheduling
 metadata: {}

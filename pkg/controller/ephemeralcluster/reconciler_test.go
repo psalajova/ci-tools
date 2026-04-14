@@ -22,8 +22,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	prowconfig "sigs.k8s.io/prow/pkg/config"
-	"sigs.k8s.io/prow/pkg/github"
-	"sigs.k8s.io/prow/pkg/github/fakegithub"
 	"sigs.k8s.io/prow/pkg/pjutil"
 
 	"github.com/openshift/ci-tools/pkg/api"
@@ -35,27 +33,11 @@ import (
 
 const (
 	prowJobNamespace = "ci"
-	prEventPayload   = `
-{
-  "pull_request": {
-    "base": {
-	  "repo": {
-	    "name": "ci-tools",
-	    "owner": {
-		  "login": "openshift"
-		}
-	  },
-	  "ref": "main",
-	  "sha": "8f5e7d6ec106ccf86684fcff808d85cac960f0a3"
-	}
-  }
-}`
-	prEventHeaders = `{"X-Github-Delivery": "aa9ede40-8fbb-11f0-8717-9eed0c1315d0"}`
 )
 
-func newPresubmitFaker(name string, now time.Time) NewPresubmitFunc {
-	return func(pr github.PullRequest, baseSHA string, job prowconfig.Presubmit, eventGUID string, additionalLabels map[string]string, modifiers ...pjutil.Modifier) prowv1.ProwJob {
-		pj := pjutil.NewPresubmit(pr, baseSHA, job, eventGUID, additionalLabels, modifiers...)
+func newProwJobFaker(name string, now time.Time) NewProwJobFunc {
+	return func(spec prowv1.ProwJobSpec, extraLabels, extraAnnotations map[string]string, modifiers ...pjutil.Modifier) prowv1.ProwJob {
+		pj := pjutil.NewProwJob(spec, extraLabels, extraAnnotations, modifiers...)
 		pj.Name = name
 		pj.Status.StartTime = v1.NewTime(now)
 		return pj
@@ -90,7 +72,7 @@ func cmpError(t *testing.T, want, got error) {
 		t.Errorf("want err nil but got: %v", got)
 	}
 	if got == nil && want != nil {
-		t.Errorf("want err %v but nil", want)
+		t.Errorf("want err %v but got nil", want)
 	}
 	if got != nil && want != nil {
 		if diff := cmp.Diff(want.Error(), got.Error()); diff != "" {
@@ -165,7 +147,6 @@ func TestCreateProwJob(t *testing.T) {
 		req          reconcile.Request
 		interceptors interceptor.Funcs
 		prowConfig   *prowconfig.Config
-		ghClient     *fakegithub.FakeClient
 		wantRes      reconcile.Result
 		wantErr      error
 	}{
@@ -173,10 +154,6 @@ func TestCreateProwJob(t *testing.T) {
 			name: "An EphemeralCluster request creates a ProwJob",
 			ec: ephemeralclusterv1.EphemeralCluster{
 				ObjectMeta: v1.ObjectMeta{
-					Annotations: map[string]string{
-						PREventPayload: prEventPayload,
-						PREventHeaders: prEventHeaders,
-					},
 					Namespace: "ns",
 					Name:      "ec",
 				},
@@ -218,10 +195,6 @@ func TestCreateProwJob(t *testing.T) {
 			name: "Hive cluster request creates a ProwJob",
 			ec: ephemeralclusterv1.EphemeralCluster{
 				ObjectMeta: v1.ObjectMeta{
-					Annotations: map[string]string{
-						PREventPayload: prEventPayload,
-						PREventHeaders: prEventHeaders,
-					},
 					Namespace: "ns",
 					Name:      "ec",
 				},
@@ -269,10 +242,6 @@ func TestCreateProwJob(t *testing.T) {
 			name: "Handle invalid prow config",
 			ec: ephemeralclusterv1.EphemeralCluster{
 				ObjectMeta: v1.ObjectMeta{
-					Annotations: map[string]string{
-						PREventPayload: prEventPayload,
-						PREventHeaders: prEventHeaders,
-					},
 					Namespace: "ns",
 					Name:      "ec",
 				},
@@ -288,19 +257,23 @@ func TestCreateProwJob(t *testing.T) {
 					},
 				},
 			},
-			prowConfig: &prowconfig.Config{},
-			req:        reconcile.Request{NamespacedName: types.NamespacedName{Namespace: "ns", Name: "ec"}},
-			wantRes:    reconcile.Result{},
-			wantErr:    errors.New("terminal error: validate and default presubmit: invalid presubmit job ephemeralcluster-ci-openshift-ci-tools-main-cluster-provisioning: failed to default namespace"),
+			prowConfig: &prowconfig.Config{
+				JobConfig: prowconfig.JobConfig{
+					Presets: []prowconfig.Preset{{
+						Volumes: []corev1.Volume{{
+							Name: "boskos",
+						}},
+					}},
+				},
+			},
+			req:     reconcile.Request{NamespacedName: types.NamespacedName{Namespace: "ns", Name: "ec"}},
+			wantRes: reconcile.Result{},
+			wantErr: errors.New("terminal error: default periodic: job periodic-ci-org-repo-branch-cluster-provisioning failed to merge presets for podspec: volume duplicated in pod spec: boskos"),
 		},
 		{
 			name: "Fail to create a ProwJob",
 			ec: ephemeralclusterv1.EphemeralCluster{
 				ObjectMeta: v1.ObjectMeta{
-					Annotations: map[string]string{
-						PREventPayload: prEventPayload,
-						PREventHeaders: prEventHeaders,
-					},
 					Namespace: "ns",
 					Name:      "ec",
 				},
@@ -330,10 +303,6 @@ func TestCreateProwJob(t *testing.T) {
 			name: "Invalid ci-operator configuration",
 			ec: ephemeralclusterv1.EphemeralCluster{
 				ObjectMeta: v1.ObjectMeta{
-					Annotations: map[string]string{
-						PREventPayload: prEventPayload,
-						PREventHeaders: prEventHeaders,
-					},
 					Namespace: "ns",
 					Name:      "ec",
 				},
@@ -353,10 +322,6 @@ func TestCreateProwJob(t *testing.T) {
 			name: "Invalid ci-operator configuration and fail to update EC",
 			ec: ephemeralclusterv1.EphemeralCluster{
 				ObjectMeta: v1.ObjectMeta{
-					Annotations: map[string]string{
-						PREventPayload: prEventPayload,
-						PREventHeaders: prEventHeaders,
-					},
 					Namespace: "ns",
 					Name:      "ec",
 				},
@@ -382,10 +347,6 @@ func TestCreateProwJob(t *testing.T) {
 			name: "Several PJ for the same EC raises an error",
 			ec: ephemeralclusterv1.EphemeralCluster{
 				ObjectMeta: v1.ObjectMeta{
-					Annotations: map[string]string{
-						PREventPayload: prEventPayload,
-						PREventHeaders: prEventHeaders,
-					},
 					Namespace: "ns",
 					Name:      "ec",
 				},
@@ -417,143 +378,6 @@ func TestCreateProwJob(t *testing.T) {
 			}}},
 			wantRes: reconcile.Result{RequeueAfter: pollingTime},
 		},
-		{
-			name: "Unsupported Pull Request event payload",
-			ec: ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
-					Annotations: map[string]string{
-						PREventPayload: `{}`,
-						PREventHeaders: `{}`,
-					},
-					Namespace: "ns",
-					Name:      "ec",
-				},
-				Spec: ephemeralclusterv1.EphemeralClusterSpec{
-					CIOperator: ephemeralclusterv1.CIOperatorSpec{
-						Releases: map[string]api.UnresolvedRelease{
-							"initial": {Integration: &api.Integration{Name: "4.17", Namespace: "ocp"}},
-							"latest":  {Integration: &api.Integration{Name: "4.17", Namespace: "ocp"}},
-						},
-						Test: ephemeralclusterv1.TestSpec{
-							Workflow:       "test-workflow",
-							Env:            map[string]string{"foo": "bar"},
-							ClusterProfile: "aws",
-						},
-					},
-				},
-			},
-			wantRes: reconcile.Result{},
-			wantErr: errors.New("terminal error: parse pull request meta: unsupported PR event payload"),
-		}, {
-			name: "Malformed Pull Request event payload",
-			ec: ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
-					Namespace: "ns",
-					Name:      "ec",
-				},
-				Spec: ephemeralclusterv1.EphemeralClusterSpec{
-					CIOperator: ephemeralclusterv1.CIOperatorSpec{
-						Releases: map[string]api.UnresolvedRelease{
-							"initial": {Integration: &api.Integration{Name: "4.17", Namespace: "ocp"}},
-							"latest":  {Integration: &api.Integration{Name: "4.17", Namespace: "ocp"}},
-						},
-						Test: ephemeralclusterv1.TestSpec{
-							Workflow:       "test-workflow",
-							Env:            map[string]string{"foo": "bar"},
-							ClusterProfile: "aws",
-						},
-					},
-				},
-			},
-			wantRes: reconcile.Result{},
-			wantErr: errors.New("terminal error: parse pull request meta: malformed PR event payload"),
-		},
-		{
-			name: "Inject missing PR metadata",
-			ec: ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
-					Annotations: map[string]string{
-						PREventPayload: `{"check_run": {"pull_requests": [{"url": "https://api.github.com/repos/danilo-gemoli/foobar/pulls/24"}]}}`,
-						PREventHeaders: prEventHeaders,
-					},
-					Namespace: "ns",
-					Name:      "ec",
-				},
-				Spec: ephemeralclusterv1.EphemeralClusterSpec{
-					CIOperator: ephemeralclusterv1.CIOperatorSpec{
-						BuildRootImage: &api.BuildRootImageConfiguration{
-							ImageStreamTagReference: &api.ImageStreamTagReference{
-								Namespace: "ocp",
-								Name:      "4.20",
-								Tag:       "cli",
-							},
-						},
-						BaseImages: map[string]api.ImageStreamTagReference{
-							"upi-installer": {
-								Namespace: "ocp",
-								Name:      "4.20",
-								Tag:       "upi-installer",
-							},
-						},
-						ExternalImages: map[string]api.ExternalImage{
-							"fedora": {Registry: "quay.io/fedora/fedora:43"},
-						},
-						Releases: map[string]api.UnresolvedRelease{
-							"initial": {Integration: &api.Integration{Name: "4.17", Namespace: "ocp"}},
-							"latest":  {Integration: &api.Integration{Name: "4.17", Namespace: "ocp"}},
-						},
-						Test: ephemeralclusterv1.TestSpec{
-							Workflow:       "test-workflow",
-							Env:            map[string]string{"foo": "bar"},
-							ClusterProfile: "aws",
-						},
-					},
-				},
-			},
-			ghClient: func() *fakegithub.FakeClient {
-				c := fakegithub.NewFakeClient()
-				c.PullRequests[24] = &github.PullRequest{
-					Number: 24,
-					Title:  "pr-title",
-					User: github.User{
-						Login:   "author",
-						HTMLURL: "author-link",
-					},
-					Base: github.PullRequestBranch{
-						Ref: "base-ref",
-						Repo: github.Repo{
-							Name:    "repo",
-							HTMLURL: "repo-link",
-							Owner:   github.User{Login: "owner"},
-						},
-					},
-					Head: github.PullRequestBranch{
-						Ref: "head-ref",
-						SHA: "head-sha",
-					},
-				}
-				return c
-			}(),
-			req:     reconcile.Request{NamespacedName: types.NamespacedName{Namespace: "ns", Name: "ec"}},
-			wantRes: reconcile.Result{RequeueAfter: pollingTime},
-		},
-		{
-			name: "Failed to pull PR metadata",
-			ec: ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
-					Annotations: map[string]string{
-						PREventPayload: `{}`,
-						PREventHeaders: prEventHeaders,
-					},
-					Namespace: "ns",
-					Name:      "ec",
-				},
-			},
-			ghClient: fakegithub.NewFakeClient(),
-			req:      reconcile.Request{NamespacedName: types.NamespacedName{Namespace: "ns", Name: "ec"}},
-			wantRes:  reconcile.Result{},
-			wantErr:  errors.New("terminal error: inject pull request meta: unable to extract org, repo and PR number from the PR event payload"),
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -580,9 +404,8 @@ func TestCreateProwJob(t *testing.T) {
 				now:             func() time.Time { return fakeNow },
 				polling:         func() time.Duration { return pollingTime },
 				cliISTagRef:     api.ImageStreamTagReference{Namespace: "ocp", Name: "4.22", Tag: "cli"},
-				newPresubmit:    newPresubmitFaker("foobar", fakeNow),
+				newProwJob:      newProwJobFaker("foobar", fakeNow),
 				prowConfigAgent: prowConfigAgent(pc),
-				ghClient:        tc.ghClient,
 			}
 
 			gotRes, gotErr := r.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: tc.ec.Name, Namespace: tc.ec.Namespace}})
@@ -1486,7 +1309,7 @@ func TestReconcile(t *testing.T) {
 				buildClients: clients,
 				now:          func() time.Time { return fakeNow },
 				polling:      func() time.Duration { return pollingTime },
-				newPresubmit: newPresubmitFaker("foobar", fakeNow),
+				newProwJob:   newProwJobFaker("foobar", fakeNow),
 				prowConfigAgent: prowConfigAgent(&prowconfig.Config{
 					ProwConfig: prowconfig.ProwConfig{ProwJobNamespace: prowJobNamespace},
 				}),

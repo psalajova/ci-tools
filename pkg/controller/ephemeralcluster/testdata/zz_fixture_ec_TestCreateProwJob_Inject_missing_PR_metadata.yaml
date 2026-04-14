@@ -1,8 +1,4 @@
 metadata:
-  annotations:
-    ephemeralcluster.ci.openshift.io/pr-event-headers: '{"X-Github-Delivery": "aa9ede40-8fbb-11f0-8717-9eed0c1315d0"}'
-    ephemeralcluster.ci.openshift.io/pr-event-payload: '{"check_run": {"pull_requests":
-      [{"url": "https://api.github.com/repos/danilo-gemoli/foobar/pulls/24"}]}}'
   creationTimestamp: null
   finalizers:
   - ephemeralcluster.ci.openshift.io/dependent-prowjob
@@ -47,4 +43,4 @@ status:
     status: "True"
     type: ProwJobCreating
   phase: Provisioning
-  prowJobId: foobar
+  prowJobId: 1e3d3ebb-8f80-4527-8689-63ecad9fc85a
