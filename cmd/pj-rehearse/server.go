@@ -534,9 +534,16 @@ func (s *server) getRepoClient(org, repo string) (git.RepoClient, error) {
 }
 
 func (s *server) prepareCandidate(repoClient git.RepoClient, pullRequest *github.PullRequest, logger *logrus.Entry) (rehearse.RehearsalCandidate, error) {
-	if err := repoClient.CheckoutPullRequest(pullRequest.Number); err != nil {
-		return rehearse.RehearsalCandidate{}, fmt.Errorf("couldn't checkout pull request: %w", err)
+	// Fetch the PR head without checking it out — we only need the SHA to pass
+	// as commitlike to MergeWithStrategy.
+	if err := repoClient.FetchRef(fmt.Sprintf("pull/%d/head", pullRequest.Number)); err != nil {
+		return rehearse.RehearsalCandidate{}, fmt.Errorf("couldn't fetch pull request: %w", err)
 	}
+	prHead, err := repoClient.RevParse("FETCH_HEAD")
+	if err != nil {
+		return rehearse.RehearsalCandidate{}, fmt.Errorf("couldn't rev-parse PR HEAD: %w", err)
+	}
+	prHead = strings.TrimSpace(prHead)
 
 	repo := pullRequest.Base.Repo
 	baseSHA, err := s.ghc.GetRef(repo.Owner.Login, repo.Name, fmt.Sprintf("heads/%s", pullRequest.Base.Ref))
@@ -545,23 +552,31 @@ func (s *server) prepareCandidate(repoClient git.RepoClient, pullRequest *github
 	}
 	candidate := rehearse.RehearsalCandidateFromPullRequest(pullRequest, baseSHA)
 
-	// In order to determine *only* the affected jobs from the changes in the PR, we need to rebase onto default
-	baseRef := pullRequest.Base.Ref
+	// In order to determine *only* the affected jobs from the changes in the PR, we need to rebase onto default.
+	// MergeWithStrategy("rebase") internally runs `git rebase --no-stat <HEAD> <commitlike>`, which checks out
+	// commitlike and replays its commits onto HEAD. We check out the exact baseSHA (rather than the branch name)
+	// so the rebase target matches the base commit that DetermineAffectedJobs diffs against.
+	if err := repoClient.Checkout(baseSHA); err != nil {
+		return rehearse.RehearsalCandidate{}, fmt.Errorf("couldn't checkout base SHA %s: %w", baseSHA, err)
+	}
 
 	// In practice, this command sometimes fails due to seemingly transient issues, we should retry it up to 4 times
 	var rebased bool
 	var rebaseErr error
 	totalAttempts := 4
 	for i := 0; i < totalAttempts; i++ {
-		rebased, rebaseErr = repoClient.MergeWithStrategy(baseRef, "rebase")
+		rebased, rebaseErr = repoClient.MergeWithStrategy(prHead, "rebase")
 		if rebased && rebaseErr == nil {
 			break
 		} else {
 			logger.Warnf("couldn't rebase PR on attempt: %d. Will retry up to %d times.", i+1, totalAttempts)
 		}
 	}
-	if !rebased || rebaseErr != nil {
-		return rehearse.RehearsalCandidate{}, fmt.Errorf("couldn't rebase candidate onto %v: %w", baseRef, rebaseErr)
+	if rebaseErr != nil {
+		return rehearse.RehearsalCandidate{}, fmt.Errorf("couldn't rebase candidate onto %s: %w", baseSHA, rebaseErr)
+	}
+	if !rebased {
+		return rehearse.RehearsalCandidate{}, fmt.Errorf("couldn't rebase candidate onto %s due to conflicts", baseSHA)
 	}
 
 	return candidate, nil
