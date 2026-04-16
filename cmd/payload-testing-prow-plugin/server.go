@@ -48,9 +48,9 @@ const (
 )
 
 var (
-	ocpPayloadTestsPattern                     = regexp.MustCompile(fmt.Sprintf(`(?mi)^%s\s+(?P<ocp>4\.\d+)\s+(?P<release>\w+)\s+(?P<jobs>\w+)\s*$`, payloadPrefix))
+	ocpPayloadTestsPattern                     = regexp.MustCompile(fmt.Sprintf(`(?mi)^%s\s+(?P<ocp>[45]\.\d+)\s+(?P<release>\w+)\s+(?P<jobs>\w+)\s*$`, payloadPrefix))
 	ocpPayloadJobTestsPattern                  = regexp.MustCompile(fmt.Sprintf(`(?mi)^%s\s+((?:[-\w.]+\s*?)+)\s*$`, payloadJobPrefix))
-	ocpPayloadWithPRsTestsPattern              = regexp.MustCompile(fmt.Sprintf(`(?mi)^%s\s+(?P<ocp>4\.\d+)\s+(?P<release>\w+)\s+(?P<jobs>\w+)\s+(?P<prs>(?:[-\w./#]+\s*)+)\s*$`, payloadWithPRsPrefix))
+	ocpPayloadWithPRsTestsPattern              = regexp.MustCompile(fmt.Sprintf(`(?mi)^%s\s+(?P<ocp>[45]\.\d+)\s+(?P<release>\w+)\s+(?P<jobs>\w+)\s+(?P<prs>(?:[-\w./#]+\s*)+)\s*$`, payloadWithPRsPrefix))
 	ocpPayloadJobTestsWithPRsPattern           = regexp.MustCompile(fmt.Sprintf(`(?mi)^%s\s+(?P<job>[-\w.]+)\s+(?P<prs>(?:[-\w./#]+\s*)+)\s*$`, payloadJobWithPRsPrefix))
 	ocpPayloadAggregatedJobTestsPattern        = regexp.MustCompile(fmt.Sprintf(`(?mi)^%s\s+(?P<job>[-\w.]+)\s+(?P<aggregate>\d+)\s*$`, payloadAggregatePrefix))
 	ocpPayloadAggregatedWithPRsJobTestsPattern = regexp.MustCompile(fmt.Sprintf(`(?mi)^%s\s+(?P<job>[-\w.]+)\s+(?P<aggregate>\d+)\s+(?P<prs>(?:[-\w./#]+\s*)+)\s*$`, payloadAggregateWithPRsPrefix))

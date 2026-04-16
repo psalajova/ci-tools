@@ -47,6 +47,20 @@ func TestSpecsFromComment(t *testing.T) {
 			expected: []jobSetSpecification{{ocp: "4.8", releaseType: "ci", jobs: "all"}},
 		},
 		{
+			name:     "major version",
+			comment:  "/payload 5.0 ci blocking",
+			expected: []jobSetSpecification{{ocp: "5.0", releaseType: "ci", jobs: "blocking"}},
+		},
+		{
+			name:     "major version with prs",
+			comment:  "/payload-with-prs 5.0 nightly informing openshift/kubernetes#1234",
+			expected: []jobSetSpecification{{ocp: "5.0", releaseType: "nightly", jobs: "informing", additionalPRs: []config.AdditionalPR{"openshift/kubernetes#1234"}}},
+		},
+		{
+			name:    "rejects version below 4",
+			comment: "/payload 3.11 ci all",
+		},
+		{
 			name:    "unknown command",
 			comment: "/cmd 4.8 ci all",
 		},
