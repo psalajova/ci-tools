@@ -1,6 +1,6 @@
   &v1.Pod{
   	TypeMeta:   {},
-  	ObjectMeta: {Name: "tomutate", Labels: {"ci.openshift.io/metadata.branch": "branch", "ci.openshift.io/metadata.org": "org", "ci.openshift.io/metadata.repo": "repo", "ci.openshift.io/metadata.step": "step", "ci.openshift.io/metadata.target": "target", "ci.openshift.io/metadata.variant": "variant"}},
+  	ObjectMeta: {Name: "tomutate", Labels: {"ci.openshift.io/metadata.branch": "branch", "ci.openshift.io/metadata.org": "org", "ci.openshift.io/metadata.repo": "repo", "ci.openshift.io/metadata.step": "step", ...}},
   	Spec: v1.PodSpec{
   		Volumes:        nil,
   		InitContainers: nil,
@@ -10,9 +10,9 @@
   				EnvFrom: nil,
   				Env:     nil,
   				Resources: v1.ResourceRequirements{
-  					Limits: {s"cpu": {i: {value: 16}, Format: "DecimalSI"}, s"memory": {i: {value: 40000000000}, Format: "BinarySI"}},
+  					Limits: {s"cpu": {i: {...}, Format: "DecimalSI"}, s"memory": {i: {...}, Format: "BinarySI"}},
   					Requests: v1.ResourceList{
-  						s"cpu":    {i: {value: 8}, Format: "DecimalSI"},
+  						s"cpu":    {i: {...}, Format: "DecimalSI"},
 - 						s"memory": {i: resource.int64Amount{value: 30000000000}, Format: "BinarySI"},
 + 						s"memory": {i: resource.int64Amount{value: 21474836480}, s: "20Gi", Format: "BinarySI"},
   					},
@@ -29,7 +29,7 @@
   				Resources: v1.ResourceRequirements{
   					Limits: {},
   					Requests: v1.ResourceList{
-  						s"cpu":    {i: {value: 8}, Format: "DecimalSI"},
+  						s"cpu":    {i: {...}, Format: "DecimalSI"},
 - 						s"memory": {i: resource.int64Amount{value: 10000000000}, Format: "BinarySI"},
 + 						s"memory": {i: resource.int64Amount{value: 21474836480}, s: "20Gi", Format: "BinarySI"},
   					},
