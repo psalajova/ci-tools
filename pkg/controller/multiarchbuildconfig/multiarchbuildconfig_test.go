@@ -368,8 +368,10 @@ func TestReconcile(t *testing.T) {
 				},
 				Status: v1.MultiArchBuildConfigStatus{
 					Conditions: []metav1.Condition{{
-						Type:   CreateBuildsDone,
-						Status: metav1.ConditionTrue,
+						Type:    CreateBuildsDone,
+						Status:  metav1.ConditionTrue,
+						Reason:  CreateBuildsSuccessReason,
+						Message: CreateBuildsSuccessMessage,
 					}, {
 						Type:    BuildsCompleted,
 						Status:  metav1.ConditionFalse,
@@ -408,17 +410,21 @@ func TestReconcile(t *testing.T) {
 					State: v1.FailureState,
 					Conditions: []metav1.Condition{
 						{
-							Type:   CreateBuildsDone,
-							Status: metav1.ConditionTrue,
+							Type:    CreateBuildsDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  CreateBuildsSuccessReason,
+							Message: CreateBuildsSuccessMessage,
 						},
 						{
-							Type:   BuildsCompleted,
-							Status: metav1.ConditionTrue,
+							Type:    BuildsCompleted,
+							Status:  metav1.ConditionTrue,
+							Reason:  BuildsCompletedSuccessReason,
+							Message: BuildsCompletedSuccessMessage,
 						},
 						{
 							Type:    PushImageManifestDone,
 							Status:  metav1.ConditionFalse,
-							Reason:  "PushManifestError",
+							Reason:  PushManifestErrorReason,
 							Message: "test error",
 						},
 					},
@@ -452,17 +458,22 @@ func TestReconcile(t *testing.T) {
 				Status: v1.MultiArchBuildConfigStatus{
 					Conditions: []metav1.Condition{
 						{
-							Type:   CreateBuildsDone,
-							Status: metav1.ConditionTrue,
+							Type:    CreateBuildsDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  CreateBuildsSuccessReason,
+							Message: CreateBuildsSuccessMessage,
 						},
 						{
-							Type:   BuildsCompleted,
-							Status: metav1.ConditionTrue,
+							Type:    BuildsCompleted,
+							Status:  metav1.ConditionTrue,
+							Reason:  BuildsCompletedSuccessReason,
+							Message: BuildsCompletedSuccessMessage,
 						},
 						{
-							Type:   PushImageManifestDone,
-							Status: metav1.ConditionTrue,
-							Reason: "PushManifestSuccess",
+							Type:    PushImageManifestDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  PushManifestSuccessReason,
+							Message: PushManifestSuccessMessage,
 						},
 					},
 				},
@@ -484,9 +495,10 @@ func TestReconcile(t *testing.T) {
 				Status: v1.MultiArchBuildConfigStatus{
 					Conditions: []metav1.Condition{
 						{
-							Type:   PushImageManifestDone,
-							Status: metav1.ConditionTrue,
-							Reason: "PushManifestSuccess",
+							Type:    PushImageManifestDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  PushManifestSuccessReason,
+							Message: PushManifestSuccessMessage,
 						},
 					},
 				},
@@ -505,22 +517,28 @@ func TestReconcile(t *testing.T) {
 				Status: v1.MultiArchBuildConfigStatus{
 					Conditions: []metav1.Condition{
 						{
-							Type:   CreateBuildsDone,
-							Status: metav1.ConditionTrue,
+							Type:    CreateBuildsDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  CreateBuildsSuccessReason,
+							Message: CreateBuildsSuccessMessage,
 						},
 						{
-							Type:   BuildsCompleted,
-							Status: metav1.ConditionTrue,
+							Type:    BuildsCompleted,
+							Status:  metav1.ConditionTrue,
+							Reason:  BuildsCompletedSuccessReason,
+							Message: BuildsCompletedSuccessMessage,
 						},
 						{
-							Type:   PushImageManifestDone,
-							Status: metav1.ConditionTrue,
-							Reason: "PushManifestSuccess",
+							Type:    PushImageManifestDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  PushManifestSuccessReason,
+							Message: PushManifestSuccessMessage,
 						},
 						{
-							Type:   MirrorImageManifestDone,
-							Status: metav1.ConditionTrue,
-							Reason: ImageMirrorSuccessReason,
+							Type:    MirrorImageManifestDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  ImageMirrorSuccessReason,
+							Message: ImageMirrorSuccessMessage,
 						},
 					},
 					State: v1.SuccessState,
@@ -603,7 +621,15 @@ func TestReconcile(t *testing.T) {
 						CommonSpec: buildv1.CommonSpec{Output: buildv1.BuildOutput{To: &corev1.ObjectReference{Namespace: "test-ns", Name: "test-image"}}},
 					},
 				},
-				Status: v1.MultiArchBuildConfigStatus{State: v1.FailureState},
+				Status: v1.MultiArchBuildConfigStatus{
+					State: v1.FailureState,
+					Conditions: []metav1.Condition{{
+						Type:    CreateBuildsDone,
+						Status:  metav1.ConditionFalse,
+						Reason:  CreateBuildsErrorReason,
+						Message: "couldn't create build test-ns/test-mabc-amd64: planned failure",
+					}},
+				},
 			},
 			wantErr: errors.New("couldn't create builds for architectures: amd64,arm64: couldn't create build test-ns/test-mabc-amd64: planned failure"),
 		},
@@ -623,14 +649,16 @@ func TestReconcile(t *testing.T) {
 				Status: v1.MultiArchBuildConfigStatus{
 					Conditions: []metav1.Condition{
 						{
-							Type:   PushImageManifestDone,
-							Status: metav1.ConditionTrue,
-							Reason: PushManifestSuccessReason,
+							Type:    PushImageManifestDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  PushManifestSuccessReason,
+							Message: PushManifestSuccessMessage,
 						},
 						{
-							Type:   MirrorImageManifestDone,
-							Status: metav1.ConditionTrue,
-							Reason: ImageMirrorSuccessReason,
+							Type:    MirrorImageManifestDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  ImageMirrorSuccessReason,
+							Message: ImageMirrorSuccessMessage,
 						},
 					},
 				},
@@ -649,22 +677,28 @@ func TestReconcile(t *testing.T) {
 				Status: v1.MultiArchBuildConfigStatus{
 					Conditions: []metav1.Condition{
 						{
-							Type:   CreateBuildsDone,
-							Status: metav1.ConditionTrue,
+							Type:    CreateBuildsDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  CreateBuildsSuccessReason,
+							Message: CreateBuildsSuccessMessage,
 						},
 						{
-							Type:   BuildsCompleted,
-							Status: metav1.ConditionTrue,
+							Type:    BuildsCompleted,
+							Status:  metav1.ConditionTrue,
+							Reason:  BuildsCompletedSuccessReason,
+							Message: BuildsCompletedSuccessMessage,
 						},
 						{
-							Type:   PushImageManifestDone,
-							Status: metav1.ConditionTrue,
-							Reason: PushManifestSuccessReason,
+							Type:    PushImageManifestDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  PushManifestSuccessReason,
+							Message: PushManifestSuccessMessage,
 						},
 						{
-							Type:   MirrorImageManifestDone,
-							Status: metav1.ConditionTrue,
-							Reason: ImageMirrorSuccessReason,
+							Type:    MirrorImageManifestDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  ImageMirrorSuccessReason,
+							Message: ImageMirrorSuccessMessage,
 						},
 					},
 					State: v1.SuccessState,
@@ -685,9 +719,10 @@ func TestReconcile(t *testing.T) {
 				},
 				Status: v1.MultiArchBuildConfigStatus{
 					Conditions: []metav1.Condition{{
-						Type:   PushImageManifestDone,
-						Status: metav1.ConditionTrue,
-						Reason: PushManifestSuccessReason,
+						Type:    PushImageManifestDone,
+						Status:  metav1.ConditionTrue,
+						Reason:  PushManifestSuccessReason,
+						Message: PushManifestSuccessMessage,
 					}},
 				},
 			},
@@ -704,17 +739,22 @@ func TestReconcile(t *testing.T) {
 				Status: v1.MultiArchBuildConfigStatus{
 					Conditions: []metav1.Condition{
 						{
-							Type:   CreateBuildsDone,
-							Status: metav1.ConditionTrue,
+							Type:    CreateBuildsDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  CreateBuildsSuccessReason,
+							Message: CreateBuildsSuccessMessage,
 						},
 						{
-							Type:   BuildsCompleted,
-							Status: metav1.ConditionTrue,
+							Type:    BuildsCompleted,
+							Status:  metav1.ConditionTrue,
+							Reason:  BuildsCompletedSuccessReason,
+							Message: BuildsCompletedSuccessMessage,
 						},
 						{
-							Type:   PushImageManifestDone,
-							Status: metav1.ConditionTrue,
-							Reason: PushManifestSuccessReason,
+							Type:    PushImageManifestDone,
+							Status:  metav1.ConditionTrue,
+							Reason:  PushManifestSuccessReason,
+							Message: PushManifestSuccessMessage,
 						},
 						{
 							Type:    MirrorImageManifestDone,

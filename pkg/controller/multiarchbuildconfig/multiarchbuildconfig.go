@@ -39,18 +39,27 @@ const (
 	registryURL = "image-registry.openshift-image-registry.svc:5000"
 
 	// Conditions
-	CreateBuildsDone        = "CreateBuildsDone"
-	CreateBuildsErrorReason = "CreateBuildsError"
+	CreateBuildsDone           = "CreateBuildsDone"
+	CreateBuildsSuccessReason  = "CreateBuildsSuccess"
+	CreateBuildsSuccessMessage = "Builds exist for all configured architectures"
+	CreateBuildsErrorReason    = "CreateBuildsError"
 
-	BuildsCompleted            = "BuildsCompleted"
-	BuildsCompletedErrorReason = "BuildsCompletedError"
+	BuildsCompleted               = "BuildsCompleted"
+	BuildsCompletedSuccessReason  = "BuildsCompletedSuccess"
+	BuildsCompletedSuccessMessage = "All builds finished successfully"
+	WaitingForBuildsReason        = "WaitingForBuilds"
+	WaitingForBuildsMessage       = "Waiting for builds to finish"
+	BuildsCompletedErrorReason    = "BuildsCompletedError"
 
-	PushImageManifestDone     = "PushManifestDone"
-	PushManifestSuccessReason = "PushManifestSuccess"
-	PushManifestErrorReason   = "PushManifestError"
+	PushImageManifestDone      = "PushManifestDone"
+	PushManifestSuccessReason  = "PushManifestSuccess"
+	PushManifestSuccessMessage = "Multi-arch manifest list was pushed successfully"
+	PushManifestErrorReason    = "PushManifestError"
 
 	MirrorImageManifestDone       = "ImageMirrorDone"
 	ImageMirrorSuccessReason      = "ImageMirrorSuccess"
+	ImageMirrorSuccessMessage     = "Image mirrored to external registries"
+	ImageMirrorRunningMessage     = "Mirroring image to external registries"
 	ImageMirrorErrorReason        = "ImageMirrorError"
 	ImageMirrorSkipedReason       = "ImageMirrorSkipped"
 	ImageMirrorNoExtRegistriesMsg = "No external registries configured"
@@ -162,6 +171,8 @@ func (r *reconciler) handleMultiArchBuildConfig(ctx context.Context, logger *log
 		Type:               CreateBuildsDone,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
+		Reason:             CreateBuildsSuccessReason,
+		Message:            CreateBuildsSuccessMessage,
 	})
 	if len(r.architectures) != len(builds.Items) {
 		if err = r.createBuilds(ctx, logger, mabc); err != nil {
@@ -181,6 +192,8 @@ func (r *reconciler) handleMultiArchBuildConfig(ctx context.Context, logger *log
 		Type:               BuildsCompleted,
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
+		Reason:             WaitingForBuildsReason,
+		Message:            WaitingForBuildsMessage,
 	})
 
 	if !checkAllBuildsFinished(builds) {
@@ -204,6 +217,8 @@ func (r *reconciler) handleMultiArchBuildConfig(ctx context.Context, logger *log
 		Type:               BuildsCompleted,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
+		Reason:             BuildsCompletedSuccessReason,
+		Message:            BuildsCompletedSuccessMessage,
 	})
 
 	targetImageRef := fmt.Sprintf("%s/%s", mabc.Spec.BuildSpec.CommonSpec.Output.To.Namespace, mabc.Spec.BuildSpec.CommonSpec.Output.To.Name)
@@ -269,6 +284,7 @@ func (r *reconciler) handlePushImageWithManifest(logger *logrus.Entry, targetIma
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		Reason:             PushManifestSuccessReason,
+		Message:            PushManifestSuccessMessage,
 	})
 
 	if err := r.manifestPusher.PushImageWithManifest(builds.Items, targetImageRef); err != nil {
@@ -308,6 +324,7 @@ func (r *reconciler) handleMirrorImage(logger *logrus.Entry, targetImageRef stri
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		Reason:             ImageMirrorSuccessReason,
+		Message:            ImageMirrorRunningMessage,
 	})
 
 	logger = logger.WithField(MirrorRegistriesLogField, strings.Join(mabc.Spec.ExternalRegistries, ","))
@@ -325,9 +342,16 @@ func (r *reconciler) handleMirrorImage(logger *logrus.Entry, targetImageRef stri
 		})
 		observedStatus.State = v1.FailureState
 		return err
-	} else {
-		logger.Info("Image mirrored")
 	}
+
+	logger.Info("Image mirrored")
+	upsertCondition(observedStatus, &metav1.Condition{
+		Type:               MirrorImageManifestDone,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             ImageMirrorSuccessReason,
+		Message:            ImageMirrorSuccessMessage,
+	})
 
 	return nil
 }
