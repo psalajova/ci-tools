@@ -142,6 +142,7 @@ func TestHandleMirrorImage(t *testing.T) {
 					Status:             metav1.ConditionTrue,
 					LastTransitionTime: metav1.Time{Time: time.Time{}},
 					Reason:             ImageMirrorSuccessReason,
+					Message:            ImageMirrorSuccessMessage,
 				}},
 			},
 		},
