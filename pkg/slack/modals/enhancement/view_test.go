@@ -35,7 +35,8 @@ h3. Acceptance Criteria
 
 h3. Implementation Details
 It needs to be done quickly.`,
-				Reporter: "U01B31ARZDG",
+				Reporter:     "U01B31ARZDG",
+				ActivityType: "",
 			}: {
 				Issue: &jiraapi.Issue{Key: "WHOA-123"},
 				Error: nil,

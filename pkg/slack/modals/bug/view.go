@@ -70,6 +70,7 @@ func View() slack.ModalViewRequest {
 				Label:   &slack.TextBlockObject{Type: slack.PlainTextType, Text: "Provide a title for this bug:"},
 				Element: &slack.PlainTextInputBlockElement{Type: slack.METPlainTextInput},
 			},
+			modals.ActivityTypeInputBlock(modals.ActivityTypeQualityStabilityReliability),
 			&slack.InputBlock{
 				Type:    slack.MBTInput,
 				BlockID: blockIdCategory,
@@ -163,8 +164,9 @@ func validateSubmissionHandler() interactions.PartialHandler {
 
 func issueParameters() modals.JiraIssueParameters {
 	return modals.JiraIssueParameters{
-		Id:        Identifier,
-		IssueType: jira.IssueTypeBug,
+		Id:                  Identifier,
+		IssueType:           jira.IssueTypeBug,
+		ActivityTypeBlockID: modals.BlockIDActivityType,
 		Template: template.Must(template.New(string(Identifier)).Parse(`h3. Symptomatic Behavior
 {{ .` + blockIdSymptom + ` }}
 
@@ -178,8 +180,13 @@ h3. Category
 {{ if eq .` + blockIdCategory + `_static_select "Other" }}Other: {{ .` + blockIdOptional + ` }}{{ else }}{{ .` + blockIdCategory + `_static_select }}{{ end }}
 
 h3. How to Reproduce
-{{ .` + blockIdReproduction + ` }}`)),
-		Fields: []string{modals.BlockIdTitle, blockIdCategory, blockIdOptional, blockIdSymptom, blockIdExpected, blockIdImpact, blockIdReproduction},
+{{ .` + blockIdReproduction + ` }}
+{{- if .` + modals.BlockIDActivityType + `_static_select }}
+
+h3. Activity Type
+{{ .` + modals.BlockIDActivityType + `_static_select }}
+{{- end }}`)),
+		Fields: []string{modals.BlockIdTitle, modals.BlockIDActivityType, blockIdCategory, blockIdOptional, blockIdSymptom, blockIdExpected, blockIdImpact, blockIdReproduction},
 	}
 }
 

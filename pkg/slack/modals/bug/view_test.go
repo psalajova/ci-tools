@@ -77,7 +77,8 @@ Other: My Component
 
 h3. How to Reproduce
 Every time, just push the button.`,
-				Reporter: "U01B31ARZDG",
+				Reporter:     "U01B31ARZDG",
+				ActivityType: "",
 			}: {
 				Issue: &jiraapi.Issue{Key: "WHOA-123"},
 				Error: nil,

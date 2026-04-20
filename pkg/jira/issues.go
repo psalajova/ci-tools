@@ -7,6 +7,7 @@ import (
 	"github.com/andygrunwald/go-jira"
 	"github.com/sirupsen/logrus"
 	"github.com/slack-go/slack"
+	"github.com/trivago/tgo/tcontainer"
 
 	jirautil "sigs.k8s.io/prow/pkg/jira"
 
@@ -23,7 +24,7 @@ const (
 
 // IssueFiler knows how to file an issue in Jira
 type IssueFiler interface {
-	FileIssue(issueType, title, description, reporter string, logger *logrus.Entry) (*jira.Issue, error)
+	FileIssue(issueType, title, description, reporter, activityType string, logger *logrus.Entry) (*jira.Issue, error)
 }
 
 type slackClient interface {
@@ -72,12 +73,14 @@ type filer struct {
 	// back-stop when no requester can be found to match the
 	// Slack user that is interacting with us
 	botUser *jira.User
+	// customfield_* key for Activity Type; empty skips setting it on create
+	activityTypeCustomField string
 }
 
 // FileIssue files an issue, closing over a number of Jira-specific API
 // quirks like how issue types and projects are provided, as well as
 // transforming the Slack reporter ID to a Jira user, when possible.
-func (f *filer) FileIssue(issueType, title, description, reporter string, logger *logrus.Entry) (*jira.Issue, error) {
+func (f *filer) FileIssue(issueType, title, description, reporter, activityType string, logger *logrus.Entry) (*jira.Issue, error) {
 	suffix, requester := f.resolveRequester(reporter, logger)
 	description = fmt.Sprintf("%s\n\nThis issue was filed by %s", description, suffix)
 	logger.WithFields(logrus.Fields{
@@ -92,6 +95,19 @@ func (f *filer) FileIssue(issueType, title, description, reporter string, logger
 		Summary:     title,
 		Description: description,
 	}}
+	if activityType != "" {
+		if !IsValidActivityType(activityType) {
+			return nil, fmt.Errorf("invalid activity type %q: must be one of the configured Slack options", activityType)
+		}
+		if f.activityTypeCustomField == "" {
+			logger.WithField("activity_type", activityType).Warn("Activity Type is set but Jira custom field id is not configured; omitting from Jira API request")
+		} else {
+			if toCreate.Fields.Unknowns == nil {
+				toCreate.Fields.Unknowns = tcontainer.NewMarshalMap()
+			}
+			toCreate.Fields.Unknowns[f.activityTypeCustomField] = jira.Option{Value: activityType}
+		}
+	}
 	issue, response, err := f.jiraClient.CreateIssue(toCreate)
 	return issue, jirautil.HandleJiraError(response, err)
 }
@@ -123,11 +139,12 @@ func (f *filer) resolveRequester(reporter string, logger *logrus.Entry) (string,
 	return suffix, requester
 }
 
-func NewIssueFiler(slackClient *slack.Client, jiraClient *jira.Client) (IssueFiler, error) {
+func NewIssueFiler(slackClient *slack.Client, jiraClient *jira.Client, activityTypeCustomField string) (IssueFiler, error) {
 	filer := &filer{
-		slackClient:      slackClient,
-		jiraClient:       &jiraAdapter{delegate: jiraClient},
-		issueTypesByName: map[string]jira.IssueType{},
+		slackClient:             slackClient,
+		jiraClient:              &jiraAdapter{delegate: jiraClient},
+		issueTypesByName:        map[string]jira.IssueType{},
+		activityTypeCustomField: activityTypeCustomField,
 	}
 
 	project, response, err := jiraClient.Project.Get(ProjectDPTP)

@@ -52,6 +52,8 @@ type JiraIssueParameters struct {
 	IssueType string
 	Template  *template.Template
 	Fields    []string
+	// If set, must be BlockIDActivityType for forms that collect Activity Type.
+	ActivityTypeBlockID string
 }
 
 // Process processes the interaction callback data to render the Jira issue title and body
@@ -89,7 +91,8 @@ func ToJiraIssue(parameters JiraIssueParameters, filer jira.IssueFiler, updater 
 				return
 			}
 
-			issue, err := filer.FileIssue(parameters.IssueType, title, body, callback.User.ID, logger)
+			activityType := activityTypeFromCallback(callback, parameters.ActivityTypeBlockID)
+			issue, err := filer.FileIssue(parameters.IssueType, title, body, callback.User.ID, activityType, logger)
 			if err != nil {
 				logger.WithError(err).Errorf("Failed to create %s Jira.", parameters.Id)
 				overwriteView(ErrorView(fmt.Sprintf("create %s Jira issue", parameters.Id), err))
@@ -205,6 +208,14 @@ func valuesFor(callback *slack.InteractionCallback, blockIds ...string) map[stri
 
 	}
 	return values
+}
+
+func activityTypeFromCallback(callback *slack.InteractionCallback, blockID string) string {
+	if blockID == "" {
+		return ""
+	}
+	v := valuesFor(callback, blockID)
+	return v[fmt.Sprintf("%s_%s", blockID, slack.OptTypeStatic)]
 }
 
 // BulletListFunc exposes a function to turn lines into a bullet list

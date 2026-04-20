@@ -30,7 +30,8 @@ h3. Acceptance Criteria
 
 h3. Additional Details
 I'll bug you forever while we work on this.`,
-				Reporter: "U01B31ARZDG",
+				Reporter:     "U01B31ARZDG",
+				ActivityType: "",
 			}: {
 				Issue: &jiraapi.Issue{Key: "WHOA-123"},
 				Error: nil,

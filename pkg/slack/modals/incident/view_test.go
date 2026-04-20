@@ -110,7 +110,8 @@ Nodes are not ready and no jobs run.
 
 h3. Additional Details
 So surprising!`,
-				Reporter: "U01B31ARZDG",
+				Reporter:     "U01B31ARZDG",
+				ActivityType: "",
 			}: {
 				Issue: &jiraapi.Issue{Key: "WHOA-123"},
 				Error: nil,

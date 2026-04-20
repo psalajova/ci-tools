@@ -48,6 +48,7 @@ func View() slack.ModalViewRequest {
 				Label:   &slack.TextBlockObject{Type: slack.PlainTextType, Text: "Provide a title for this enhancement:"},
 				Element: &slack.PlainTextInputBlockElement{Type: slack.METPlainTextInput},
 			},
+			modals.ActivityTypeInputBlock(modals.ActivityTypeQualityStabilityReliability),
 			&slack.SectionBlock{
 				Type: slack.MBTSection,
 				Text: &slack.TextBlockObject{
@@ -104,8 +105,9 @@ func View() slack.ModalViewRequest {
 
 func issueParameters() modals.JiraIssueParameters {
 	return modals.JiraIssueParameters{
-		Id:        Identifier,
-		IssueType: jira.IssueTypeStory,
+		Id:                  Identifier,
+		IssueType:           jira.IssueTypeStory,
+		ActivityTypeBlockID: modals.BlockIDActivityType,
 		Template: template.Must(template.New(string(Identifier)).Funcs(modals.BulletListFunc()).Parse(`h3. Overview
 As a {{ .` + blockIdAsA + ` }}
 I want {{ .` + blockIdIWant + ` }}
@@ -124,8 +126,13 @@ h3. Acceptance Criteria
 
 h3. Implementation Details
 {{ .` + blockIdImplementation + ` }}
+{{- end }}
+{{- if .` + modals.BlockIDActivityType + `_static_select }}
+
+h3. Activity Type
+{{ .` + modals.BlockIDActivityType + `_static_select }}
 {{- end }}`)),
-		Fields: []string{modals.BlockIdTitle, blockIdAsA, blockIdIWant, blockIdSoThat, blockIdSummary, blockIdImpact, blockIdAcceptanceCriteria, blockIdImplementation},
+		Fields: []string{modals.BlockIdTitle, modals.BlockIDActivityType, blockIdAsA, blockIdIWant, blockIdSoThat, blockIdSummary, blockIdImpact, blockIdAcceptanceCriteria, blockIdImplementation},
 	}
 }
 

@@ -61,6 +61,7 @@ func View() slack.ModalViewRequest {
 				Label:   &slack.TextBlockObject{Type: slack.PlainTextType, Text: "Provide a one-line summary for this consultation:"},
 				Element: &slack.PlainTextInputBlockElement{Type: slack.METPlainTextInput},
 			},
+			modals.ActivityTypeInputBlock(modals.ActivityTypeFutureSustainability),
 			&slack.InputBlock{
 				Type:    slack.MBTInput,
 				BlockID: blockIdRequirement,
@@ -98,8 +99,9 @@ func helpdeskButtonHandler(updater modals.ViewUpdater) interactions.Handler {
 
 func issueParameters() modals.JiraIssueParameters {
 	return modals.JiraIssueParameters{
-		Id:        Identifier,
-		IssueType: jira.IssueTypeStory,
+		Id:                  Identifier,
+		IssueType:           jira.IssueTypeStory,
+		ActivityTypeBlockID: modals.BlockIDActivityType,
 		Template: template.Must(template.New(string(Identifier)).Funcs(modals.BulletListFunc()).Parse(`h3. Requirement
 {{ .` + blockIdRequirement + ` }}
 
@@ -113,8 +115,13 @@ h3. Acceptance Criteria
 
 h3. Additional Details
 {{ .` + blockIdAdditional + ` }}
+{{- end }}
+{{- if .` + modals.BlockIDActivityType + `_static_select }}
+
+h3. Activity Type
+{{ .` + modals.BlockIDActivityType + `_static_select }}
 {{- end }}`)),
-		Fields: []string{modals.BlockIdTitle, blockIdRequirement, blockIdPrevious, blockIdAcceptanceCriteria, blockIdAdditional},
+		Fields: []string{modals.BlockIdTitle, modals.BlockIDActivityType, blockIdRequirement, blockIdPrevious, blockIdAcceptanceCriteria, blockIdAdditional},
 	}
 }
 

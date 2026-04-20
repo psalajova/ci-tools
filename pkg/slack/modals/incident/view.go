@@ -64,6 +64,7 @@ func View() slack.ModalViewRequest {
 				Label:   &slack.TextBlockObject{Type: slack.PlainTextType, Text: "Provide a title for this incident:"},
 				Element: &slack.PlainTextInputBlockElement{Type: slack.METPlainTextInput},
 			},
+			modals.ActivityTypeInputBlock(modals.ActivityTypeIncidentsSupport),
 			&slack.InputBlock{
 				Type:    slack.MBTInput,
 				BlockID: blockIdSummary,
@@ -122,8 +123,9 @@ type slackClient interface {
 
 func issueParameters(client infoGetter) modals.JiraIssueParameters {
 	return modals.JiraIssueParameters{
-		Id:        Identifier,
-		IssueType: jira.IssueTypeStory,
+		Id:                  Identifier,
+		IssueType:           jira.IssueTypeStory,
+		ActivityTypeBlockID: modals.BlockIDActivityType,
 		Template: template.Must(template.New(string(Identifier)).Funcs(slackEntityFormatFuncs(client)).Parse(`h3. Summary
 {{ .` + blockIdSummary + ` }}
 
@@ -139,8 +141,13 @@ h3. Impact
 
 h3. Additional Details
 {{ .` + blockIdAdditional + ` }}
+{{- end }}
+{{- if .` + modals.BlockIDActivityType + `_static_select }}
+
+h3. Activity Type
+{{ .` + modals.BlockIDActivityType + `_static_select }}
 {{- end }}`)),
-		Fields: []string{modals.BlockIdTitle, blockIdSummary, blockIdSelectors, blockIdImpact, blockIdBugzilla, blockIdAdditional},
+		Fields: []string{modals.BlockIdTitle, modals.BlockIDActivityType, blockIdSummary, blockIdSelectors, blockIdImpact, blockIdBugzilla, blockIdAdditional},
 	}
 }
 
