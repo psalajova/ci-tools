@@ -36,8 +36,10 @@ function hideModal() {
 
   // We must detach edit member event handler, as it is scoped to a collection. It is not possible to loop over them,
   // so we remove _all_ event handlers on this layer: https://stackoverflow.com/a/35855487
-  let updateMembersSubmitButton = document.getElementById('updateMemberSubmitButton') as HTMLButtonElement;
-  updateMembersSubmitButton.parentElement.innerHTML = updateMembersSubmitButton.parentElement.innerHTML;
+  const updateMembersSubmitButton = document.getElementById('updateMemberSubmitButton');
+  if (updateMembersSubmitButton?.parentElement) {
+    updateMembersSubmitButton.parentElement.innerHTML = updateMembersSubmitButton.parentElement.innerHTML;
+  }
   document.getElementById('updateMemberCancelButton')?.addEventListener('click', () => hideModal());
 }
 
@@ -272,8 +274,8 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-document.getElementById('createCollectionButton').addEventListener('click', () => createSecretCollection());
+document.getElementById('createCollectionButton')?.addEventListener('click', () => createSecretCollection());
 
-
-const secretCollections: secretCollection[] = JSON.parse(document.getElementById('secretcollections').innerHTML);
+const scElement = document.getElementById('secretcollections');
+const secretCollections: secretCollection[] = scElement ? JSON.parse(scElement.innerHTML) : [];
 renderCollectionTable(secretCollections);
