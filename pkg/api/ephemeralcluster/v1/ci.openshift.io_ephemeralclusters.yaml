@@ -471,11 +471,6 @@ spec:
                   - type
                   type: object
                 type: array
-              kubeAdminPassword:
-                type: string
-              kubeconfig:
-                description: Kubeconfig to access the ephemeral cluster
-                type: string
               phase:
                 description: Phase is an high level description of where the ephemeral
                   cluster is in its lifecycle
@@ -483,6 +478,12 @@ spec:
               prowJobId:
                 type: string
               prowJobURL:
+                type: string
+              secretRef:
+                description: |-
+                  SecretRef is the name of the Secret containing credentials to access the
+                  ephemeral cluster. The Secret is in the same namespace as the EphemeralCluster
+                  and contains a "kubeconfig" key and optionally a "kubeAdminPassword" key.
                 type: string
             required:
             - phase
