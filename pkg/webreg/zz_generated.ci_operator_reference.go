@@ -334,6 +334,8 @@ const ciOperatorReferenceYaml = "# The list of base images describe\n" +
 	"          # this will cause both a floating tag and commit-specific tags\n" +
 	"          # to be promoted.\n" +
 	"          tag_by_commit: true\n" +
+	"prowgen:\n" +
+	"    disable_rehearsals: true\n" +
 	"# RawSteps are literal Steps that should be\n" +
 	"# included in the final pipeline.\n" +
 	"raw_steps:\n" +
@@ -621,6 +623,8 @@ const ciOperatorReferenceYaml = "# The list of base images describe\n" +
 	"        # of pull request workflows. Setting this field will\n" +
 	"        # create a periodic job instead of a presubmit\n" +
 	"        cron: \"\"\n" +
+	"        # DisableRehearsal prevents this specific test from being picked up for rehearsals.\n" +
+	"        disable_rehearsal: true\n" +
 	"        # Interval is how frequently the test should be run based\n" +
 	"        # on the last time the test ran. Setting this field will\n" +
 	"        # create a periodic job instead of a presubmit\n" +
@@ -1541,6 +1545,8 @@ const ciOperatorReferenceYaml = "# The list of base images describe\n" +
 	"      # of pull request workflows. Setting this field will\n" +
 	"      # create a periodic job instead of a presubmit\n" +
 	"      cron: \"\"\n" +
+	"      # DisableRehearsal prevents this specific test from being picked up for rehearsals.\n" +
+	"      disable_rehearsal: true\n" +
 	"      # Interval is how frequently the test should be run based\n" +
 	"      # on the last time the test ran. Setting this field will\n" +
 	"      # create a periodic job instead of a presubmit\n" +
