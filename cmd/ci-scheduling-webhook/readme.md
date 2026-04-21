@@ -1,106 +1,84 @@
 
 # Why do we need this?
 
-## Workload Segmentation
-We have several types of workloads: builds, short running tests, long running tests, and prowjobs. Builds are intense and short-lived. Most tests are longer-running than builds and less intensive. Even longer tests can run hours. Prowjobs must run the summation of the length of time of suborinates tests.
+## Workload segmentation
+We have several workload types: builds, short-running tests, long-running tests, and prowjobs. They differ in duration and resource shape, so we segment them.
 
-In short, these things run different amounts of time. We want to segment these workloads for multiple reasons.
+### RuntimeClass and kubelet overhead
+Builds stress the container runtime in ways the pod autoscaler does not fully model. You can address reserve CPU with `KubeletConfig` on self-managed OpenShift; we also use **`RuntimeClass`** so admission applies **overhead** CPU and memory per pool. That keeps build and test pods on different overhead profiles (for example, extra CPU headroom for builds) without relying on a single global kubelet recipe.
 
-### KubeletConfig Container Runtime Reserved Resources
-Builds drive significant overhead on the container runtime that is not accounted for by the pod-autoscaler. Historically, we've tried to accommodate that with hope(tm) and reserved system CPU for the kubelet via `kind: KubeletConfig`. Problems with this include:
+Without enough CPU, the runtime can surface errors such as `context deadline exceeded` and builds can fail.
 
-a. OSD does not allow us to use our own `KubeletConfig`.
+### IOPS, instance types, analysis
+Segmentation lets us tune IOPS and machine types per class and reason about capacity without mixing unrelated workloads on the same node pool.
 
-b. `KubeletConfig`'s cannot be applied deterministically applied (https://bugzilla.redhat.com/show_bug.cgi?id=2068792).
+## Kubernetes scheduling and the cluster autoscaler
+By default the scheduler tends to **spread** pods (least-allocated style). Our CI load is often bursty: many pods, then scale-out, then relatively sparse placement—so spread scheduling interacts badly with **machine** scale-out/scale-in.
 
-c. `KubeletConfig`'s They cannot be sized dynamically based on the node (https://bugzilla.redhat.com/show_bug.cgi?id=2068795). 
+The **cluster autoscaler** scales **MachineSets up** when there are **unschedulable** pods that match a pool. It is conservative about evicting workloads that are not clearly safe to move; many CI pods are not owned by ReplicaSets in the usual way, which can leave nodes busy longer than we want.
 
-d. `KubeletConfig`'s don't work with the autoscaler without hacks, at present (https://bugzilla.redhat.com/show_bug.cgi?id=2068336).
+**This webhook does not replace the cluster autoscaler for scale-up.** It coordinates **scale-down** and placement pressure so we can reclaim nodes on a useful timeline (see [Scale-down control loop](#scale-down-control-loop)). In operation, the **ci-scheduling-webhook** service account may **patch `MachineSet` and node objects** as part of that path—distinct from the machine-controller’s behavior when **you** change `MachineSet` replicas.
 
-To overcome this, the webhook segments workloads by labeling them and adding tolerations based on whether they are build or test workloads. The workloads land on differently labeled nodes which they have their own `kind: RuntimeClass` . The `RuntimeClass` adds `overhead` CPU&Memory when a pod is scheduled to a class of node. As such test and build pods get different overheads assigned automatically by kubernetes as they are admitted. At present, this means we give builds an entire extra CPU core to themselves to help ensure sufficient capacity for the container runtime. 
+Tight **scheduling** vs **kubelet** resource accounting was a recurring issue in older Kubernetes releases ([kubernetes#106884](https://github.com/kubernetes/kubernetes/issues/106884#issuecomment-1005074672)). On **current** OpenShift/Kubernetes versions, treat that history as **background**: validate tight packing under your real jobs instead of assuming the same failure mode as pre–1.23-era clusters.
 
-Without sufficient CPU, the container runtime will start reporting errors like "context deadline exceeded" and builds are likely to fail.
+## Cluster autoscaler, DNS (`dns-default`), and `enable-ds-eviction`
+**DaemonSet eviction for DNS** is a **cluster-autoscaler** concern when it **removes or drains nodes**. OpenShift DNS pods can use annotations such as **`cluster-autoscaler.kubernetes.io/enable-ds-eviction`** so eviction goes through paths that honor graceful shutdown. That is **not** something this **admission webhook** applies to arbitrary pods—it is part of how **platform DNS / DaemonSets** interact with **node** lifecycle and CA.
 
-### Different IOP Characteristics 
-Tests and builds have different IOP requirements for their nodes. Segmenting the workloads allows us to tune these values independently to reduce costs.
-
-### Different Instance Types
-Segmentation allows us to experiment with different machines types for different workloads to help reduce costs.
-
-### Analysis
-Segmenting the workloads onto different nodes allows us to more effectively analyze them. Consider trying to find the appropriate IOPS setting for our nodes if you could not predict the type of workload they would receive.
-
-## Kubernetes Scheduling (the nightmare of) 
-By default, kubernetes uses a "least allocated" scheduling scoring that tries to spread workloads out across extant nodes. This is great if you have a fixed set of nodes you want to utilize without overloading them. However, when a horizontal autoscaler is involved, this is decidedly *not* what we want. Our cluster usage is pathological:
-
-1. A large wave of pods will hit be created on a cluster. 
-2. The cluster will scale up. 
-3. Thereafter, a small number of pods will be scheduled across those nodes.
-
-The OpenShift machineautoscaler would normally be able to figure this out and evict pods that were keeping under-utilized nodes from being scaled down. The autoscaler will only evict pods under certain circumstances -- most importantly for us, individual pods are only considered if they are part of a replicaset (i.e. certain to be rescheduled if evicted).
-
-Because our workloads are not created by replicasets, the autoscaler considers them unevictable (ignoring the fact that they have PDBs that would also prevent it). Thus, a single workload on each node is enough to keep it alive. Before this webhook, this meant that we kept systems alive for much longer than necessary -- until there were so few pods entering the system that the scheduling couldn't keep the scaled up nodes occupied any longer. 
-
-So you say, why not turn off this "least allocated" behavior. That is an option if you create your own scheduler, which k8s makes pretty trivial. There is a scorer that schedules pods on the "most allocated" nodes. *But* if you do this, you hit a problem: until k8s 1.23, which we don't run, the scheduler and kubelet can disagree on what resources are available on a node: https://github.com/kubernetes/kubernetes/issues/106884#issuecomment-1005074672 . Ultimately, the more we pack nodes, the more jobs will fail because of errors like "OutOfCpu" until this is fixed. 
-
-For what it is worth, another problem was that did not have enough system reserved CPU for builds if we packed them too tightly (see KubeletConfig rant above). However, I believe we can improve this behavior now with the introduction of RuntimeClass resources.
-
-Why not try (insert clever solution here)? Well you have to contend with:
-1. https://github.com/kubernetes/kubernetes/issues/106884#issuecomment-1005074672
-2. The fact that the autoscaler will only scale up if it can't fit unschedulable pods into existing nodes (unless those nodes are cordoned).
-3. That OSD won't let us cordon for longer than 10 minutes without raising alerts.
-4. That the autoscaler can't figure out complex scheduling patterns (custom taints, anti-pod affinity, ...).
-5. The huge influxes of pods common to our testing infrastructure.
-6. It has to be simple, reliable, and effective. 
+**This webhook is not the right lever to “make DNS respect `enable-ds-eviction`”**—that belongs to DNS/operator/CA configuration for the relevant **MachineSet** and DaemonSet, not to mutating CI workload pods here.
 
 # Design
 
 ## Workload classes
-Workload class: tests, builds, longtests, prowjobs. Each class has its own machineset & autoscaler. Each machineset creates nodes with taints & labels. As pods are created, the webhook will classify them and, by applying a runtimeclass to them, ensure that they only land on nodes created by their classes' machineset.
+Classes include tests, builds, longtests, and prowjobs. Each class has its own **MachineSet** (and usually **MachineAutoscaler** for scale-out). The webhook classifies pods and applies a **`RuntimeClass`** so they land on the right pool.
 
-## The cluster autoscaler scales up
-The autoscaler scales up machinesets when there are unschedulable / Pending pods that match the respective machineset class. This is its normal behavior and we rely on it.
+## Cluster autoscaler scales up
+The cluster autoscaler increases **MachineSet** replicas when **Pending** pods need capacity—normal behavior.
 
-## The webhook scales down
-The webhook will modify nodes in each classed machineset to ensure the autoscaler does not try to scale them down. The webhook is solely in charge of scale downs. The out-of-the-box autoscaler is very slow to reclaim resources, so we do it ourselves.
+## Scale-down control loop
+Per workload class, the controller runs a **reconciliation loop about once per minute** (`pollNodeClassForScaleDown` in `prioritization.go`: initial evaluation, then `time.Tick(time.Minute)`). Each loop:
+
+1. **Cordoned candidates:** For nodes already in **NoSchedule** avoidance (cordoned), only consider nodes **at least ~15 minutes old** so initialization cordons are not mistaken for scale-down targets. If the node still has **no** class pods (DaemonSets ignored), spawn work to **actually scale down** the Machine / MachineSet; otherwise wait.
+2. **Avoidance set:** Among schedulable workload nodes, mark roughly **the top 25%** (`ceil(n/4)`) for **PreferNoSchedule**-style avoidance so new CI work tends to land elsewhere; clear avoidance on nodes past that budget.
+3. **When a node is empty** under the avoidance / cordon policy, a later pass **cordons** (NoSchedule) and, once still empty, triggers **machine removal** via the scale-down path (with checks that the MachineSet is reconciled).
+
+So “useful timeline” is **minute-scale loops** plus **15-minute minimum node age** for one part of the decision—not real-time per pod. The same path adjusts **nodes** and **MachineSet** objects so capacity is not left stranded longer than necessary.
 
 ## Avoidance states
-As the system evolves, the webhook tries to steer workloads away from nodes it wants to reclaim. Generally, it will be trying to claim ceil(25%) of nodes in the class at any given moment. It does this with avoidance states. The states are None (no avoidance of node), PreferNoSchedule (implemented as a PreferNoSchedule taint effect), and NoSchedule (implemented with cordon). 
+States include **none**, **PreferNoSchedule** (taint), and **NoSchedule** (cordon). When a node has no running class pods (DaemonSets ignored for this check), the webhook can cordon and eventually trigger removal of that machine.
 
-There is a periodic evaluation loop running for each node class. During each evaluation loop, the webhook will at least want to set 25% of the class' nodes to PreferNoSchedule. However, if it finds that a node has zero running pods associated with the workload class (e.g. ignoring daemonsets), it will set NoSchedule (cordon the node). If the loop runs again and finds a node cordoned and still running zero classed pods, it will trigger a scale down of that node.
-
-## Pod Node Affinity
-To keep focus on scaling down nodes (PreferNoSchedule is not perfect), incoming pods are also given a node to preclude (this means their nodeAffinity is configured to guarantee it is not scheduled to a specific node). Incoming pods generally always preclude a node if there is more node available in the class. The precluded node is the first node selected by the node avoidance ceil(25%) algorithm (i.e. the most likely to scale down next). This ensure there is always pressure on the system to try to reclaim a node. 
+## Pod node affinity
+Incoming pods can be given affinity that **excludes** a specific node the webhook is trying to empty, so scheduling pressure favors reclaiming that node.
 
 # Deploying
-1. Create one machineset and machineautoscaler per class. Unfortunately, these machinesets are cluster  & cloud specific. Model on existing machinesets (take care to include node ci-workload label and taint). Min=1, Max=80 on each autoscaler.
-2. Apply cmd/ci-scheduling-webhook/res/admin.yaml .
-3. Apply cmd/ci-scheduling-webhook/res/rbac.yaml .
-4. Apply cmd/ci-scheduling-webhook/res/deployment.yaml .
-5. Apply cmd/ci-scheduling-webhook/res/dns.yaml . This makes sure DNS can schedule daemonset pods to tainted nodes (https://bugzilla.redhat.com/show_bug.cgi?id=2086887).
-6. Verify deployment is running in ci-scheduling-webhook.
-7. Verify machinesets have scaled up to at least one node.
-8. Apply cmd/ci-scheduling-webhook/res/webhook.yaml .
+1. Create **MachineSet** and **MachineAutoscaler** per class; they are **cluster- and cloud-specific**. Copy from existing build-farm YAML in **`openshift/release`** (for example under `clusters/build-clusters/buildNN/ci-scheduling-webhook/`). Set **`minReplicas` / `maxReplicas`** per pool from those examples—there is **no** single fixed maximum (older docs mentioning a flat max were wrong).
+2. Apply `cmd/ci-scheduling-webhook/res/admin.yaml`.
+3. Apply `cmd/ci-scheduling-webhook/res/rbac.yaml`.
+4. Apply `cmd/ci-scheduling-webhook/res/deployment.yaml`.
+5. Apply `cmd/ci-scheduling-webhook/res/dns.yaml` so cluster DNS DaemonSets can schedule on **tainted** worker nodes where required.
+6. Verify the deployment in namespace `ci-scheduling-webhook`.
+7. Confirm **MachineSets** have at least one node.
+8. Apply `cmd/ci-scheduling-webhook/res/webhook.yaml`.
 
 # Hack
 
-## Manual Image Builds 
+## Manual image builds
 ```shell
 [ci-tools]$ CGO_ENABLED=0 go build -ldflags="-extldflags=-static" github.com/openshift/ci-tools/cmd/ci-scheduling-webhook
 [ci-tools]$ podman build -t quay.io/jupierce/ci-scheduling-webhook:latest -f images/ci-scheduling-webhook/Dockerfile .
-# Temporary hosting location
 [ci-tools]$ podman push quay.io/jupierce/ci-scheduling-webhook:latest
 ```
 
-## Local Test
+## Local test
 ```shell
 [ci-tools]$ export KUBECONFIG=~/.kube/config
 [ci-tools]$ go run github.com/openshift/ci-tools/cmd/ci-scheduling-webhook --as system:admin --port 8443
 [ci-tools]$ cmd/ci-scheduling-webhook/testing/post-pods.sh
 ```
 
-## Pushing to Prod
+## Pushing to prod
+```shell
 [ci-tools]$ podman build -t quay.io/openshift/ci:ci_ci-scheduling-webhook_latest -f images/ci-scheduling-webhook/Dockerfile .
 [ci-tools]$ podman push quay.io/openshift/ci:ci_ci-scheduling-webhook_latest
+```
 
-And delete ci-scheduling-webhook pods on build farms to ensure they pull the update.
+Restart or roll `ci-scheduling-webhook` pods on build farms so they pick up the new image.
