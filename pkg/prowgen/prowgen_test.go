@@ -687,6 +687,50 @@ func TestGenerateJobs(t *testing.T) {
 				}},
 		},
 		{
+			id: "ci-operator config overrides prowgen rehearsals",
+			config: &ciop.ReleaseBuildConfiguration{
+				Prowgen: &ciop.ProwgenOverrides{DisableRehearsals: true},
+				Tests: []ciop.TestStepConfiguration{
+					{As: "unit", ContainerTestConfiguration: &ciop.ContainerTestConfiguration{From: "bin"}},
+				},
+			},
+			repoInfo: &ProwgenInfo{Metadata: ciop.Metadata{
+				Org:    "organization",
+				Repo:   "repository",
+				Branch: "branch",
+			}},
+		},
+		{
+			id: "ci-operator config takes precedence over prowgen config",
+			config: &ciop.ReleaseBuildConfiguration{
+				Prowgen: &ciop.ProwgenOverrides{DisableRehearsals: true},
+				Tests: []ciop.TestStepConfiguration{
+					{As: "unit", ContainerTestConfiguration: &ciop.ContainerTestConfiguration{From: "bin"}},
+				},
+			},
+			repoInfo: &ProwgenInfo{
+				Config: config.Prowgen{Rehearsals: config.Rehearsals{DisableAll: false}},
+				Metadata: ciop.Metadata{
+					Org:    "organization",
+					Repo:   "repository",
+					Branch: "branch",
+				}},
+		},
+		{
+			id: "per-test disable rehearsal from ci-operator config",
+			config: &ciop.ReleaseBuildConfiguration{
+				Tests: []ciop.TestStepConfiguration{
+					{As: "unit", DisableRehearsal: true, ContainerTestConfiguration: &ciop.ContainerTestConfiguration{From: "bin"}},
+					{As: "lint", ContainerTestConfiguration: &ciop.ContainerTestConfiguration{From: "bin"}},
+				},
+			},
+			repoInfo: &ProwgenInfo{Metadata: ciop.Metadata{
+				Org:    "organization",
+				Repo:   "repository",
+				Branch: "branch",
+			}},
+		},
+		{
 			id: "multiarch postsubmit images",
 			config: &ciop.ReleaseBuildConfiguration{
 				Images: ciop.ImageConfiguration{Items: []ciop.ProjectDirectoryImageBuildStepConfiguration{

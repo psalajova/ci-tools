@@ -24,6 +24,10 @@ func IsPromotionJob(jobLabels map[string]string) bool {
 	return ok
 }
 
+type ProwgenOverrides struct {
+	DisableRehearsals bool `json:"disable_rehearsals,omitempty"`
+}
+
 // ReleaseBuildConfiguration describes how release
 // artifacts are built from a repository of source
 // code. The configuration is made up of two parts:
@@ -36,6 +40,8 @@ func IsPromotionJob(jobLabels map[string]string) bool {
 //     fine-grained build flows
 type ReleaseBuildConfiguration struct {
 	Metadata Metadata `json:"zz_generated_metadata"`
+
+	Prowgen *ProwgenOverrides `json:"prowgen,omitempty"`
 
 	InputConfiguration `json:",inline"`
 
@@ -855,6 +861,9 @@ type TestStepConfiguration struct {
 	// NodeArchitecture is the architecture for the node where the test will run.
 	// If set, the generated test pod will include a nodeSelector for this architecture.
 	NodeArchitecture NodeArchitecture `json:"node_architecture,omitempty"`
+
+	// DisableRehearsal prevents this specific test from being picked up for rehearsals.
+	DisableRehearsal bool `json:"disable_rehearsal,omitempty"`
 
 	// RestrictNetworkAccess restricts network access to RedHat intranet.
 	RestrictNetworkAccess *bool `json:"restrict_network_access,omitempty"`
