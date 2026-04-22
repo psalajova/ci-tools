@@ -179,7 +179,9 @@ func GenerateJobs(configSpec *cioperatorapi.ReleaseBuildConfiguration, info *Pro
 		}
 	}
 
-	if configSpec.Operator != nil && !info.Config.SkipPresubmits(configSpec.Metadata.Branch, configSpec.Metadata.Variant) {
+	skipOperatorPresubmits := info.Config.SkipPresubmits(configSpec.Metadata.Branch, configSpec.Metadata.Variant) ||
+		(configSpec.Prowgen != nil && configSpec.Prowgen.SkipOperatorPresubmits)
+	if configSpec.Operator != nil && !skipOperatorPresubmits {
 		containsUnnamedBundle := false
 		for _, bundle := range configSpec.Operator.Bundles {
 			if bundle.As == "" {

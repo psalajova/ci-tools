@@ -573,6 +573,24 @@ func TestGenerateJobs(t *testing.T) {
 				Branch: "branch",
 			}},
 		}, {
+			id: "skip operator presubmits via ci-operator config",
+			config: &ciop.ReleaseBuildConfiguration{
+				Prowgen: &ciop.ProwgenOverrides{SkipOperatorPresubmits: true},
+				Tests:   []ciop.TestStepConfiguration{},
+				Operator: &ciop.OperatorStepConfiguration{
+					Bundles: []ciop.Bundle{{
+						As:             "my-bundle",
+						DockerfilePath: "bundle.Dockerfile",
+						ContextDir:     "manifests",
+					}},
+				},
+			},
+			repoInfo: &ProwgenInfo{Metadata: ciop.Metadata{
+				Org:    "organization",
+				Repo:   "repository",
+				Branch: "branch",
+			}},
+		}, {
 			id: "two tests and empty Images with one test configured as a postsubmit",
 			config: &ciop.ReleaseBuildConfiguration{
 				Tests: []ciop.TestStepConfiguration{
