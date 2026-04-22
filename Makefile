@@ -76,37 +76,13 @@ gofmt: cmd/vault-secret-collection-manager/index.js
 	gofmt -s -w $(shell go list --tags e2e,e2e_framework -f '{{ .Dir }}' ./... )
 .PHONY: gofmt
 
-# Update vendored code and manifests to ensure formatting.
-#
-# Example:
-#   make update-vendor
-update-vendor:
-	docker run --rm \
-		--user=$$UID \
-		-v $$(go env GOCACHE):/.cache:Z \
-		-v $$PWD:/go/src/github.com/openshift/ci-tools:Z \
-		-w /go/src/github.com/openshift/ci-tools \
-		-e GOPROXY=https://proxy.golang.org \
-		-e GOCACHE=/tmp/go-build-cache \
-		registry.ci.openshift.org/openshift/release:rhel-9-release-golang-1.25-openshift-4.21 \
-		/bin/bash -c "make vendor"
-.PHONY: update-vendor
-
-# Validate vendored code and manifests to ensure formatting.
+# Match sigs.k8s.io/prow across ci-tools, release-controller, and ci-chat-bot (see hack/check-prow-version.sh).
 #
 # Example:
 #   make validate-vendor
-validate-vendor: vendor
-	git status -s ./vendor/ go.mod go.sum
-	test -z "$$(git status -s ./vendor/ go.mod go.sum | grep -v vendor/modules.txt)"
+validate-vendor:
+	./hack/check-prow-version.sh
 .PHONY: validate-vendor
-
-vendor:
-	go version
-	GOPROXY=https://proxy.golang.org go mod tidy
-	GOPROXY=https://proxy.golang.org go mod vendor
-	git apply vendor-patches/*.patch
-.PHONY: vendor
 
 # Use verbosity by default, allow users to opt out
 VERBOSE := $(if $(QUIET),,-v )
@@ -280,7 +256,7 @@ generate: imports
 
 .PHONY: imports
 imports:
-	go run ./vendor/github.com/openshift-eng/openshift-goimports/ -m github.com/openshift/ci-tools
+	go run github.com/openshift-eng/openshift-goimports -m github.com/openshift/ci-tools
 
 .PHONY: verify-gen
 verify-gen: generate cmd/pod-scaler/frontend/dist/dummy cmd/repo-init/frontend/dist/dummy # we need the dummy file to exist so there's no diff on it
