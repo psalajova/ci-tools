@@ -62,6 +62,7 @@ type options struct {
 	reviewRequestWorkflowID string
 	namespace               string
 	requireWorkflowsInForum bool
+	jiraActivityTypeField   string
 }
 
 func (o *options) Validate() error {
@@ -108,6 +109,7 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	fs.StringVar(&o.reviewRequestWorkflowID, "review-request-workflow-id", "B06T46F374N", "ID for the 'Review Request' slack workflow")
 	fs.StringVar(&o.namespace, "namespace", "ci", "Namespace to store helpdesk-faq items")
 	fs.BoolVar(&o.requireWorkflowsInForum, "require-workflows-in-forum", true, "Require the use of workflows in the designated forum channel")
+	fs.StringVar(&o.jiraActivityTypeField, "jira-activity-type-custom-field", "", "Activity Type field key (e.g. "+jira.ActivityTypeCustomFieldKey+"); empty omits it")
 
 	if err := fs.Parse(args); err != nil {
 		logrus.WithError(err).Fatal("Could not parse args.")
@@ -168,7 +170,7 @@ func main() {
 	}
 
 	slackClient := slack.New(string(secret.GetSecret(o.slackTokenPath)))
-	issueFiler, err := jira.NewIssueFiler(slackClient, jiraClient.JiraClient())
+	issueFiler, err := jira.NewIssueFiler(slackClient, jiraClient.JiraClient(), o.jiraActivityTypeField)
 	if err != nil {
 		logrus.WithError(err).Fatal("Could not initialize Jira issue filer.")
 	}

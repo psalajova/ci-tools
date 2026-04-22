@@ -10,7 +10,7 @@ import (
 
 // IssueRequest describes a client call to file an issue
 type IssueRequest struct {
-	IssueType, Title, Description, Reporter string
+	IssueType, Title, Description, Reporter, ActivityType string
 }
 
 // IssueResponse describes a client response for filing an issue
@@ -26,12 +26,13 @@ type Fake struct {
 }
 
 // FileIssue files the issue using injected behavior
-func (f *Fake) FileIssue(issueType, title, description, reporter string, logger *logrus.Entry) (*jira.Issue, error) {
+func (f *Fake) FileIssue(issueType, title, description, reporter, activityType string, logger *logrus.Entry) (*jira.Issue, error) {
 	request := IssueRequest{
-		IssueType:   issueType,
-		Title:       title,
-		Description: description,
-		Reporter:    reporter,
+		IssueType:    issueType,
+		Title:        title,
+		Description:  description,
+		Reporter:     reporter,
+		ActivityType: activityType,
 	}
 	response, registered := f.behavior[request]
 	if !registered {
