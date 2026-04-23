@@ -1519,7 +1519,7 @@ func TestUpdateSecrets(t *testing.T) {
 					},
 				},
 			},
-			expected: fmt.Errorf("secret default:namespace-1/prod-secret-1 needs updating in place, use --force to do so"),
+			expected: fmt.Errorf("secret default:namespace-1/prod-secret-1 needs updating in place (added: [], changed: [key-name-1], removed: []), use --force to do so"),
 			expectedSecretsOnDefault: []coreapi.Secret{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -2721,7 +2721,7 @@ func TestIntegration(t *testing.T) {
 					"secretsync/target-name":      []byte("some-name"),
 				},
 			},
-			expectedError: utilerrors.NewAggregate([]error{errors.New("failed to update secrets: secret cluster-1:namespace-1/prod-secret-1 needs updating in place, use --force to do so")}),
+			expectedError: utilerrors.NewAggregate([]error{errors.New("failed to update secrets: secret cluster-1:namespace-1/prod-secret-1 needs updating in place (added: [], changed: [key-name-1], removed: []), use --force to do so")}),
 		},
 		{
 			id:    "Two items reference the same secret but different keys, success",
