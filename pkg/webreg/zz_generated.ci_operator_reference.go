@@ -336,6 +336,7 @@ const ciOperatorReferenceYaml = "# The list of base images describe\n" +
 	"          tag_by_commit: true\n" +
 	"prowgen:\n" +
 	"    disable_rehearsals: true\n" +
+	"    enable_secrets_store_csi_driver: true\n" +
 	"    skip_operator_presubmits: true\n" +
 	"# RawSteps are literal Steps that should be\n" +
 	"# included in the final pipeline.\n" +

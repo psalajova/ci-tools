@@ -355,6 +355,19 @@ func TestNewProwJobBaseBuilderForTest(t *testing.T) {
 			},
 		},
 		{
+			name: "multi-stage test with CSI enabled via ci-operator config",
+			cfg: &ciop.ReleaseBuildConfiguration{
+				Prowgen: &ciop.ProwgenOverrides{EnableSecretsStoreCSIDriver: true},
+			},
+			test: ciop.TestStepConfiguration{
+				As: "simple",
+				MultiStageTestConfiguration: &ciop.MultiStageTestConfiguration{
+					Workflow: pointer.StringPtr("workflow"),
+				},
+			},
+			info: defaultInfo,
+		},
+		{
 			name: "multi-stage test with claim",
 			test: ciop.TestStepConfiguration{
 				As:           "simple",

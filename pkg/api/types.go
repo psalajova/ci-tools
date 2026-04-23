@@ -25,8 +25,9 @@ func IsPromotionJob(jobLabels map[string]string) bool {
 }
 
 type ProwgenOverrides struct {
-	DisableRehearsals      bool `json:"disable_rehearsals,omitempty"`
-	SkipOperatorPresubmits bool `json:"skip_operator_presubmits,omitempty"`
+	DisableRehearsals           bool `json:"disable_rehearsals,omitempty"`
+	SkipOperatorPresubmits      bool `json:"skip_operator_presubmits,omitempty"`
+	EnableSecretsStoreCSIDriver bool `json:"enable_secrets_store_csi_driver,omitempty"`
 }
 
 // ReleaseBuildConfiguration describes how release
