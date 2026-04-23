@@ -1014,6 +1014,35 @@ func TestGetImageMirror(t *testing.T) {
 				"registry.ci.openshift.org/ocp/4.22-quay:vertical-pod-autoscaler": "quay-proxy.ci.openshift.org/openshift/ci:ocp_4.22_vertical-pod-autoscaler",
 			},
 		},
+		{
+			name: "tag-only DockerImageReference with image SHA produces digest-anchored source",
+			tags: map[string][]api.ImageStreamTagReference{
+				"ansible": {
+					{Namespace: "ocp", Name: "5.0", Tag: "ansible"},
+				},
+			},
+			pipeline: &imageapi.ImageStream{
+				Status: imageapi.ImageStreamStatus{
+					PublicDockerImageRepository: "registry.build02.ci.openshift.org/ci-op-y2n8rsh3/pipeline",
+					Tags: []imageapi.NamedTagEventList{
+						{
+							Tag: "ansible",
+							Items: []imageapi.TagEvent{
+								{
+									DockerImageReference: "quay-proxy.ci.openshift.org/openshift/ci:ocp_5.0_ansible",
+									Image:                "sha256:aaabbb",
+								},
+							},
+						},
+					},
+				},
+			},
+			registry:   "registry.ci.openshift.org",
+			mirrorFunc: api.DefaultMirrorFunc,
+			expected: map[string]string{
+				"registry.ci.openshift.org/ocp/5.0:ansible": "quay-proxy.ci.openshift.org/openshift/ci@sha256:aaabbb",
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -1044,6 +1073,62 @@ func TestGetPublicImageReference(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			if actual, expected := getPublicImageReference(testCase.dockerImageReference, testCase.publicDockerImageRepository), testCase.expected; !reflect.DeepEqual(actual, expected) {
 				t.Errorf("%s: got incorrect public image reference: %v", testCase.name, diff.ObjectDiff(actual, expected))
+			}
+		})
+	}
+}
+
+func TestQuayProxyTagFromISKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		isTagKey string
+		wantTag  string
+		wantOK   bool
+	}{
+		{
+			name:     "standard ocp stream",
+			isTagKey: "ocp/4.21-quay:ovn-kubernetes",
+			wantTag:  "quay-proxy.ci.openshift.org/openshift/ci:ocp_4.21_ovn-kubernetes",
+			wantOK:   true,
+		},
+		{
+			name:     "5.0 stream",
+			isTagKey: "ocp/5.0-quay:ansible",
+			wantTag:  "quay-proxy.ci.openshift.org/openshift/ci:ocp_5.0_ansible",
+			wantOK:   true,
+		},
+		{
+			name:     "hyphenated tag",
+			isTagKey: "ocp/4.21-quay:ovn-kubernetes-base",
+			wantTag:  "quay-proxy.ci.openshift.org/openshift/ci:ocp_4.21_ovn-kubernetes-base",
+			wantOK:   true,
+		},
+		{
+			name:     "template component not a concrete IS key",
+			isTagKey: "ci/ci-quay:${component}",
+			wantTag:  "quay-proxy.ci.openshift.org/openshift/ci:ci_ci_${component}",
+			wantOK:   true,
+		},
+		{
+			name:     "no slash",
+			isTagKey: "ocp-4.21-quay:ovn-kubernetes",
+			wantOK:   false,
+		},
+		{
+			name:     "no -quay: suffix",
+			isTagKey: "ocp/4.21:ovn-kubernetes",
+			wantOK:   false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := quayProxyTagFromISKey(tt.isTagKey)
+			if ok != tt.wantOK {
+				t.Errorf("quayProxyTagFromISKey(%q) ok = %v, want %v", tt.isTagKey, ok, tt.wantOK)
+				return
+			}
+			if ok && got != tt.wantTag {
+				t.Errorf("quayProxyTagFromISKey(%q) = %q, want %q", tt.isTagKey, got, tt.wantTag)
 			}
 		})
 	}
