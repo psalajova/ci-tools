@@ -147,7 +147,7 @@ func NewProwJobBaseBuilderForTest(configSpec *cioperatorapi.ReleaseBuildConfigur
 		if configSpec.Releases != nil {
 			p.PodSpec.Add(CIPullSecret())
 		}
-		if info.Config.EnableSecretsStoreCSIDriver {
+		if info.Config.EnableSecretsStoreCSIDriver || (configSpec.Prowgen != nil && configSpec.Prowgen.EnableSecretsStoreCSIDriver) {
 			p.PodSpec.Add(
 				GSMConfig(),
 			)
@@ -161,7 +161,7 @@ func NewProwJobBaseBuilderForTest(configSpec *cioperatorapi.ReleaseBuildConfigur
 		if configSpec.Releases != nil {
 			p.PodSpec.Add(CIPullSecret())
 		}
-		if info.Config.EnableSecretsStoreCSIDriver {
+		if info.Config.EnableSecretsStoreCSIDriver || (configSpec.Prowgen != nil && configSpec.Prowgen.EnableSecretsStoreCSIDriver) {
 			p.PodSpec.Add(
 				GSMConfig(),
 			)
