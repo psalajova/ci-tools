@@ -34,7 +34,7 @@ const (
 
 // IssueFiler knows how to file an issue in Jira
 type IssueFiler interface {
-	FileIssue(issueType, title, description, reporter string, logger *logrus.Entry) (*jira.Issue, error)
+	FileIssue(issueType, title, description, reporter, activityType string, logger *logrus.Entry) (*jira.Issue, error)
 	SetIssueStatus(issueKey, status string, logger *logrus.Entry) error
 	CloseIssue(issueKey, resolution string, logger *logrus.Entry) (bool, error)
 }
@@ -97,8 +97,8 @@ type filer struct {
 	issueTypesByName map[string]jira.IssueType
 	// activityTypeFieldKey is the Jira custom field key for "Activity Type".
 	activityTypeFieldKey string
-	// activityTypeValueID is the Jira option ID for "Incidents & Support".
-	activityTypeValueID string
+	// activityTypeValueIDs maps Activity Type labels to Jira option IDs.
+	activityTypeValueIDs map[string]string
 	// botUser caches the bot's Jira user metadata for use as a
 	// back-stop when no requester can be found to match the
 	// Slack user that is interacting with us
@@ -108,7 +108,7 @@ type filer struct {
 // FileIssue files an issue, closing over a number of Jira-specific API
 // quirks like how issue types and projects are provided, as well as
 // transforming the Slack reporter ID to a Jira user, when possible.
-func (f *filer) FileIssue(issueType, title, description, reporter string, logger *logrus.Entry) (*jira.Issue, error) {
+func (f *filer) FileIssue(issueType, title, description, reporter, activityType string, logger *logrus.Entry) (*jira.Issue, error) {
 	suffix := f.requesterSuffix(reporter, logger)
 	requester := f.botUser
 	description = fmt.Sprintf("%s\n\nThis issue was filed by %s", description, suffix)
@@ -123,7 +123,14 @@ func (f *filer) FileIssue(issueType, title, description, reporter string, logger
 		Summary:     title,
 		Description: description,
 	}
-	f.setActivityTypeField(fields)
+	if activityType != "" {
+		if !IsValidActivityType(activityType) {
+			return nil, fmt.Errorf("invalid activity type %q", activityType)
+		}
+		if err := f.setActivityTypeField(fields, activityType); err != nil {
+			logger.WithError(err).WithField("activity_type", activityType).Warn("could not set Jira Activity Type; omitting field from create request")
+		}
+	}
 	toCreate := &jira.Issue{Fields: fields}
 	issue, response, err := f.jiraClient.CreateIssue(toCreate)
 	if err := jirautil.HandleJiraError(response, err); err != nil {
@@ -325,14 +332,22 @@ func userOnCallDuring(client *pagerduty.Client, query string, since, until time.
 	return user, nil
 }
 
-func (f *filer) setActivityTypeField(fields *jira.IssueFields) {
-	if f.activityTypeFieldKey == "" || f.activityTypeValueID == "" || fields == nil {
-		return
+func (f *filer) setActivityTypeField(fields *jira.IssueFields, activityType string) error {
+	if fields == nil {
+		return nil
+	}
+	if f.activityTypeFieldKey == "" {
+		return fmt.Errorf("jira activity type field key is empty")
+	}
+	activityTypeID, found := f.activityTypeValueIDs[activityType]
+	if !found || strings.TrimSpace(activityTypeID) == "" {
+		return fmt.Errorf("jira activity type %q has no option ID", activityType)
 	}
 	if fields.Unknowns == nil {
 		fields.Unknowns = tcontainer.NewMarshalMap()
 	}
-	fields.Unknowns[f.activityTypeFieldKey] = tcontainer.MarshalMap{"id": f.activityTypeValueID}
+	fields.Unknowns[f.activityTypeFieldKey] = tcontainer.MarshalMap{"id": activityTypeID}
+	return nil
 }
 
 // requesterSuffix builds a human-readable suffix for the issue description.
@@ -353,10 +368,11 @@ func (f *filer) requesterSuffix(reporter string, logger *logrus.Entry) string {
 
 func NewIssueFiler(slackClient *slack.Client, jiraClient *jira.Client, pagerDutyClient *pagerduty.Client) (IssueFiler, error) {
 	filer := &filer{
-		slackClient:      slackClient,
-		jiraClient:       &jiraAdapter{delegate: jiraClient},
-		pagerDutyClient:  pagerDutyClient,
-		issueTypesByName: map[string]jira.IssueType{},
+		slackClient:          slackClient,
+		jiraClient:           &jiraAdapter{delegate: jiraClient},
+		pagerDutyClient:      pagerDutyClient,
+		issueTypesByName:     map[string]jira.IssueType{},
+		activityTypeValueIDs: map[string]string{},
 	}
 
 	project, response, err := jiraClient.Project.Get(ProjectDPTP)
@@ -373,34 +389,34 @@ func NewIssueFiler(slackClient *slack.Client, jiraClient *jira.Client, pagerDuty
 		}
 	}
 	createMeta, response, err := jiraClient.Issue.GetCreateMeta(ProjectDPTP)
-	if err := jirautil.HandleJiraError(response, err); err != nil {
-		return nil, fmt.Errorf("could not load Jira create metadata for %s: %w", ProjectDPTP, err)
+	if metaErr := jirautil.HandleJiraError(response, err); metaErr != nil {
+		logrus.WithError(metaErr).Warnf("Could not load Jira create metadata for %s; Activity Type field will be best-effort", ProjectDPTP)
+	} else if createMeta == nil {
+		logrus.Warnf("Jira create metadata for %s is empty; Activity Type field will be best-effort", ProjectDPTP)
+	} else if metaProject := createMeta.GetProjectWithKey(ProjectDPTP); metaProject == nil {
+		logrus.Warnf("Jira create metadata missing project %s; Activity Type field will be best-effort", ProjectDPTP)
+	} else if metaIssueType := metaProject.GetIssueTypeWithName(IssueTypeTask); metaIssueType == nil {
+		logrus.Warnf("Jira create metadata missing issue type %s for %s; Activity Type field will be best-effort", IssueTypeTask, ProjectDPTP)
+	} else {
+		allFields, fieldsErr := metaIssueType.GetAllFields()
+		if fieldsErr != nil {
+			logrus.WithError(fieldsErr).Warnf("Could not read Jira create fields for %s/%s; Activity Type field will be best-effort", ProjectDPTP, IssueTypeTask)
+		} else if activityFieldKey, found := allFields[activityTypeField]; !found || strings.TrimSpace(activityFieldKey) == "" {
+			logrus.Warnf("Could not find Jira field %q for %s/%s; Activity Type field will be best-effort", activityTypeField, ProjectDPTP, IssueTypeTask)
+		} else {
+			filer.activityTypeFieldKey = activityFieldKey
+			for _, value := range AllowedActivityTypes {
+				activityTypeValueID, valueErr := activityTypeOptionID(metaIssueType.Fields, activityFieldKey, value)
+				if valueErr != nil {
+					continue
+				}
+				filer.activityTypeValueIDs[value] = activityTypeValueID
+			}
+			if _, found := filer.activityTypeValueIDs[activityTypeValue]; !found {
+				logrus.Warnf("Could not find Jira option %q for field %q; Activity Type field will be best-effort", activityTypeValue, activityTypeField)
+			}
+		}
 	}
-	if createMeta == nil {
-		return nil, fmt.Errorf("jira create metadata for %s is empty", ProjectDPTP)
-	}
-	metaProject := createMeta.GetProjectWithKey(ProjectDPTP)
-	if metaProject == nil {
-		return nil, fmt.Errorf("jira create metadata missing project %s", ProjectDPTP)
-	}
-	metaIssueType := metaProject.GetIssueTypeWithName(IssueTypeTask)
-	if metaIssueType == nil {
-		return nil, fmt.Errorf("jira create metadata missing issue type %s for %s", IssueTypeTask, ProjectDPTP)
-	}
-	allFields, err := metaIssueType.GetAllFields()
-	if err != nil {
-		return nil, fmt.Errorf("could not read Jira create fields for %s/%s: %w", ProjectDPTP, IssueTypeTask, err)
-	}
-	activityFieldKey, found := allFields[activityTypeField]
-	if !found || strings.TrimSpace(activityFieldKey) == "" {
-		return nil, fmt.Errorf("could not find Jira field %q for %s/%s", activityTypeField, ProjectDPTP, IssueTypeTask)
-	}
-	filer.activityTypeFieldKey = activityFieldKey
-	activityTypeValueID, err := activityTypeOptionID(metaIssueType.Fields, activityFieldKey, activityTypeValue)
-	if err != nil {
-		return nil, err
-	}
-	filer.activityTypeValueID = activityTypeValueID
 
 	botUser, response, err := jiraClient.User.GetSelf()
 	if err := jirautil.HandleJiraError(response, err); err != nil {

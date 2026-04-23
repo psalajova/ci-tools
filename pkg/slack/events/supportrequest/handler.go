@@ -217,7 +217,7 @@ func handleMessage(event *slackevents.MessageEvent, client messageClient, filer 
 		description = fmt.Sprintf("Support request created from Slack thread: %s", permalink)
 	}
 	title := fmt.Sprintf("support request on %s", time.Now().UTC().Format(defaultDateFormat))
-	issue, err := filer.FileIssue(jira.IssueTypeTask, title, description, event.User, logger)
+	issue, err := filer.FileIssue(jira.IssueTypeTask, title, description, event.User, "Incidents & Support", logger)
 	if err != nil {
 		_ = postMessageWithRetry(client, channelID, slack.MsgOptionText("Failed to create corresponding support request in Jira.", false), slack.MsgOptionTS(event.ThreadTimeStamp))
 		return true, err

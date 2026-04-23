@@ -145,10 +145,15 @@ func TestFindClosingTransition(t *testing.T) {
 }
 
 func TestSetActivityTypeField(t *testing.T) {
-	file := filer{activityTypeFieldKey: "customfield_12345", activityTypeValueID: "20001"}
+	file := filer{
+		activityTypeFieldKey: "customfield_12345",
+		activityTypeValueIDs: map[string]string{activityTypeValue: "20001"},
+	}
 	fields := &jira.IssueFields{}
 
-	file.setActivityTypeField(fields)
+	if err := file.setActivityTypeField(fields, activityTypeValue); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if fields.Unknowns == nil {
 		t.Fatalf("expected unknowns to be initialized")
@@ -163,13 +168,11 @@ func TestSetActivityTypeField(t *testing.T) {
 }
 
 func TestSetActivityTypeFieldNoKey(t *testing.T) {
-	file := filer{activityTypeFieldKey: "", activityTypeValueID: "20001"}
+	file := filer{activityTypeFieldKey: "", activityTypeValueIDs: map[string]string{activityTypeValue: "20001"}}
 	fields := &jira.IssueFields{Unknowns: tcontainer.NewMarshalMap()}
 
-	file.setActivityTypeField(fields)
-
-	if len(fields.Unknowns) != 0 {
-		t.Fatalf("expected unknowns to stay unchanged when field key is empty")
+	if err := file.setActivityTypeField(fields, activityTypeValue); err == nil {
+		t.Fatalf("expected error when field key is empty")
 	}
 }
 

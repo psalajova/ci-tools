@@ -72,12 +72,13 @@ type fakeFiler struct {
 	closeResult    bool
 }
 
-func (f *fakeFiler) FileIssue(issueType, title, description, reporter string, logger *logrus.Entry) (*ajira.Issue, error) {
+func (f *fakeFiler) FileIssue(issueType, title, description, reporter, activityType string, logger *logrus.Entry) (*ajira.Issue, error) {
 	f.fileCalls = append(f.fileCalls, ciJira.IssueRequest{
-		IssueType:   issueType,
-		Title:       title,
-		Description: description,
-		Reporter:    reporter,
+		IssueType:    issueType,
+		Title:        title,
+		Description:  description,
+		Reporter:     reporter,
+		ActivityType: activityType,
 	})
 	return f.issue, nil
 }
