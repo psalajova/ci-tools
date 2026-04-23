@@ -315,8 +315,8 @@ func userOnCallDuring(client *pagerduty.Client, query string, since, until time.
 	schedule := scheduleResponse.Schedules[0]
 
 	users, err := client.ListOnCallUsers(schedule.ID, pagerduty.ListOnCallUsersOptions{
-		Since: since.String(),
-		Until: until.String(),
+		Since: since.Format(time.RFC3339),
+		Until: until.Format(time.RFC3339),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not query PagerDuty for the %s on-call: %w", query, err)
@@ -329,8 +329,8 @@ func userOnCallDuring(client *pagerduty.Client, query string, since, until time.
 
 	// more than 1 user means there must be an override, determine who the override is associated with
 	overrides, err := client.ListOverrides(schedule.ID, pagerduty.ListOverridesOptions{
-		Since: since.String(),
-		Until: until.String(),
+		Since: since.Format(time.RFC3339),
+		Until: until.Format(time.RFC3339),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not query PagerDuty for the '%s' overrides: %w", query, err)

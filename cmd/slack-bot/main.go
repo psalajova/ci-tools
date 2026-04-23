@@ -35,6 +35,7 @@ import (
 	userv1 "github.com/openshift/api/user/v1"
 
 	"github.com/openshift/ci-tools/pkg/jira"
+	"github.com/openshift/ci-tools/pkg/pagerdutyutil"
 	eventhandler "github.com/openshift/ci-tools/pkg/slack/events"
 	"github.com/openshift/ci-tools/pkg/slack/events/helpdesk"
 	eventrouter "github.com/openshift/ci-tools/pkg/slack/events/router"
@@ -50,6 +51,7 @@ type options struct {
 	gracePeriod            time.Duration
 	instrumentationOptions prowflagutil.InstrumentationOptions
 	jiraOptions            prowflagutil.JiraOptions
+	pagerDutyOptions       pagerdutyutil.Options
 
 	prowconfig configflagutil.ConfigOptions
 
@@ -62,7 +64,8 @@ type options struct {
 	reviewRequestWorkflowID string
 	namespace               string
 	requireWorkflowsInForum bool
-	jiraActivityTypeField   string
+	supportRequestChannelID string
+	supportRequestThreshold int
 }
 
 func (o *options) Validate() error {
@@ -78,8 +81,11 @@ func (o *options) Validate() error {
 	if o.slackSigningSecretPath == "" {
 		return fmt.Errorf("--slack-signing-secret-path is required")
 	}
+	if o.supportRequestChannelID != "" && o.supportRequestThreshold < 1 {
+		return fmt.Errorf("--support-request-threshold must be >= 1")
+	}
 
-	for _, group := range []flagutil.OptionGroup{&o.instrumentationOptions, &o.jiraOptions, &o.prowconfig} {
+	for _, group := range []flagutil.OptionGroup{&o.instrumentationOptions, &o.jiraOptions, &o.pagerDutyOptions, &o.prowconfig} {
 		if err := group.Validate(false); err != nil {
 			return err
 		}
@@ -97,7 +103,7 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 
 	o.prowconfig.ConfigPathFlagName = "prow-config-path"
 	o.prowconfig.JobConfigPathFlagName = "prow-job-config-path"
-	for _, group := range []flagutil.OptionGroup{&o.instrumentationOptions, &o.jiraOptions, &o.prowconfig} {
+	for _, group := range []flagutil.OptionGroup{&o.instrumentationOptions, &o.jiraOptions, &o.pagerDutyOptions, &o.prowconfig} {
 		group.AddFlags(fs)
 	}
 
@@ -109,7 +115,8 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	fs.StringVar(&o.reviewRequestWorkflowID, "review-request-workflow-id", "B06T46F374N", "ID for the 'Review Request' slack workflow")
 	fs.StringVar(&o.namespace, "namespace", "ci", "Namespace to store helpdesk-faq items")
 	fs.BoolVar(&o.requireWorkflowsInForum, "require-workflows-in-forum", true, "Require the use of workflows in the designated forum channel")
-	fs.StringVar(&o.jiraActivityTypeField, "jira-activity-type-custom-field", "", "Activity Type field key (e.g. "+jira.ActivityTypeCustomFieldKey+"); empty omits it")
+	fs.StringVar(&o.supportRequestChannelID, "support-request-channel-id", "CBN38N3MW", "Channel ID where support request mode watches long threads (defaults to #forum-ocp-testplatform)")
+	fs.IntVar(&o.supportRequestThreshold, "support-request-threshold", 12, "Create a support-request Jira when a thread has more than this many messages (total count includes the root message)")
 
 	if err := fs.Parse(args); err != nil {
 		logrus.WithError(err).Fatal("Could not parse args.")
@@ -168,9 +175,13 @@ func main() {
 	if err != nil {
 		logrus.WithError(err).Fatal("Could not initialize Jira client.")
 	}
+	pagerDutyClient, err := o.pagerDutyOptions.Client()
+	if err != nil {
+		logrus.WithError(err).Fatal("Could not initialize PagerDuty client.")
+	}
 
 	slackClient := slack.New(string(secret.GetSecret(o.slackTokenPath)))
-	issueFiler, err := jira.NewIssueFiler(slackClient, jiraClient.JiraClient(), o.jiraActivityTypeField)
+	issueFiler, err := jira.NewIssueFiler(slackClient, jiraClient.JiraClient(), pagerDutyClient)
 	if err != nil {
 		logrus.WithError(err).Fatal("Could not initialize Jira issue filer.")
 	}
@@ -204,7 +215,7 @@ func main() {
 	// handle the root to allow for a simple uptime probe
 	mux.Handle("/", handler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) { writer.WriteHeader(http.StatusOK) })))
 	mux.Handle("/slack/interactive-endpoint", handler(handleInteraction(secret.GetTokenGenerator(o.slackSigningSecretPath), interactionrouter.ForModals(issueFiler, slackClient))))
-	mux.Handle("/slack/events-endpoint", handler(handleEvent(secret.GetTokenGenerator(o.slackSigningSecretPath), eventrouter.ForEvents(slackClient, kubeClient, configAgent.Config, gcsClient, keywordsConfig, o.helpdeskAlias, o.forumChannelId, o.reviewRequestWorkflowID, o.namespace, o.requireWorkflowsInForum))))
+	mux.Handle("/slack/events-endpoint", handler(handleEvent(secret.GetTokenGenerator(o.slackSigningSecretPath), eventrouter.ForEvents(slackClient, issueFiler, kubeClient, configAgent.Config, gcsClient, keywordsConfig, o.helpdeskAlias, o.forumChannelId, o.reviewRequestWorkflowID, o.namespace, o.supportRequestChannelID, o.supportRequestThreshold, o.requireWorkflowsInForum))))
 	server := &http.Server{Addr: ":" + strconv.Itoa(o.port), Handler: mux}
 
 	health.ServeReady()
@@ -214,7 +225,7 @@ func main() {
 	interrupts.WaitForGracefulShutdown()
 }
 
-func loadKeywordsConfig(configPath string, config interface{}) error {
+func loadConfig(configPath string, config interface{}) error {
 	configContent, err := os.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to read config: %w", err)
@@ -223,6 +234,10 @@ func loadKeywordsConfig(configPath string, config interface{}) error {
 		return fmt.Errorf("failed to unmarshall config: %w", err)
 	}
 	return nil
+}
+
+func loadKeywordsConfig(configPath string, config interface{}) error {
+	return loadConfig(configPath, config)
 }
 
 func verifiedBody(logger *logrus.Entry, request *http.Request, signingSecret func() []byte) ([]byte, bool) {
