@@ -68,9 +68,12 @@ func NewProwJobBaseBuilder(configSpec *cioperatorapi.ReleaseBuildConfiguration, 
 		},
 	}
 
+	private := info.Config.Private || (configSpec.Prowgen != nil && configSpec.Prowgen.Private)
+	expose := info.Config.Expose || (configSpec.Prowgen != nil && configSpec.Prowgen.Expose)
+
 	if skipCloning(configSpec) {
 		b.base.UtilityConfig.DecorationConfig = &prowv1.DecorationConfig{SkipCloning: utilpointer.Bool(true)}
-	} else if info.Config.Private {
+	} else if private {
 		b.base.UtilityConfig.DecorationConfig = &prowv1.DecorationConfig{OauthTokenSecret: &prowv1.OauthTokenSecret{Key: cioperatorapi.OauthTokenSecretKey, Name: cioperatorapi.OauthTokenSecretName}}
 	}
 
@@ -89,8 +92,7 @@ func NewProwJobBaseBuilder(configSpec *cioperatorapi.ReleaseBuildConfiguration, 
 	}
 
 	b.PodSpec.Add(Variant(info.Variant))
-	if info.Config.Private {
-		// We can reuse Prow's volume with the token if ProwJob itself is cloning the code
+	if private {
 		b.PodSpec.Add(GitHubToken(!skipCloning(configSpec)))
 	}
 
@@ -98,7 +100,7 @@ func NewProwJobBaseBuilder(configSpec *cioperatorapi.ReleaseBuildConfiguration, 
 		b.base.UtilityConfig.PathAlias = *configSpec.CanonicalGoRepository
 	}
 
-	if info.Config.Private && !info.Config.Expose {
+	if private && !expose {
 		b.base.Hidden = true
 	}
 

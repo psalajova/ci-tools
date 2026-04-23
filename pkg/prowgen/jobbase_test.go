@@ -25,10 +25,11 @@ func TestProwJobBaseBuilder(t *testing.T) {
 	testCases := []struct {
 		name string
 
-		inputs         ciop.InputConfiguration
-		images         ciop.ImageConfiguration
-		binCommand     string
-		testBinCommand string
+		inputs           ciop.InputConfiguration
+		images           ciop.ImageConfiguration
+		binCommand       string
+		testBinCommand   string
+		prowgenOverrides *ciop.ProwgenOverrides
 
 		podSpecBuilder CiOperatorPodSpecGenerator
 		info           *ProwgenInfo
@@ -170,6 +171,20 @@ func TestProwJobBaseBuilder(t *testing.T) {
 			},
 			podSpecBuilder: NewCiOperatorPodSpecGenerator(),
 		},
+		{
+			name:             "private job via ci-operator config",
+			info:             &ProwgenInfo{Metadata: ciop.Metadata{Org: "vorg", Repo: "vrepo", Branch: "vbranch"}},
+			prowgenOverrides: &ciop.ProwgenOverrides{Private: true},
+			prefix:           "default",
+			podSpecBuilder:   NewCiOperatorPodSpecGenerator(),
+		},
+		{
+			name:             "private job with expose via ci-operator config",
+			info:             &ProwgenInfo{Metadata: ciop.Metadata{Org: "vorg", Repo: "vrepo", Branch: "vbranch"}},
+			prowgenOverrides: &ciop.ProwgenOverrides{Private: true, Expose: true},
+			prefix:           "default",
+			podSpecBuilder:   NewCiOperatorPodSpecGenerator(),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -182,6 +197,7 @@ func TestProwJobBaseBuilder(t *testing.T) {
 				BinaryBuildCommands:     tc.binCommand,
 				TestBinaryBuildCommands: tc.testBinCommand,
 				Metadata:                tc.info.Metadata,
+				Prowgen:                 tc.prowgenOverrides,
 			}
 			b := NewProwJobBaseBuilder(ciopconfig, tc.info, tc.podSpecBuilder).Build(tc.prefix)
 			testhelper.CompareWithFixture(t, b)

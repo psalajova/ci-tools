@@ -337,6 +337,13 @@ const ciOperatorReferenceYaml = "# The list of base images describe\n" +
 	"prowgen:\n" +
 	"    disable_rehearsals: true\n" +
 	"    enable_secrets_store_csi_driver: true\n" +
+	"    # Expose declares that jobs should not be hidden from view in deck if they\n" +
+	"    # are private. This field has no effect if private is not set.\n" +
+	"    expose: true\n" +
+	"    # Private indicates that generated jobs should be marked as hidden\n" +
+	"    # from display in deck and that they should mount appropriate git credentials\n" +
+	"    # to clone the repository under test.\n" +
+	"    private: true\n" +
 	"    skip_operator_presubmits: true\n" +
 	"# RawSteps are literal Steps that should be\n" +
 	"# included in the final pipeline.\n" +
