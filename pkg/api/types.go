@@ -25,7 +25,8 @@ func IsPromotionJob(jobLabels map[string]string) bool {
 }
 
 type ProwgenOverrides struct {
-	DisableRehearsals bool `json:"disable_rehearsals,omitempty"`
+	DisableRehearsals      bool `json:"disable_rehearsals,omitempty"`
+	SkipOperatorPresubmits bool `json:"skip_operator_presubmits,omitempty"`
 }
 
 // ReleaseBuildConfiguration describes how release
