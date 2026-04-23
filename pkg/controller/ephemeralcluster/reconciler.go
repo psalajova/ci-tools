@@ -18,12 +18,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/utils/ptr"
 	ctrlbldr "sigs.k8s.io/controller-runtime/pkg/builder"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	ctrlruntimeutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -103,6 +105,7 @@ type reconciler struct {
 	buildClients    map[string]ctrlruntimeclient.Client
 	newProwJob      NewProwJobFunc
 	prowConfigAgent *prowconfig.Agent
+	scheme          *runtime.Scheme
 
 	// Mock for testing
 	now         func() time.Time
@@ -135,6 +138,7 @@ func AddToManager(log *logrus.Entry, mgr manager.Manager, allManagers map[string
 		masterClient:    mgr.GetClient(),
 		buildClients:    buildClients,
 		prowConfigAgent: prowConfigAgent,
+		scheme:          mgr.GetScheme(),
 		newProwJob:      pjutil.NewProwJob,
 		now:             time.Now,
 		polling:         func() time.Duration { return defaultReconcilerOpts.polling },
@@ -451,7 +455,13 @@ func (r *reconciler) makeProwJob(ciOperatorConfig *api.ReleaseBuildConfiguration
 	return &pj, nil
 }
 
-func (r *reconciler) fetchSecrets(ctx context.Context, log *logrus.Entry, ec *ephemeralclusterv1.EphemeralCluster, ecStatus *ephemeralclusterv1.EphemeralClusterStatus, pj *prowv1.ProwJob) error {
+func (r *reconciler) fetchSecrets(
+	ctx context.Context,
+	log *logrus.Entry,
+	ec *ephemeralclusterv1.EphemeralCluster,
+	ecStatus *ephemeralclusterv1.EphemeralClusterStatus,
+	pj *prowv1.ProwJob,
+) error {
 	buildClient, err := r.buildClientFor(pj)
 	if err != nil {
 		log.WithField("cluster", pj.Spec.Cluster).WithError(err).Error("Build client not found")
@@ -469,15 +479,22 @@ func (r *reconciler) fetchSecrets(ctx context.Context, log *logrus.Entry, ec *ep
 	log.WithField("namespace", ns).Info("ci-operator namespace found")
 
 	if ec.Spec.CIOperator.Test.ClusterClaim != nil {
-		r.fetchHiveSecrets(ctx, log, buildClient, ns, ecStatus)
+		r.fetchHiveSecrets(ctx, log, ec, buildClient, ns, ecStatus)
 	} else {
-		r.fetchClusterKubeconfig(ctx, log, buildClient, ns, ecStatus)
+		r.fetchClusterKubeconfig(ctx, log, ec, buildClient, ns, ecStatus)
 	}
 
 	return nil
 }
 
-func (r *reconciler) fetchHiveSecrets(ctx context.Context, log *logrus.Entry, buildClient ctrlruntimeclient.Client, ns string, ecStatus *ephemeralclusterv1.EphemeralClusterStatus) {
+func (r *reconciler) fetchHiveSecrets(
+	ctx context.Context,
+	log *logrus.Entry,
+	ec *ephemeralclusterv1.EphemeralCluster,
+	buildClient ctrlruntimeclient.Client,
+	ns string,
+	ecStatus *ephemeralclusterv1.EphemeralClusterStatus,
+) {
 	secretsReady := true
 	var kubeconfig, passwd []byte
 
@@ -515,14 +532,27 @@ func (r *reconciler) fetchHiveSecrets(ctx context.Context, log *logrus.Entry, bu
 		return
 	}
 
-	ecStatus.Kubeconfig = string(kubeconfig)
-	ecStatus.KubeAdminPassword = string(passwd)
+	secretData := map[string][]byte{"kubeconfig": kubeconfig, "kubeAdminPassword": passwd}
+	if err := r.createCredentialsSecret(ctx, log, ec, secretData); err != nil {
+		log.WithError(err).Error("Failed to create credentials secret")
+		upsertCondition(ecStatus, ephemeralclusterv1.ClusterReady, ephemeralclusterv1.ConditionFalse, r.now(), ephemeralclusterv1.SecretsFetchFailureReason, err.Error())
+		return
+	}
+
+	ecStatus.SecretRef = credentialsSecretName(ec)
 	log.Info("hive secrets fetched")
 	upsertCondition(ecStatus, ephemeralclusterv1.ClusterReady, ephemeralclusterv1.ConditionTrue, r.now(), "", "")
 	ecStatus.Phase = ephemeralclusterv1.EphemeralClusterReady
 }
 
-func (r *reconciler) fetchClusterKubeconfig(ctx context.Context, log *logrus.Entry, buildClient ctrlruntimeclient.Client, ns string, ecStatus *ephemeralclusterv1.EphemeralClusterStatus) {
+func (r *reconciler) fetchClusterKubeconfig(
+	ctx context.Context,
+	log *logrus.Entry,
+	ec *ephemeralclusterv1.EphemeralCluster,
+	buildClient ctrlruntimeclient.Client,
+	ns string,
+	ecStatus *ephemeralclusterv1.EphemeralClusterStatus,
+) {
 	kubeconfigSecret := corev1.Secret{}
 	// The secret is named after the test name.
 	if err := buildClient.Get(ctx, types.NamespacedName{Name: EphemeralClusterTestName, Namespace: ns}, &kubeconfigSecret); err != nil {
@@ -538,7 +568,14 @@ func (r *reconciler) fetchClusterKubeconfig(ctx context.Context, log *logrus.Ent
 		return
 	}
 
-	ecStatus.Kubeconfig = string(kubeconfig)
+	secretData := map[string][]byte{"kubeconfig": kubeconfig}
+	if err := r.createCredentialsSecret(ctx, log, ec, secretData); err != nil {
+		log.WithError(err).Error("Failed to create credentials secret")
+		upsertCondition(ecStatus, ephemeralclusterv1.ClusterReady, ephemeralclusterv1.ConditionFalse, r.now(), ephemeralclusterv1.SecretsFetchFailureReason, err.Error())
+		return
+	}
+
+	ecStatus.SecretRef = credentialsSecretName(ec)
 	log.Info("kubeconfig fetched")
 	upsertCondition(ecStatus, ephemeralclusterv1.ClusterReady, ephemeralclusterv1.ConditionTrue, r.now(), "", "")
 	ecStatus.Phase = ephemeralclusterv1.EphemeralClusterReady
@@ -556,6 +593,53 @@ func (r *reconciler) updateEphemeralCluster(ctx context.Context, ec *ephemeralcl
 	if err := r.masterClient.Update(ctx, ec); err != nil {
 		return fmt.Errorf("update ephemeral cluster: %w", err)
 	}
+	return nil
+}
+
+func credentialsSecretName(ec *ephemeralclusterv1.EphemeralCluster) string {
+	return ec.Name + "-credentials"
+}
+
+func (r *reconciler) createCredentialsSecret(
+	ctx context.Context,
+	log *logrus.Entry,
+	ec *ephemeralclusterv1.EphemeralCluster,
+	data map[string][]byte,
+) error {
+	secretName := credentialsSecretName(ec)
+
+	existing := corev1.Secret{}
+	err := r.masterClient.Get(ctx, types.NamespacedName{Name: secretName, Namespace: ec.Namespace}, &existing)
+	if err != nil && !kerrors.IsNotFound(err) {
+		return fmt.Errorf("check credentials secret: %w", err)
+	}
+	if err == nil {
+		if !v1.IsControlledBy(&existing, ec) {
+			return fmt.Errorf("credentials secret %s/%s exists but is not owned by ephemeralcluster %s (uid=%s)",
+				ec.Namespace, secretName, ec.Name, ec.UID)
+		}
+		return nil
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      secretName,
+			Namespace: ec.Namespace,
+		},
+		Data: data,
+	}
+	if err := ctrlruntimeutil.SetControllerReference(ec, secret, r.scheme); err != nil {
+		return fmt.Errorf("set owner reference on credentials secret: %w", err)
+	}
+
+	if err := r.masterClient.Create(ctx, secret); err != nil {
+		if !kerrors.IsAlreadyExists(err) {
+			return fmt.Errorf("create credentials secret: %w", err)
+		}
+	} else {
+		log.WithField("secret", secretName).Info("Credentials secret created")
+	}
+
 	return nil
 }
 

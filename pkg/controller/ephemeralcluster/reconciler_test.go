@@ -443,6 +443,7 @@ func TestReconcile(t *testing.T) {
 		objs         []ctrlclient.Object
 		buildClients func() map[string]*ctrlruntimetest.FakeClient
 		wantEC       *ephemeralclusterv1.EphemeralCluster
+		wantSecret   *corev1.Secret
 		wantRes      reconcile.Result
 		wantErr      error
 	}{
@@ -452,6 +453,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
+					UID:       types.UID("test-ec-uid"),
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
 					ProwJobID: "pj-123",
@@ -482,6 +484,13 @@ func TestReconcile(t *testing.T) {
 					"build01": ctrlruntimetest.NewFakeClient(c, scheme, ctrlruntimetest.WithInitObjects(objs...)),
 				}
 			},
+			wantSecret: &corev1.Secret{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "foo-credentials",
+					Namespace: "bar",
+				},
+				Data: map[string][]byte{"kubeconfig": []byte("kubeconfig")},
+			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
 				ObjectMeta: v1.ObjectMeta{
 					Name:            "foo",
@@ -491,7 +500,7 @@ func TestReconcile(t *testing.T) {
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
 					Phase:      ephemeralclusterv1.EphemeralClusterReady,
 					ProwJobID:  "pj-123",
-					Kubeconfig: "kubeconfig",
+					SecretRef:  "foo-credentials",
 					ProwJobURL: "https://pj-123.html",
 					Conditions: []ephemeralclusterv1.EphemeralClusterCondition{{
 						Type:               ephemeralclusterv1.ProwJobCreating,
@@ -513,6 +522,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
+					UID:       types.UID("test-ec-uid"),
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
 					ProwJobID: "pj-123",
@@ -562,6 +572,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
+					UID:       types.UID("test-ec-uid"),
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
 					ProwJobID: "pj-123",
@@ -618,6 +629,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
+					UID:       types.UID("test-ec-uid"),
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
 					ProwJobID: "pj-123",
@@ -677,6 +689,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
+					UID:       types.UID("test-ec-uid"),
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
 					ProwJobID: "pj-123",
@@ -723,6 +736,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
+					UID:       types.UID("test-ec-uid"),
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
 					ProwJobID: "pj-123",
@@ -777,6 +791,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
+					UID:       types.UID("test-ec-uid"),
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
 					ProwJobID: "pj-123",
@@ -813,9 +828,9 @@ func TestReconcile(t *testing.T) {
 					Namespace: "bar",
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
-					Phase:      ephemeralclusterv1.EphemeralClusterDeprovisioned,
-					ProwJobID:  "pj-123",
-					Kubeconfig: "kubeconfig",
+					Phase:     ephemeralclusterv1.EphemeralClusterDeprovisioned,
+					ProwJobID: "pj-123",
+					SecretRef: "foo-credentials",
 					Conditions: []ephemeralclusterv1.EphemeralClusterCondition{{
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
@@ -842,6 +857,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:       "foo",
 					Namespace:  "bar",
+					UID:        types.UID("test-ec-uid"),
 					Finalizers: []string{DependentProwJobFinalizer},
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
@@ -865,6 +881,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
+					UID:       types.UID("test-ec-uid"),
 				},
 				Spec: ephemeralclusterv1.EphemeralClusterSpec{TearDownCluster: true},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
@@ -905,6 +922,7 @@ func TestReconcile(t *testing.T) {
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
 					Phase:     ephemeralclusterv1.EphemeralClusterDeprovisioning,
 					ProwJobID: "pj-123",
+					SecretRef: "foo-credentials",
 					Conditions: []ephemeralclusterv1.EphemeralClusterCondition{{
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
@@ -919,7 +937,6 @@ func TestReconcile(t *testing.T) {
 						Status:             ephemeralclusterv1.ConditionTrue,
 						LastTransitionTime: v1.NewTime(fakeNow),
 					}},
-					Kubeconfig: "kubeconfig",
 				},
 			},
 			wantRes: reconcile.Result{RequeueAfter: pollingTime},
@@ -930,6 +947,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
+					UID:       types.UID("test-ec-uid"),
 				},
 				Spec: ephemeralclusterv1.EphemeralClusterSpec{TearDownCluster: true},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
@@ -986,6 +1004,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
+					UID:       types.UID("test-ec-uid"),
 				},
 				Spec: ephemeralclusterv1.EphemeralClusterSpec{TearDownCluster: true},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
@@ -1055,6 +1074,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
+					UID:       types.UID("test-ec-uid"),
 				},
 				Spec: ephemeralclusterv1.EphemeralClusterSpec{
 					CIOperator: ephemeralclusterv1.CIOperatorSpec{
@@ -1095,6 +1115,16 @@ func TestReconcile(t *testing.T) {
 					"build01": ctrlruntimetest.NewFakeClient(c, scheme, ctrlruntimetest.WithInitObjects(objs...)),
 				}
 			},
+			wantSecret: &corev1.Secret{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "foo-credentials",
+					Namespace: "bar",
+				},
+				Data: map[string][]byte{
+					"kubeconfig":        []byte("kubeconfig"),
+					"kubeAdminPassword": []byte("admin-passwd"),
+				},
+			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
 				ObjectMeta: v1.ObjectMeta{
 					Name:            "foo",
@@ -1109,10 +1139,9 @@ func TestReconcile(t *testing.T) {
 					},
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
-					Phase:             ephemeralclusterv1.EphemeralClusterReady,
-					ProwJobID:         "pj-123",
-					Kubeconfig:        "kubeconfig",
-					KubeAdminPassword: "admin-passwd",
+					Phase:     ephemeralclusterv1.EphemeralClusterReady,
+					ProwJobID: "pj-123",
+					SecretRef: "foo-credentials",
 					Conditions: []ephemeralclusterv1.EphemeralClusterCondition{{
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
@@ -1133,6 +1162,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
+					UID:       types.UID("test-ec-uid"),
 				},
 				Spec: ephemeralclusterv1.EphemeralClusterSpec{
 					CIOperator: ephemeralclusterv1.CIOperatorSpec{
@@ -1207,6 +1237,7 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
+					UID:       types.UID("test-ec-uid"),
 				},
 				Spec: ephemeralclusterv1.EphemeralClusterSpec{
 					CIOperator: ephemeralclusterv1.CIOperatorSpec{
@@ -1307,6 +1338,7 @@ func TestReconcile(t *testing.T) {
 				logger:       logrus.NewEntry(logrus.StandardLogger()),
 				masterClient: client,
 				buildClients: clients,
+				scheme:       scheme,
 				now:          func() time.Time { return fakeNow },
 				polling:      func() time.Duration { return pollingTime },
 				newProwJob:   newProwJobFaker("foobar", fakeNow),
@@ -1327,9 +1359,26 @@ func TestReconcile(t *testing.T) {
 				t.Errorf("unexpected get ephemeralcluster error: %s", err)
 			}
 
-			ignoreFields := cmpopts.IgnoreFields(ephemeralclusterv1.EphemeralCluster{}, "ResourceVersion")
+			ignoreFields := cmpopts.IgnoreFields(ephemeralclusterv1.EphemeralCluster{}, "ResourceVersion", "UID")
 			if diff := cmp.Diff(tc.wantEC, &gotEC, ignoreFields); diff != "" {
 				t.Errorf("unexpected ephemeralcluster: %s", diff)
+			}
+
+			if tc.wantSecret != nil {
+				gotSecret := corev1.Secret{}
+				if err := client.Get(context.TODO(), types.NamespacedName{
+					Name:      tc.wantSecret.Name,
+					Namespace: tc.wantSecret.Namespace,
+				}, &gotSecret); err != nil {
+					t.Fatalf("get credentials secret: %s", err)
+				}
+				if diff := cmp.Diff(tc.wantSecret.Data, gotSecret.Data); diff != "" {
+					t.Errorf("unexpected credentials secret data: %s", diff)
+				}
+				if !v1.IsControlledBy(&gotSecret, tc.ec) {
+					t.Errorf("credentials secret %s/%s is not controlled by ephemeralcluster %s",
+						gotSecret.Namespace, gotSecret.Name, tc.ec.Name)
+				}
 			}
 
 			for cluster, c := range fakeClients {
@@ -1471,7 +1520,7 @@ func TestDeleteProwJob(t *testing.T) {
 					t.Errorf("unexpected get ephemeralcluster error: %s", err)
 				}
 
-				ignoreFields := cmpopts.IgnoreFields(ephemeralclusterv1.EphemeralCluster{}, "ResourceVersion")
+				ignoreFields := cmpopts.IgnoreFields(ephemeralclusterv1.EphemeralCluster{}, "ResourceVersion", "UID")
 				if diff := cmp.Diff(tc.wantEC, &gotEC, ignoreFields); diff != "" {
 					t.Errorf("unexpected ephemeralcluster: %s", diff)
 				}

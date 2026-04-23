@@ -114,9 +114,10 @@ type EphemeralClusterStatus struct {
 	Conditions []EphemeralClusterCondition `json:"conditions,omitempty"`
 	ProwJobID  string                      `json:"prowJobId,omitempty"`
 	ProwJobURL string                      `json:"prowJobURL,omitempty"`
-	// Kubeconfig to access the ephemeral cluster
-	Kubeconfig        string `json:"kubeconfig,omitempty"`
-	KubeAdminPassword string `json:"kubeAdminPassword,omitempty"`
+	// SecretRef is the name of the Secret containing credentials to access the
+	// ephemeral cluster. The Secret is in the same namespace as the EphemeralCluster
+	// and contains a "kubeconfig" key and optionally a "kubeAdminPassword" key.
+	SecretRef string `json:"secretRef,omitempty"`
 }
 
 // EphemeralClusterCondition contains details for the current condition of this EphemeralCluster.
