@@ -295,6 +295,7 @@ func getPromotionPod(imageMirrorTarget map[string]string, timeStr string, namesp
 	// resolveAndTagPairs holds [quayProxyTag, isTag] for concrete *-quay IS targets in a
 	// quay promotion step. These are handled post-mirror via oc image info + oc tag so
 	// that spec.from always carries the exact QCI manifest digest rather than a floating tag.
+	// Non-release namespaces use oc tag directly.
 	var resolveAndTagPairs [][2]string
 
 	isQuayStep := name == api.PromotionQuayStepName
@@ -310,12 +311,16 @@ func getPromotionPod(imageMirrorTarget map[string]string, timeStr string, namesp
 			} else if isQuayStep && !strings.Contains(k, api.ComponentFormatReplacement) {
 				// Concrete quay IS target: resolve the QCI digest after mirroring instead of
 				// using a pre-computed (potentially tag-only) source so spec.from is always digest-based.
-				if quayProxyTag, ok := quayProxyTagFromISKey(k); ok {
-					resolveAndTagPairs = append(resolveAndTagPairs, [2]string{quayProxyTag, k})
-				} else {
-					// Fallback for unexpected key formats.
-					tags = append(tags, fmt.Sprintf("%s %s", src, k))
+				// Non-release namespaces use oc tag directly.
+				quayProxyTag, ok := quayProxyTagFromISKey(k)
+				if ok {
+					ns := k[:strings.Index(k, "/")]
+					if api.RefersToOfficialImage(ns, api.WithOKD) {
+						resolveAndTagPairs = append(resolveAndTagPairs, [2]string{quayProxyTag, k})
+						continue
+					}
 				}
+				tags = append(tags, fmt.Sprintf("%s %s", src, k))
 			} else if strings.Contains(k, api.ComponentFormatReplacement) || !strings.Contains(src, "@sha256:") || strings.Contains(src, api.QCIAPPCIDomain) {
 				// Cluster ImageStream tags: oc tag for non-digest sources, quay-proxy imports, or ${component} templates.
 				tags = append(tags, fmt.Sprintf("%s %s", src, k))
