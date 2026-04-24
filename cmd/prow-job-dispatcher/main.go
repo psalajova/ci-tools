@@ -60,6 +60,7 @@ type options struct {
 	githubLogin    string
 	targetDir      string
 	assign         string
+	prBody         string
 
 	enableClusters  flagutil.Strings
 	disableClusters flagutil.Strings
@@ -92,6 +93,7 @@ func gatherOptions() options {
 	fs.StringVar(&o.githubLogin, "github-login", githubLogin, "The GitHub username to use.")
 	fs.StringVar(&o.targetDir, "target-dir", "", "The directory containing the target repo.")
 	fs.StringVar(&o.assign, "assign", "ghost", "The github username or group name to assign the created pull request to.")
+	fs.StringVar(&o.prBody, "pr-body", "", "Body text for created or updated pull requests. Can be used to disable bots add carbon copy, etc.")
 
 	fs.Var(&o.enableClusters, "enable-cluster", "Enable this cluster. Does nothing if the cluster is enabled. Can be passed multiple times and must be disjoint with all --disable-cluster values.")
 	fs.Var(&o.disableClusters, "disable-cluster", "Disable this cluster. Does nothing if the cluster is disabled. Can be passed multiple times and must be disjoint with all --enable-cluster values.")
@@ -628,7 +630,7 @@ func createPR(o options, config *dispatcher.Config, pjs map[string]dispatcher.Pr
 	}
 
 	title := fmt.Sprintf("%s at %s", matchTitle, time.Now().Format(time.RFC1123))
-	if err := o.PRCreationOptions.UpsertPR(targetDirWithRelease, githubOrg, githubRepo, o.upstreamBranch, title, prcreation.PrAssignee(o.assign), prcreation.MatchTitle(matchTitle), prcreation.AdditionalLabels([]string{rehearse.RehearsalsAckLabel, "priority/ci-critical"})); err != nil {
+	if err := o.PRCreationOptions.UpsertPR(targetDirWithRelease, githubOrg, githubRepo, o.upstreamBranch, title, prcreation.PrAssignee(o.assign), prcreation.MatchTitle(matchTitle), prcreation.AdditionalLabels([]string{rehearse.RehearsalsAckLabel, "priority/ci-critical"}), prcreation.PrBody(o.prBody)); err != nil {
 		logrus.WithError(err).Fatal("failed to upsert PR")
 	}
 }
