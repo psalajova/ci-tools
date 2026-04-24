@@ -1,0 +1,223 @@
+inheritance: true
+language: en-US
+tone_instructions: "Be concise and direct. Focus on correctness and production safety."
+early_access: false
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  sequence_diagrams: false
+  collapse_walkthrough: true
+  changed_files_summary: true
+
+  auto_review:
+    enabled: true
+    drafts: true
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+      - "DNM"
+
+  path_filters:
+    - "!**/*.pb.go"
+    - "!**/zz_generated*"
+    - "!go.sum"
+
+  path_instructions:
+    - path: "**/*.go"
+      instructions: |
+        This codebase powers OpenShift CI infrastructure (https://docs.ci.openshift.org/).
+        Review for idiomatic Go:
+        - Wrap errors with fmt.Errorf("context: %w", err), lowercase messages, no trailing punctuation
+        - Early returns, no unnecessary else blocks
+        - Initialize variables with the desired default value, then conditionally override,
+          rather than using if/else to assign both branches:
+          ✅ `mode := "default"` then `if cond { mode = "other" }`
+          ❌ `var mode string` then `if cond { mode = "other" } else { mode = "default" }`
+        - Functions should return values, not modify arguments by pointer/reference.
+          Only use pointer receivers or pointer arguments when mutation is the explicit
+          purpose (e.g. builders, accumulators). Do not pass a pointer to be filled in
+          when returning the value is clearer.
+        - Prefer value semantics over pointer semantics unless the struct is large or
+          needs to be mutated
+        - Prefer table-driven tests
+        - Use logrus consistently for logging
+        - Comment important exported functions with their purpose, parameters, and return values.
+          Do not add inline comments explaining what code does; only why when non-obvious
+        - Check pkg/ for existing helpers before adding inline utility logic
+        - Accept interfaces, return concrete types
+        - Keep function signatures small — if a function takes more than 3-4 parameters,
+          consider grouping them into an options struct
+        - Use named return values only for documentation, not to save a declaration
+
+    - path: "pkg/api/**"
+      instructions: |
+        ci-operator configuration API — the Go types that define what users write in their
+        ci-operator config YAML files (https://docs.ci.openshift.org/docs/architecture/ci-operator/).
+        Changes here affect every repository that uses OpenShift CI.
+        - Be very careful with struct field tags, defaults, and validation
+        - Backward compatibility matters — new fields should have zero-value defaults
+          that preserve existing behavior
+        - Changes may require updating pkg/validation/ and test/integration/ fixtures
+
+    - path: "pkg/steps/**"
+      instructions: |
+        ci-operator execution steps — each file implements a step type (image build, test,
+        release creation, multi-stage test, lease acquisition, etc.).
+        Steps run inside Prow jobs on CI clusters.
+        - Watch for resource leaks, proper context cancellation, and correct cleanup on failure
+        - Changes here directly affect how CI jobs execute for all OpenShift repos
+        Docs: https://docs.ci.openshift.org/docs/architecture/step-registry/
+
+    - path: "pkg/config/**"
+      instructions: |
+        Configuration loading and processing for ci-operator configs and Prow job configs.
+        This includes loading from disk, resolving references, and matching configs to jobs.
+        Changes affect how openshift/release repo config files are parsed and processed.
+
+    - path: "pkg/prowgen/**"
+      instructions: |
+        Generates Prow job YAML from ci-operator config files. The generated jobs live in
+        openshift/release under ci-operator/jobs/.
+        - prowgen output must be deterministic — same input must always produce identical YAML
+        - Changes here require running `make jobs` in the openshift/release repo to verify
+          no unexpected diffs appear
+
+    - path: "pkg/registry/**"
+      instructions: |
+        Step registry — resolving references, chains, and workflows into concrete test steps.
+        The registry is defined in openshift/release under ci-operator/step-registry/.
+        Docs: https://docs.ci.openshift.org/docs/architecture/step-registry/
+
+    - path: "pkg/rehearse/**"
+      instructions: |
+        Prow job rehearsal system — detects config changes in PRs to openshift/release and
+        creates rehearsal jobs to test them before merge.
+
+    - path: "pkg/dispatcher/**"
+      instructions: |
+        Prow job dispatcher — assigns jobs to CI build farm clusters based on capacity
+        and job characteristics. Changes affect job scheduling across the entire CI fleet.
+
+    - path: "pkg/promotion/**"
+      instructions: |
+        Image promotion logic — controls how images built in CI are promoted to
+        integration/release ImageStreams. Changes can break the OCP release pipeline.
+
+    - path: "pkg/validation/**"
+      instructions: |
+        Validation logic for ci-operator configs. Validates user-facing config files.
+        Error messages should be clear and actionable for CI users who are not
+        ci-tools developers.
+
+    - path: "pkg/controller/**"
+      instructions: |
+        Kubernetes controllers that run as long-lived services on CI clusters.
+        Follow controller-runtime patterns. Watch for proper reconciliation,
+        error handling, and rate limiting.
+
+    - path: "pkg/jobconfig/**"
+      instructions: |
+        Prow job config file I/O — reading and writing job YAML files in openshift/release.
+        Handles merging of periodics, presubmits, and postsubmits. Must preserve fields
+        that are not managed by prowgen (e.g. manually-set reporter_config).
+
+    - path: "pkg/clusterinit/**"
+      instructions: |
+        Cluster onboarding/initialization tooling. Generates manifests and configs for
+        adding new build farm clusters to the CI fleet.
+
+    - path: "pkg/slack/**"
+      instructions: |
+        Slack bot interactions — modals, events, and commands. Connected to Jira
+        for support request workflows.
+
+    - path: "cmd/**/*.go"
+      instructions: |
+        CLI entrypoints — each directory under cmd/ is a separate binary deployed to
+        CI clusters. Check for proper flag parsing, signal handling, and clean shutdown.
+        Many of these are critical production services.
+
+    - path: "test/integration/**"
+      instructions: |
+        Integration test fixtures. Expected output files must exactly match tool output.
+        When prow or other dependency versions change, serialization format may shift
+        (e.g. new default fields, changed omitempty behavior). Verify fixture changes
+        are consistent with the code changes in the same PR.
+
+    - path: "hack/**"
+      instructions: |
+        Shell scripts for development and CI. Used by Prow jobs via Makefile targets.
+        Check for set -euo pipefail, proper variable quoting, and portability.
+
+  tools:
+    shellcheck:
+      enabled: true
+    golangci-lint:
+      enabled: true
+
+  pre_merge_checks:
+    custom_checks:
+      - name: "Go Error Handling"
+        mode: warning
+        instructions: |
+          Ensure proper Go error handling patterns:
+          - Never ignore returned errors as `_` without clear justification
+          - Errors should be wrapped with context using fmt.Errorf with %w
+          - Avoid panic() except in init() or fatal conditions
+          - Check for nil before dereferencing pointers
+
+      - name: "Test Coverage for New Features"
+        mode: warning
+        instructions: |
+          New or modified functionality should include test coverage:
+          - New Go functions and methods should have corresponding unit tests
+          - Bug fixes should include a regression test that fails without the fix
+          - Pure functions should always be tested
+          - Prefer table-driven tests
+
+          Exceptions (do not flag):
+          - Trivial changes (renaming, formatting, comments)
+          - Generated code or configuration-only changes
+          - Refactors already covered by existing tests
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "CONTRIBUTING.md"
+      - "README.md"
+  learnings:
+    scope: "local"
+  issues:
+    scope: "local"
+  pull_requests:
+    scope: "local"
+  linked_repositories:
+    - repository: "openshift/release"
+      instructions: >-
+        The release repo contains ci-operator configs, Prow job definitions, and the
+        step registry consumed by ci-tools. Changes to pkg/prowgen, pkg/config,
+        pkg/registry, or pkg/jobconfig in ci-tools directly affect how files in this
+        repo are generated, loaded, and validated.
+    - repository: "openshift/ci-docs"
+      instructions: >-
+        User-facing documentation for OpenShift CI at https://docs.ci.openshift.org/.
+        When ci-tools changes affect user-facing behavior (new config fields, changed
+        defaults, new validation errors), check whether ci-docs needs a corresponding
+        update.
+    - repository: "openshift/release-controller"
+      instructions: >-
+        Release controller shares the sigs.k8s.io/prow dependency with ci-tools.
+        Only relevant when go.mod changes bump the prow version — both repos must
+        stay on the same prow version. See hack/check-prow-version.sh.
+    - repository: "openshift/ci-chat-bot"
+      instructions: >-
+        CI chat bot shares the sigs.k8s.io/prow dependency with ci-tools.
+        Only relevant when go.mod changes bump the prow version — both repos must
+        stay on the same prow version. See hack/check-prow-version.sh.
