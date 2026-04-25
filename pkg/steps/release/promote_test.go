@@ -766,6 +766,18 @@ func TestGetPromotionPod(t *testing.T) {
 			namespace: "ci-op-9bdij1f6",
 		},
 		{
+			name:              "promotion-quay-non-release-namespace",
+			stepName:          "promotion-quay",
+			nodeArchitectures: []string{"amd64"},
+			imageMirror: map[string]string{
+				"quay.io/openshift/ci:ocp_4.21_ovn-kubernetes":  "registry.build02.ci.openshift.org/ci-op-y2n8rsh3/pipeline@sha256:aaa",
+				"ocp/4.21-quay:ovn-kubernetes":                  "quay-proxy.ci.openshift.org/openshift/ci@sha256:aaa",
+				"quay.io/openshift/ci:ci_ci_sanitize-prow-jobs": "registry.build02.ci.openshift.org/ci-op-y2n8rsh3/pipeline@sha256:bbb",
+				"ci/ci-quay:sanitize-prow-jobs":                 "quay-proxy.ci.openshift.org/openshift/ci@sha256:bbb",
+			},
+			namespace: "ci-op-9bdij1f6",
+		},
+		{
 			name:              "basic case - arm64 only",
 			stepName:          "promotion",
 			nodeArchitectures: []string{"arm64"},
