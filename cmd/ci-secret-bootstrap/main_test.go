@@ -3841,6 +3841,7 @@ func TestConstructSecretsFromGSM(t *testing.T) {
 		{
 			name: "docker config from GSM",
 			config: api.GSMConfig{
+				DPTPCollection: "test-infra",
 				Bundles: []api.GSMBundle{
 					{
 						Name: "docker-secret",
@@ -3856,13 +3857,11 @@ func TestConstructSecretsFromGSM(t *testing.T) {
 							As: "pull-secret",
 							Registries: []api.RegistryAuthData{
 								{
-									Collection:  "test-infra",
 									Group:       "build-farm",
 									RegistryURL: "registry.ci.openshift.org",
 									AuthField:   "auth-token",
 								},
 								{
-									Collection:  "test-infra",
 									Group:       "build-farm",
 									RegistryURL: "quay.io",
 									AuthField:   "quay-auth",
@@ -4173,7 +4172,6 @@ func TestConstructDockerConfigJSONFromGSM(t *testing.T) {
 			},
 			registries: []api.RegistryAuthData{
 				{
-					Collection:  "test",
 					Group:       "grp",
 					RegistryURL: "quay.io",
 					AuthField:   "auth",
@@ -4189,7 +4187,6 @@ func TestConstructDockerConfigJSONFromGSM(t *testing.T) {
 			},
 			registries: []api.RegistryAuthData{
 				{
-					Collection:  "test",
 					Group:       "grp",
 					RegistryURL: "quay.io",
 					AuthField:   "auth",
@@ -4207,13 +4204,11 @@ func TestConstructDockerConfigJSONFromGSM(t *testing.T) {
 			},
 			registries: []api.RegistryAuthData{
 				{
-					Collection:  "test",
 					Group:       "grp",
 					RegistryURL: "quay.io",
 					AuthField:   "auth1",
 				},
 				{
-					Collection:  "test",
 					Group:       "grp",
 					RegistryURL: "registry.ci.openshift.org",
 					AuthField:   "auth2",
@@ -4229,7 +4224,6 @@ func TestConstructDockerConfigJSONFromGSM(t *testing.T) {
 			},
 			registries: []api.RegistryAuthData{
 				{
-					Collection:  "test",
 					Group:       "grp",
 					RegistryURL: "quay.io",
 					AuthField:   "auth",
@@ -4242,7 +4236,6 @@ func TestConstructDockerConfigJSONFromGSM(t *testing.T) {
 			secretsCache: map[gsmSecretRef]fetchedSecret{},
 			registries: []api.RegistryAuthData{
 				{
-					Collection:  "test",
 					Group:       "grp",
 					RegistryURL: "quay.io",
 					AuthField:   "missing",
@@ -4257,7 +4250,6 @@ func TestConstructDockerConfigJSONFromGSM(t *testing.T) {
 			},
 			registries: []api.RegistryAuthData{
 				{
-					Collection:  "test",
 					Group:       "grp",
 					RegistryURL: "quay.io",
 					AuthField:   "auth",
@@ -4272,7 +4264,6 @@ func TestConstructDockerConfigJSONFromGSM(t *testing.T) {
 			},
 			registries: []api.RegistryAuthData{
 				{
-					Collection:  "test",
 					Group:       "grp",
 					RegistryURL: "quay.io",
 					AuthField:   "auth",
@@ -4289,7 +4280,6 @@ func TestConstructDockerConfigJSONFromGSM(t *testing.T) {
 			},
 			registries: []api.RegistryAuthData{
 				{
-					Collection:  "test",
 					Group:       "grp",
 					RegistryURL: "quay.io",
 					AuthField:   "auth",
@@ -4305,7 +4295,6 @@ func TestConstructDockerConfigJSONFromGSM(t *testing.T) {
 			},
 			registries: []api.RegistryAuthData{
 				{
-					Collection:  "test",
 					Group:       "grp",
 					RegistryURL: "quay.io",
 					AuthField:   "auth",
@@ -4317,7 +4306,7 @@ func TestConstructDockerConfigJSONFromGSM(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actual, err := constructDockerConfigJSONFromGSM(tc.secretsCache, tc.registries)
+			actual, err := constructDockerConfigJSONFromGSM(tc.secretsCache, tc.registries, "test")
 
 			if tc.expectedError != "" {
 				if err == nil {
