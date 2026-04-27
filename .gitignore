@@ -7,6 +7,10 @@ index.js
 # vscode
 .vscode/
 
+# go workspace
+go.work
+go.work.sum
+
 # default working dir
 /job-aggregator-working-dir
 # go built binary
