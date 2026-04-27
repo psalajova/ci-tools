@@ -802,9 +802,23 @@ func updateSecrets(getters map[string]Getter, secretsMap map[string][]*coreapi.S
 
 				if !shouldCreate {
 					differentData := !equality.Semantic.DeepEqual(secret.Data, existingSecret.Data)
+					var addedKeys, changedKeys, removedKeys []string
+					for k, value := range secret.Data {
+						if existingValue, ok := existingSecret.Data[k]; !ok {
+							addedKeys = append(addedKeys, k)
+						} else if !equality.Semantic.DeepEqual(value, existingValue) {
+							changedKeys = append(changedKeys, k)
+						}
+					}
+					for k := range existingSecret.Data {
+						if _, ok := secret.Data[k]; !ok {
+							removedKeys = append(removedKeys, k)
+						}
+					}
+					change := fmt.Sprintf("added: %v, changed: %v, removed: %v", addedKeys, changedKeys, removedKeys)
 					if !force && differentData {
 						logger.Errorf("actual secret data differs the expected")
-						errs = append(errs, fmt.Errorf("secret %s:%s/%s needs updating in place, use --force to do so", cluster, secret.Namespace, secret.Name))
+						errs = append(errs, fmt.Errorf("secret %s:%s/%s needs updating in place (%s), use --force to do so", cluster, secret.Namespace, secret.Name, change))
 						continue
 					}
 					if existingSecret.Labels == nil || existingSecret.Labels[api.DPTPRequesterLabel] != "ci-secret-bootstrap" || differentData {
@@ -812,7 +826,7 @@ func updateSecrets(getters map[string]Getter, secretsMap map[string][]*coreapi.S
 							errs = append(errs, fmt.Errorf("error updating secret %s:%s/%s: %w", cluster, secret.Namespace, secret.Name, err))
 							continue
 						}
-						logger.Debug("secret updated")
+						logger.Debugf("secret updated %s", change)
 					} else {
 						logger.Debug("secret skipped")
 					}
