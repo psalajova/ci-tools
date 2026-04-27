@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -39,7 +40,7 @@ func newProwJobFaker(name string, now time.Time) NewProwJobFunc {
 	return func(spec prowv1.ProwJobSpec, extraLabels, extraAnnotations map[string]string, modifiers ...pjutil.Modifier) prowv1.ProwJob {
 		pj := pjutil.NewProwJob(spec, extraLabels, extraAnnotations, modifiers...)
 		pj.Name = name
-		pj.Status.StartTime = v1.NewTime(now)
+		pj.Status.StartTime = metav1.NewTime(now)
 		return pj
 	}
 }
@@ -89,12 +90,12 @@ func TestEphemeralClusterFilter(t *testing.T) {
 	}{
 		{
 			name:       "Namespace set, process",
-			obj:        &ephemeralclusterv1.EphemeralCluster{ObjectMeta: v1.ObjectMeta{Namespace: EphemeralClusterNamespace}},
+			obj:        &ephemeralclusterv1.EphemeralCluster{ObjectMeta: metav1.ObjectMeta{Namespace: EphemeralClusterNamespace}},
 			wantResult: true,
 		},
 		{
 			name: "Unexpected namespace, do not process",
-			obj:  &ephemeralclusterv1.EphemeralCluster{ObjectMeta: v1.ObjectMeta{Namespace: "foo"}},
+			obj:  &ephemeralclusterv1.EphemeralCluster{ObjectMeta: metav1.ObjectMeta{Namespace: "foo"}},
 		},
 		{
 			name: "Namespace unset, do not process",
@@ -153,7 +154,7 @@ func TestCreateProwJob(t *testing.T) {
 		{
 			name: "An EphemeralCluster request creates a ProwJob",
 			ec: ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns",
 					Name:      "ec",
 				},
@@ -194,7 +195,7 @@ func TestCreateProwJob(t *testing.T) {
 		{
 			name: "Hive cluster request creates a ProwJob",
 			ec: ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns",
 					Name:      "ec",
 				},
@@ -241,7 +242,7 @@ func TestCreateProwJob(t *testing.T) {
 		{
 			name: "Handle invalid prow config",
 			ec: ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns",
 					Name:      "ec",
 				},
@@ -273,7 +274,7 @@ func TestCreateProwJob(t *testing.T) {
 		{
 			name: "Fail to create a ProwJob",
 			ec: ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns",
 					Name:      "ec",
 				},
@@ -302,7 +303,7 @@ func TestCreateProwJob(t *testing.T) {
 		{
 			name: "Invalid ci-operator configuration",
 			ec: ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns",
 					Name:      "ec",
 				},
@@ -321,7 +322,7 @@ func TestCreateProwJob(t *testing.T) {
 		{
 			name: "Invalid ci-operator configuration and fail to update EC",
 			ec: ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns",
 					Name:      "ec",
 				},
@@ -346,18 +347,18 @@ func TestCreateProwJob(t *testing.T) {
 		{
 			name: "Several PJ for the same EC raises an error",
 			ec: ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns",
 					Name:      "ec",
 				},
 			},
 			pjs: []ctrlclient.Object{
-				&prowv1.ProwJob{ObjectMeta: v1.ObjectMeta{
+				&prowv1.ProwJob{ObjectMeta: metav1.ObjectMeta{
 					Labels:    map[string]string{EphemeralClusterLabel: "ec"},
 					Name:      "pj1",
 					Namespace: prowJobNamespace,
 				}},
-				&prowv1.ProwJob{ObjectMeta: v1.ObjectMeta{
+				&prowv1.ProwJob{ObjectMeta: metav1.ObjectMeta{
 					Labels:    map[string]string{EphemeralClusterLabel: "ec"},
 					Name:      "pj2",
 					Namespace: prowJobNamespace,
@@ -369,9 +370,9 @@ func TestCreateProwJob(t *testing.T) {
 		{
 			name: "PJ found but was not bound to the EC",
 			ec: ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{Namespace: "ns", Name: "ec"},
+				ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "ec"},
 			},
-			pjs: []ctrlclient.Object{&prowv1.ProwJob{ObjectMeta: v1.ObjectMeta{
+			pjs: []ctrlclient.Object{&prowv1.ProwJob{ObjectMeta: metav1.ObjectMeta{
 				Labels:    map[string]string{EphemeralClusterLabel: "ec"},
 				Name:      "pj",
 				Namespace: prowJobNamespace,
@@ -450,7 +451,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Kubeconfig ready",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 					UID:       types.UID("test-ec-uid"),
@@ -461,7 +462,7 @@ func TestReconcile(t *testing.T) {
 			},
 			objs: []ctrlclient.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+					ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 					Spec:       prowv1.ProwJobSpec{Cluster: "build01"},
 					Status:     prowv1.ProwJobStatus{URL: "https://pj-123.html"},
 				},
@@ -469,13 +470,13 @@ func TestReconcile(t *testing.T) {
 			buildClients: func() map[string]*ctrlruntimetest.FakeClient {
 				objs := []ctrlclient.Object{
 					&corev1.Namespace{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{steps.LabelJobID: "pj-123"},
 							Name:   "ci-op-1234",
 						},
 					},
 					&corev1.Secret{
-						ObjectMeta: v1.ObjectMeta{Name: EphemeralClusterTestName, Namespace: "ci-op-1234"},
+						ObjectMeta: metav1.ObjectMeta{Name: EphemeralClusterTestName, Namespace: "ci-op-1234"},
 						Data:       map[string][]byte{"kubeconfig": []byte("kubeconfig")},
 					},
 				}
@@ -485,14 +486,14 @@ func TestReconcile(t *testing.T) {
 				}
 			},
 			wantSecret: &corev1.Secret{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo-credentials",
 					Namespace: "bar",
 				},
 				Data: map[string][]byte{"kubeconfig": []byte("kubeconfig")},
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:            "foo",
 					Namespace:       "bar",
 					ResourceVersion: "1000",
@@ -506,11 +507,11 @@ func TestReconcile(t *testing.T) {
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ProwJobCreatingDoneReason,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ClusterReady,
 						Status:             ephemeralclusterv1.ConditionTrue,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}},
 				},
 			},
@@ -519,7 +520,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "ci-operator NS doesn't exist yet",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 					UID:       types.UID("test-ec-uid"),
@@ -530,7 +531,7 @@ func TestReconcile(t *testing.T) {
 			},
 			objs: []ctrlclient.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+					ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 					Spec:       prowv1.ProwJobSpec{Cluster: "build01"},
 				},
 			},
@@ -541,7 +542,7 @@ func TestReconcile(t *testing.T) {
 				}
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:            "foo",
 					Namespace:       "bar",
 					ResourceVersion: "1000",
@@ -554,13 +555,13 @@ func TestReconcile(t *testing.T) {
 							Type:               ephemeralclusterv1.ProwJobCreating,
 							Status:             ephemeralclusterv1.ConditionFalse,
 							Reason:             ProwJobCreatingDoneReason,
-							LastTransitionTime: v1.NewTime(fakeNow),
+							LastTransitionTime: metav1.NewTime(fakeNow),
 						}, {
 							Type:               ephemeralclusterv1.ClusterReady,
 							Status:             ephemeralclusterv1.ConditionFalse,
 							Reason:             ephemeralclusterv1.SecretsFetchFailureReason,
 							Message:            ephemeralclusterv1.CIOperatorNSNotFoundMsg,
-							LastTransitionTime: v1.NewTime(fakeNow),
+							LastTransitionTime: metav1.NewTime(fakeNow),
 						}},
 				},
 			},
@@ -569,7 +570,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Secret not found",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 					UID:       types.UID("test-ec-uid"),
@@ -580,14 +581,14 @@ func TestReconcile(t *testing.T) {
 			},
 			objs: []ctrlclient.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+					ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 					Spec:       prowv1.ProwJobSpec{Cluster: "build01"},
 				},
 			},
 			buildClients: func() map[string]*ctrlruntimetest.FakeClient {
 				objs := []ctrlclient.Object{
 					&corev1.Namespace{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{steps.LabelJobID: "pj-123"},
 							Name:   "ci-op-1234",
 						},
@@ -599,7 +600,7 @@ func TestReconcile(t *testing.T) {
 				}
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:            "foo",
 					Namespace:       "bar",
 					ResourceVersion: "1000",
@@ -611,13 +612,13 @@ func TestReconcile(t *testing.T) {
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ProwJobCreatingDoneReason,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ClusterReady,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ephemeralclusterv1.SecretsFetchFailureReason,
 						Message:            fmt.Sprintf("secrets %q not found", EphemeralClusterTestName),
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}},
 				},
 			},
@@ -626,7 +627,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Kubeconfig not ready",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 					UID:       types.UID("test-ec-uid"),
@@ -637,20 +638,20 @@ func TestReconcile(t *testing.T) {
 			},
 			objs: []ctrlclient.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+					ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 					Spec:       prowv1.ProwJobSpec{Cluster: "build01"},
 				},
 			},
 			buildClients: func() map[string]*ctrlruntimetest.FakeClient {
 				objs := []ctrlclient.Object{
 					&corev1.Namespace{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{steps.LabelJobID: "pj-123"},
 							Name:   "ci-op-1234",
 						},
 					},
 					&corev1.Secret{
-						ObjectMeta: v1.ObjectMeta{Name: EphemeralClusterTestName, Namespace: "ci-op-1234"},
+						ObjectMeta: metav1.ObjectMeta{Name: EphemeralClusterTestName, Namespace: "ci-op-1234"},
 					},
 				}
 				c := fake.NewClientBuilder().WithObjects(objs...).WithScheme(scheme).Build()
@@ -659,7 +660,7 @@ func TestReconcile(t *testing.T) {
 				}
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:            "foo",
 					Namespace:       "bar",
 					ResourceVersion: "1000",
@@ -671,13 +672,13 @@ func TestReconcile(t *testing.T) {
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ProwJobCreatingDoneReason,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ClusterReady,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ephemeralclusterv1.SecretsFetchFailureReason,
 						Message:            ephemeralclusterv1.KubeconfigNotReadyMsg,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}},
 				},
 			},
@@ -686,7 +687,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Client not found, return a terminal error",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 					UID:       types.UID("test-ec-uid"),
@@ -697,7 +698,7 @@ func TestReconcile(t *testing.T) {
 			},
 			objs: []ctrlclient.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+					ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 					Spec:       prowv1.ProwJobSpec{Cluster: "build01"},
 				},
 			},
@@ -705,7 +706,7 @@ func TestReconcile(t *testing.T) {
 				return map[string]*ctrlruntimetest.FakeClient{}
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:            "foo",
 					Namespace:       "bar",
 					ResourceVersion: "1000",
@@ -717,23 +718,23 @@ func TestReconcile(t *testing.T) {
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ProwJobCreatingDoneReason,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ClusterReady,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ephemeralclusterv1.SecretsFetchFailureReason,
-						Message:            "uknown cluster build01",
-						LastTransitionTime: v1.NewTime(fakeNow),
+						Message:            "unknown cluster build01",
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}},
 				},
 			},
 			wantRes: reconcile.Result{},
-			wantErr: reconcile.TerminalError(errors.New("uknown cluster build01")),
+			wantErr: reconcile.TerminalError(errors.New("unknown cluster build01")),
 		},
 		{
 			name: "Aborted ProwJob maps to ProwJobCompleted condition",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 					UID:       types.UID("test-ec-uid"),
@@ -744,7 +745,7 @@ func TestReconcile(t *testing.T) {
 			},
 			objs: []ctrlclient.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+					ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 					Spec:       prowv1.ProwJobSpec{Cluster: "build01"},
 					Status:     prowv1.ProwJobStatus{State: prowv1.AbortedState},
 				},
@@ -756,7 +757,7 @@ func TestReconcile(t *testing.T) {
 				}
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 				},
@@ -766,19 +767,19 @@ func TestReconcile(t *testing.T) {
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ProwJobCreatingDoneReason,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ClusterReady,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ephemeralclusterv1.SecretsFetchFailureReason,
 						Message:            ephemeralclusterv1.CIOperatorNSNotFoundMsg,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ProwJobCompleted,
 						Status:             ephemeralclusterv1.ConditionTrue,
 						Reason:             ephemeralclusterv1.ProwJobFailureReason,
 						Message:            "prowjob state: aborted",
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}},
 					Phase: ephemeralclusterv1.EphemeralClusterFailed,
 				},
@@ -788,7 +789,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Succeeded ProwJob maps to ProwJobCompleted condition",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 					UID:       types.UID("test-ec-uid"),
@@ -799,7 +800,7 @@ func TestReconcile(t *testing.T) {
 			},
 			objs: []ctrlclient.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+					ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 					Spec:       prowv1.ProwJobSpec{Cluster: "build01"},
 					Status:     prowv1.ProwJobStatus{State: prowv1.SuccessState},
 				},
@@ -807,13 +808,13 @@ func TestReconcile(t *testing.T) {
 			buildClients: func() map[string]*ctrlruntimetest.FakeClient {
 				objs := []ctrlclient.Object{
 					&corev1.Namespace{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{steps.LabelJobID: "pj-123"},
 							Name:   "ci-op-1234",
 						},
 					},
 					&corev1.Secret{
-						ObjectMeta: v1.ObjectMeta{Name: EphemeralClusterTestName, Namespace: "ci-op-1234"},
+						ObjectMeta: metav1.ObjectMeta{Name: EphemeralClusterTestName, Namespace: "ci-op-1234"},
 						Data:       map[string][]byte{"kubeconfig": []byte("kubeconfig")},
 					},
 				}
@@ -823,7 +824,7 @@ func TestReconcile(t *testing.T) {
 				}
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 				},
@@ -835,17 +836,17 @@ func TestReconcile(t *testing.T) {
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ProwJobCreatingDoneReason,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ClusterReady,
 						Status:             ephemeralclusterv1.ConditionTrue,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ProwJobCompleted,
 						Status:             ephemeralclusterv1.ConditionTrue,
 						Reason:             string(ephemeralclusterv1.ProwJobCompleted),
 						Message:            "prowjob state: success",
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}},
 				},
 			},
@@ -854,7 +855,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "ProwJob not found remove the finalizer",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:       "foo",
 					Namespace:  "bar",
 					UID:        types.UID("test-ec-uid"),
@@ -865,7 +866,7 @@ func TestReconcile(t *testing.T) {
 				},
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 				},
@@ -878,7 +879,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Test completed, create secret",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 					UID:       types.UID("test-ec-uid"),
@@ -890,20 +891,20 @@ func TestReconcile(t *testing.T) {
 			},
 			objs: []ctrlclient.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+					ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 					Spec:       prowv1.ProwJobSpec{Cluster: "build01"},
 				},
 			},
 			buildClients: func() map[string]*ctrlruntimetest.FakeClient {
 				objs := []ctrlclient.Object{
 					&corev1.Namespace{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{steps.LabelJobID: "pj-123"},
 							Name:   "ci-op-1234",
 						},
 					},
 					&corev1.Secret{
-						ObjectMeta: v1.ObjectMeta{Name: EphemeralClusterTestName, Namespace: "ci-op-1234"},
+						ObjectMeta: metav1.ObjectMeta{Name: EphemeralClusterTestName, Namespace: "ci-op-1234"},
 						Data:       map[string][]byte{"kubeconfig": []byte("kubeconfig")},
 					},
 				}
@@ -913,7 +914,7 @@ func TestReconcile(t *testing.T) {
 				}
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:            "foo",
 					Namespace:       "bar",
 					ResourceVersion: "1000",
@@ -927,15 +928,15 @@ func TestReconcile(t *testing.T) {
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ProwJobCreatingDoneReason,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ClusterReady,
 						Status:             ephemeralclusterv1.ConditionTrue,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.TestCompleted,
 						Status:             ephemeralclusterv1.ConditionTrue,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}},
 				},
 			},
@@ -944,7 +945,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Test completed, ci-operator NS not found",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 					UID:       types.UID("test-ec-uid"),
@@ -956,7 +957,7 @@ func TestReconcile(t *testing.T) {
 			},
 			objs: []ctrlclient.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+					ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 					Spec:       prowv1.ProwJobSpec{Cluster: "build01"},
 				},
 			},
@@ -967,7 +968,7 @@ func TestReconcile(t *testing.T) {
 				}
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:            "foo",
 					Namespace:       "bar",
 					ResourceVersion: "1000",
@@ -980,19 +981,19 @@ func TestReconcile(t *testing.T) {
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ProwJobCreatingDoneReason,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ClusterReady,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ephemeralclusterv1.SecretsFetchFailureReason,
 						Message:            ephemeralclusterv1.CIOperatorNSNotFoundMsg,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.TestCompleted,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ephemeralclusterv1.CreateTestCompletedSecretFailureReason,
 						Message:            ephemeralclusterv1.CIOperatorNSNotFoundMsg,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}},
 				},
 			},
@@ -1001,7 +1002,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Test completed, secret exists do nothing",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 					UID:       types.UID("test-ec-uid"),
@@ -1013,20 +1014,20 @@ func TestReconcile(t *testing.T) {
 			},
 			objs: []ctrlclient.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+					ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 					Spec:       prowv1.ProwJobSpec{Cluster: "build01"},
 				},
 			},
 			buildClients: func() map[string]*ctrlruntimetest.FakeClient {
 				objs := []ctrlclient.Object{
 					&corev1.Namespace{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{steps.LabelJobID: "pj-123"},
 							Name:   "ci-op-1234",
 						},
 					},
 					&corev1.Secret{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels:    map[string]string{"do-not-change": ""},
 							Name:      api.EphemeralClusterTestDoneSignalSecretName,
 							Namespace: "ci-op-1234",
@@ -1039,7 +1040,7 @@ func TestReconcile(t *testing.T) {
 				}
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:            "foo",
 					Namespace:       "bar",
 					ResourceVersion: "1000",
@@ -1052,17 +1053,17 @@ func TestReconcile(t *testing.T) {
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ProwJobCreatingDoneReason,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ClusterReady,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ephemeralclusterv1.SecretsFetchFailureReason,
 						Message:            `secrets "cluster-provisioning" not found`,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.TestCompleted,
 						Status:             ephemeralclusterv1.ConditionTrue,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}},
 				},
 			},
@@ -1071,7 +1072,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Hive cluster provisioned, report secrets",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 					UID:       types.UID("test-ec-uid"),
@@ -1089,24 +1090,24 @@ func TestReconcile(t *testing.T) {
 			},
 			objs: []ctrlclient.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+					ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 					Spec:       prowv1.ProwJobSpec{Cluster: "build01"},
 				},
 			},
 			buildClients: func() map[string]*ctrlruntimetest.FakeClient {
 				objs := []ctrlclient.Object{
 					&corev1.Namespace{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{steps.LabelJobID: "pj-123"},
 							Name:   "ci-op-1234",
 						},
 					},
 					&corev1.Secret{
-						ObjectMeta: v1.ObjectMeta{Name: HiveKubeconfigSecret, Namespace: "ci-op-1234"},
+						ObjectMeta: metav1.ObjectMeta{Name: HiveKubeconfigSecret, Namespace: "ci-op-1234"},
 						Data:       map[string][]byte{api.HiveAdminKubeconfigSecretKey: []byte("kubeconfig")},
 					},
 					&corev1.Secret{
-						ObjectMeta: v1.ObjectMeta{Name: HiveAdminPasswdSecret, Namespace: "ci-op-1234"},
+						ObjectMeta: metav1.ObjectMeta{Name: HiveAdminPasswdSecret, Namespace: "ci-op-1234"},
 						Data:       map[string][]byte{api.HiveAdminPasswordSecretKey: []byte("admin-passwd")},
 					},
 				}
@@ -1116,7 +1117,7 @@ func TestReconcile(t *testing.T) {
 				}
 			},
 			wantSecret: &corev1.Secret{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo-credentials",
 					Namespace: "bar",
 				},
@@ -1126,7 +1127,7 @@ func TestReconcile(t *testing.T) {
 				},
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:            "foo",
 					Namespace:       "bar",
 					ResourceVersion: "1000",
@@ -1146,11 +1147,11 @@ func TestReconcile(t *testing.T) {
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ProwJobCreatingDoneReason,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ClusterReady,
 						Status:             ephemeralclusterv1.ConditionTrue,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}},
 				},
 			},
@@ -1159,7 +1160,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Hive cluster not ready yet, kubeconfig missing",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 					UID:       types.UID("test-ec-uid"),
@@ -1177,20 +1178,20 @@ func TestReconcile(t *testing.T) {
 			},
 			objs: []ctrlclient.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+					ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 					Spec:       prowv1.ProwJobSpec{Cluster: "build01"},
 				},
 			},
 			buildClients: func() map[string]*ctrlruntimetest.FakeClient {
 				objs := []ctrlclient.Object{
 					&corev1.Namespace{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{steps.LabelJobID: "pj-123"},
 							Name:   "ci-op-1234",
 						},
 					},
 					&corev1.Secret{
-						ObjectMeta: v1.ObjectMeta{Name: HiveAdminPasswdSecret, Namespace: "ci-op-1234"},
+						ObjectMeta: metav1.ObjectMeta{Name: HiveAdminPasswdSecret, Namespace: "ci-op-1234"},
 						Data:       map[string][]byte{api.HiveAdminPasswordSecretKey: []byte("admin-passwd")},
 					},
 				}
@@ -1200,7 +1201,7 @@ func TestReconcile(t *testing.T) {
 				}
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:            "foo",
 					Namespace:       "bar",
 					ResourceVersion: "1000",
@@ -1219,13 +1220,13 @@ func TestReconcile(t *testing.T) {
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ProwJobCreatingDoneReason,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ClusterReady,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ephemeralclusterv1.SecretsFetchFailureReason,
 						Message:            ephemeralclusterv1.HiveSecretsNotReadyMsg,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}},
 				},
 			},
@@ -1234,7 +1235,7 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Hive cluster not ready yet, errs out when fetching a secret",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "bar",
 					UID:       types.UID("test-ec-uid"),
@@ -1252,20 +1253,20 @@ func TestReconcile(t *testing.T) {
 			},
 			objs: []ctrlclient.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+					ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 					Spec:       prowv1.ProwJobSpec{Cluster: "build01"},
 				},
 			},
 			buildClients: func() map[string]*ctrlruntimetest.FakeClient {
 				objs := []ctrlclient.Object{
 					&corev1.Namespace{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{steps.LabelJobID: "pj-123"},
 							Name:   "ci-op-1234",
 						},
 					},
 					&corev1.Secret{
-						ObjectMeta: v1.ObjectMeta{Name: api.HiveAdminPasswordSecret, Namespace: "ci-op-1234"},
+						ObjectMeta: metav1.ObjectMeta{Name: api.HiveAdminPasswordSecret, Namespace: "ci-op-1234"},
 						Data:       map[string][]byte{api.HiveAdminPasswordSecretKey: []byte("admin-passwd")},
 					},
 				}
@@ -1284,7 +1285,7 @@ func TestReconcile(t *testing.T) {
 				}
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:            "foo",
 					Namespace:       "bar",
 					ResourceVersion: "1000",
@@ -1303,13 +1304,13 @@ func TestReconcile(t *testing.T) {
 						Type:               ephemeralclusterv1.ProwJobCreating,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ProwJobCreatingDoneReason,
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}, {
 						Type:               ephemeralclusterv1.ClusterReady,
 						Status:             ephemeralclusterv1.ConditionFalse,
 						Reason:             ephemeralclusterv1.SecretsFetchFailureReason,
 						Message:            "read secret cluster-provisioning-hive-admin-kubeconfig/ci-op-1234: injected",
-						LastTransitionTime: v1.NewTime(fakeNow),
+						LastTransitionTime: metav1.NewTime(fakeNow),
 					}},
 				},
 			},
@@ -1412,10 +1413,10 @@ func TestDeleteProwJob(t *testing.T) {
 		{
 			name: "Delete EC: abort the ProwJob",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:              "foo",
 					Namespace:         "bar",
-					DeletionTimestamp: ptr.To(v1.NewTime(fakeNow)),
+					DeletionTimestamp: ptr.To(metav1.NewTime(fakeNow)),
 					Finalizers:        []string{DependentProwJobFinalizer},
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
@@ -1423,13 +1424,13 @@ func TestDeleteProwJob(t *testing.T) {
 				},
 			},
 			pj: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+				ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:              "foo",
 					Namespace:         "bar",
-					DeletionTimestamp: ptr.To(v1.NewTime(fakeNow)),
+					DeletionTimestamp: ptr.To(metav1.NewTime(fakeNow)),
 					Finalizers:        []string{DependentProwJobFinalizer},
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
@@ -1437,11 +1438,11 @@ func TestDeleteProwJob(t *testing.T) {
 				},
 			},
 			wantPJ: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+				ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 				Status: prowv1.ProwJobStatus{
 					State:          prowv1.AbortedState,
 					Description:    AbortProwJobDeleteEC,
-					CompletionTime: ptr.To(v1.NewTime(fakeNow)),
+					CompletionTime: ptr.To(metav1.NewTime(fakeNow)),
 				},
 			},
 			wantRes: reconcile.Result{RequeueAfter: pollingTime},
@@ -1449,10 +1450,10 @@ func TestDeleteProwJob(t *testing.T) {
 		{
 			name: "Delete EC: ProwJob is gone already, remove the finalizer and delete EC",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:              "foo",
 					Namespace:         "bar",
-					DeletionTimestamp: ptr.To(v1.NewTime(fakeNow)),
+					DeletionTimestamp: ptr.To(metav1.NewTime(fakeNow)),
 					Finalizers:        []string{DependentProwJobFinalizer},
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{
@@ -1464,20 +1465,20 @@ func TestDeleteProwJob(t *testing.T) {
 		{
 			name: "Aborted ProwJob remove the finalizer and delete",
 			ec: &ephemeralclusterv1.EphemeralCluster{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:              "foo",
 					Namespace:         "bar",
-					DeletionTimestamp: ptr.To(v1.NewTime(fakeNow)),
+					DeletionTimestamp: ptr.To(metav1.NewTime(fakeNow)),
 					Finalizers:        []string{DependentProwJobFinalizer},
 				},
 				Status: ephemeralclusterv1.EphemeralClusterStatus{ProwJobID: "pj-123"},
 			},
 			pj: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+				ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 				Status:     prowv1.ProwJobStatus{State: prowv1.AbortedState},
 			},
 			wantPJ: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
+				ObjectMeta: metav1.ObjectMeta{Name: "pj-123", Namespace: prowJobNamespace},
 				Status:     prowv1.ProwJobStatus{State: prowv1.AbortedState},
 			},
 			wantRes: reconcile.Result{},
