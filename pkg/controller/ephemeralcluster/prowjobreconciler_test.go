@@ -11,7 +11,8 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/sirupsen/logrus"
 
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,7 +21,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 
+	"github.com/openshift/ci-tools/pkg/api"
 	ephemeralclusterv1 "github.com/openshift/ci-tools/pkg/api/ephemeralcluster/v1"
+	"github.com/openshift/ci-tools/pkg/steps"
+	ctrlruntimetest "github.com/openshift/ci-tools/pkg/testhelper/kubernetes/ctrlruntime"
 )
 
 // pjObjectMock exists because the ProwJob object doesn't implement the Object interface.
@@ -80,8 +84,10 @@ func TestReconcileProwJob(t *testing.T) {
 		pj           *prowv1.ProwJob
 		ec           *ephemeralclusterv1.EphemeralCluster
 		interceptors interceptor.Funcs
+		buildClients func() map[string]*ctrlruntimetest.FakeClient
 		wantEC       *ephemeralclusterv1.EphemeralCluster
 		wantPJ       *prowv1.ProwJob
+		wantSecret   *corev1.Secret
 		wantRes      reconcile.Result
 		wantErr      error
 	}{
@@ -89,7 +95,7 @@ func TestReconcileProwJob(t *testing.T) {
 			name: "No EphemeralCluster label, stop reconciling",
 			ec:   &ephemeralclusterv1.EphemeralCluster{},
 			pj: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "foo", Namespace: "bar"},
+				ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "bar"},
 			},
 			wantEC:  &ephemeralclusterv1.EphemeralCluster{},
 			wantRes: reconcile.Result{},
@@ -98,28 +104,143 @@ func TestReconcileProwJob(t *testing.T) {
 		{
 			name: "EphemeralCluster not found, aborting the ProwJob",
 			pj: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						EphemeralClusterLabel: "ec",
 					},
 					Name:      "foo",
 					Namespace: "bar",
 				},
+				Spec: prowv1.ProwJobSpec{Cluster: "build01"},
+			},
+			buildClients: func() map[string]*ctrlruntimetest.FakeClient {
+				c := fake.NewClientBuilder().WithScheme(scheme).Build()
+				return map[string]*ctrlruntimetest.FakeClient{"build01": ctrlruntimetest.NewFakeClient(c, scheme)}
 			},
 			wantPJ: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						EphemeralClusterLabel: "ec",
 					},
 					Name:      "foo",
 					Namespace: "bar",
 				},
+				Spec: prowv1.ProwJobSpec{Cluster: "build01"},
 				Status: prowv1.ProwJobStatus{
 					State:          prowv1.AbortedState,
 					Description:    AbortECNotFound,
-					CompletionTime: ptr.To(v1.NewTime(fakeNow)),
+					CompletionTime: ptr.To(metav1.NewTime(fakeNow)),
 				},
 			},
+		},
+		{
+			name: "Gracefully terminate ci-operator",
+			pj: &prowv1.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						EphemeralClusterLabel: "ec",
+					},
+					Name:      "foo",
+					Namespace: "bar",
+				},
+				Spec: prowv1.ProwJobSpec{Cluster: "build01"},
+			},
+			buildClients: func() map[string]*ctrlruntimetest.FakeClient {
+				objs := []ctrlclient.Object{&corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{steps.LabelJobID: "foo"},
+						Name:   "ci-op-1234",
+					},
+				}}
+				c := fake.NewClientBuilder().WithObjects(objs...).WithScheme(scheme).Build()
+				return map[string]*ctrlruntimetest.FakeClient{
+					"build01": ctrlruntimetest.NewFakeClient(c, scheme, ctrlruntimetest.WithInitObjects(objs...)),
+				}
+			},
+			wantPJ: &prowv1.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						EphemeralClusterLabel: "ec",
+					},
+					Name:      "foo",
+					Namespace: "bar",
+				},
+				Spec: prowv1.ProwJobSpec{Cluster: "build01"},
+			},
+			wantSecret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      api.EphemeralClusterTestDoneSignalSecretName,
+					Namespace: "ci-op-1234",
+				},
+			},
+		},
+		{
+			name: "Gracefully terminate ci-operator: secret exists already, do not create",
+			pj: &prowv1.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						EphemeralClusterLabel: "ec",
+					},
+					Name:      "foo",
+					Namespace: "bar",
+				},
+				Spec: prowv1.ProwJobSpec{Cluster: "build01"},
+			},
+			buildClients: func() map[string]*ctrlruntimetest.FakeClient {
+				objs := []ctrlclient.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Labels: map[string]string{steps.LabelJobID: "foo"},
+							Name:   "ci-op-1234",
+						},
+					},
+					&corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      api.EphemeralClusterTestDoneSignalSecretName,
+							Namespace: "ci-op-1234",
+						},
+						Data: map[string][]byte{"foo": []byte("bar")},
+					},
+				}
+				c := fake.NewClientBuilder().WithObjects(objs...).WithScheme(scheme).Build()
+				return map[string]*ctrlruntimetest.FakeClient{
+					"build01": ctrlruntimetest.NewFakeClient(c, scheme, ctrlruntimetest.WithInitObjects(objs...)),
+				}
+			},
+			wantPJ: &prowv1.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						EphemeralClusterLabel: "ec",
+					},
+					Name:      "foo",
+					Namespace: "bar",
+				},
+				Spec: prowv1.ProwJobSpec{Cluster: "build01"},
+			},
+			wantSecret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      api.EphemeralClusterTestDoneSignalSecretName,
+					Namespace: "ci-op-1234",
+				},
+				Data: map[string][]byte{"foo": []byte("bar")},
+			},
+		},
+		{
+			name: "Build client not found returns a terminal error",
+			pj: &prowv1.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						EphemeralClusterLabel: "ec",
+					},
+					Name:      "foo",
+					Namespace: "bar",
+				},
+				Spec: prowv1.ProwJobSpec{Cluster: "build01"},
+			},
+			buildClients: func() map[string]*ctrlruntimetest.FakeClient {
+				return map[string]*ctrlruntimetest.FakeClient{}
+			},
+			wantErr: reconcile.TerminalError(errors.New("unknown cluster build01")),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -130,10 +251,18 @@ func TestReconcileProwJob(t *testing.T) {
 				WithScheme(scheme)
 			client := addObjs(bldr, tc.pj, tc.ec).Build()
 
+			clients := make(map[string]ctrlclient.Client)
+			if tc.buildClients != nil {
+				for cluster, c := range tc.buildClients() {
+					clients[cluster] = c.WithWatch
+				}
+			}
+
 			r := prowJobReconciler{
-				logger: logrus.NewEntry(logrus.StandardLogger()),
-				client: client,
-				now:    func() time.Time { return fakeNow },
+				logger:       logrus.NewEntry(logrus.StandardLogger()),
+				masterClient: client,
+				buildClients: clients,
+				now:          func() time.Time { return fakeNow },
 			}
 
 			req := reconcile.Request{}
@@ -168,6 +297,24 @@ func TestReconcileProwJob(t *testing.T) {
 				ignoreFields := cmpopts.IgnoreFields(prowv1.ProwJob{}, "ResourceVersion")
 				if diff := cmp.Diff(tc.wantPJ, &gotPJ, ignoreFields); diff != "" {
 					t.Errorf("unexpected prowjob: %s", diff)
+				}
+			}
+
+			if tc.wantSecret != nil {
+				gotSecrets := &corev1.SecretList{}
+				client := clients[tc.pj.Spec.Cluster]
+				if err := client.List(context.TODO(), gotSecrets); err != nil {
+					t.Errorf("get secrets: %s", err)
+				}
+
+				if len(gotSecrets.Items) == 1 {
+					gotSecret := gotSecrets.Items[0]
+					ignoreFields := cmpopts.IgnoreFields(corev1.Secret{}, "ResourceVersion")
+					if diff := cmp.Diff(tc.wantSecret, &gotSecret, ignoreFields); diff != "" {
+						t.Errorf("unexpected secret: %s", diff)
+					}
+				} else {
+					t.Errorf("expected 1 secret, got %d", len(gotSecrets.Items))
 				}
 			}
 		})

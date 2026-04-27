@@ -16,7 +16,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -77,6 +78,16 @@ var (
 	isTagRegexp = regexp.MustCompile(`(?P<Namespace>.+)/(?P<Name>.+)\:(?P<Tag>.+)`)
 )
 
+type buildClients map[string]ctrlruntimeclient.Client
+
+func (bc buildClients) forCluster(cluster string) (ctrlruntimeclient.Client, error) {
+	buildClient, ok := bc[cluster]
+	if !ok {
+		return nil, fmt.Errorf("unknown cluster %s", cluster)
+	}
+	return buildClient, nil
+}
+
 type reconcilerOptions struct {
 	polling     time.Duration
 	cliISTagRef string
@@ -102,7 +113,7 @@ type NewProwJobFunc func(spec prowv1.ProwJobSpec, extraLabels, extraAnnotations 
 type reconciler struct {
 	logger          *logrus.Entry
 	masterClient    ctrlruntimeclient.Client
-	buildClients    map[string]ctrlruntimeclient.Client
+	buildClients    buildClients
 	newProwJob      NewProwJobFunc
 	prowConfigAgent *prowconfig.Agent
 	scheme          *runtime.Scheme
@@ -153,7 +164,7 @@ func AddToManager(log *logrus.Entry, mgr manager.Manager, allManagers map[string
 		return fmt.Errorf("build controller: %w", err)
 	}
 
-	if err := addPJReconcilerToManager(log, mgr); err != nil {
+	if err := addPJReconcilerToManager(log, mgr, buildClients); err != nil {
 		return fmt.Errorf("build prowjob controller: %w", err)
 	}
 
@@ -225,7 +236,7 @@ func (r *reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 }
 
 func (r *reconciler) handleGetProwJobError(ctx context.Context, log *logrus.Entry, ec *ephemeralclusterv1.EphemeralCluster, err error) (reconcile.Result, error) {
-	if kerrors.IsNotFound(err) {
+	if apierrors.IsNotFound(err) {
 		finalizers, removed := cislices.Delete(ec.Finalizers, DependentProwJobFinalizer)
 		if removed {
 			log.Info("ProwJob not found, removing the finalizer")
@@ -462,7 +473,7 @@ func (r *reconciler) fetchSecrets(
 	ecStatus *ephemeralclusterv1.EphemeralClusterStatus,
 	pj *prowv1.ProwJob,
 ) error {
-	buildClient, err := r.buildClientFor(pj)
+	buildClient, err := r.buildClients.forCluster(pj.Spec.Cluster)
 	if err != nil {
 		log.WithField("cluster", pj.Spec.Cluster).WithError(err).Error("Build client not found")
 		upsertCondition(ecStatus, ephemeralclusterv1.ClusterReady, ephemeralclusterv1.ConditionFalse, r.now(), ephemeralclusterv1.SecretsFetchFailureReason, err.Error())
@@ -509,7 +520,7 @@ func (r *reconciler) fetchHiveSecrets(
 		s := corev1.Secret{}
 		if err := buildClient.Get(ctx, types.NamespacedName{Name: secret.name, Namespace: ns}, &s); err != nil {
 			secretsReady = false
-			if !kerrors.IsNotFound(err) {
+			if !apierrors.IsNotFound(err) {
 				log.WithField("secret", secret.name).WithError(err).Error("Failed to read secret")
 				readSecretErr := fmt.Errorf("read secret %s/%s: %w", secret.name, ns, err)
 				upsertCondition(ecStatus, ephemeralclusterv1.ClusterReady, ephemeralclusterv1.ConditionFalse, r.now(), ephemeralclusterv1.SecretsFetchFailureReason, readSecretErr.Error())
@@ -610,7 +621,7 @@ func (r *reconciler) createCredentialsSecret(
 
 	existing := corev1.Secret{}
 	err := r.masterClient.Get(ctx, types.NamespacedName{Name: secretName, Namespace: ec.Namespace}, &existing)
-	if err != nil && !kerrors.IsNotFound(err) {
+	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("check credentials secret: %w", err)
 	}
 	if err == nil {
@@ -633,7 +644,7 @@ func (r *reconciler) createCredentialsSecret(
 	}
 
 	if err := r.masterClient.Create(ctx, secret); err != nil {
-		if !kerrors.IsAlreadyExists(err) {
+		if !apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("create credentials secret: %w", err)
 		}
 	} else {
@@ -683,7 +694,7 @@ func (r *reconciler) deleteEphemeralCluster(ctx context.Context, log *logrus.Ent
 	pj := prowv1.ProwJob{}
 	nn := types.NamespacedName{Namespace: r.prowConfigAgent.Config().ProwJobNamespace, Name: pjId}
 	if err := r.masterClient.Get(ctx, nn, &pj); err != nil {
-		if kerrors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			log.Info("ProwJob not found, removing the finalizer")
 			return removeFinalizer()
 		} else {
@@ -709,7 +720,7 @@ func (r *reconciler) abortProwJob(ctx context.Context, log *logrus.Entry, pj *pr
 
 	pj.Status.State = prowv1.AbortedState
 	pj.Status.Description = reason
-	pj.Status.CompletionTime = ptr.To(v1.NewTime(r.now()))
+	pj.Status.CompletionTime = ptr.To(metav1.NewTime(r.now()))
 
 	if err := r.masterClient.Update(ctx, pj); err != nil {
 		return reconcile.Result{}, fmt.Errorf("abort prowjob: %w", err)
@@ -722,7 +733,7 @@ func (r *reconciler) abortProwJob(ctx context.Context, log *logrus.Entry, pj *pr
 func (r *reconciler) notifyTestComplete(ctx context.Context, log *logrus.Entry, ec *ephemeralclusterv1.EphemeralClusterStatus, pj *prowv1.ProwJob) error {
 	ec.Phase = ephemeralclusterv1.EphemeralClusterDeprovisioning
 
-	buildClient, err := r.buildClientFor(pj)
+	buildClient, err := r.buildClients.forCluster(pj.Spec.Cluster)
 	if err != nil {
 		log.WithField("cluster", pj.Spec.Cluster).WithError(err).Warn("Build client not found")
 		upsertCondition(ec, ephemeralclusterv1.TestCompleted, ephemeralclusterv1.ConditionFalse, r.now(), ephemeralclusterv1.CreateTestCompletedSecretFailureReason, err.Error())
@@ -740,39 +751,22 @@ func (r *reconciler) notifyTestComplete(ctx context.Context, log *logrus.Entry, 
 	log = log.WithField("namespace", ns)
 	log.Info("ci-operator namespace found")
 
-	createSecret := false
-	if err := buildClient.Get(ctx, types.NamespacedName{Name: api.EphemeralClusterTestDoneSignalSecretName, Namespace: ns}, &corev1.Secret{}); err != nil {
-		if kerrors.IsNotFound(err) {
-			createSecret = true
-		} else {
-			log.WithError(err).Warn("Failed to fetch the secret")
-			return err
-		}
-	}
-
 	log = log.WithField("secret", api.EphemeralClusterTestDoneSignalSecretName)
-	if createSecret {
-		if err := buildClient.Create(ctx, &corev1.Secret{ObjectMeta: v1.ObjectMeta{
-			Name:      api.EphemeralClusterTestDoneSignalSecretName,
-			Namespace: ns,
-		}}); err != nil {
+	if err := buildClient.Create(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+		Name:      api.EphemeralClusterTestDoneSignalSecretName,
+		Namespace: ns,
+	}}); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
 			log.WithError(err).Warn("Failed to create the secret")
 			upsertCondition(ec, ephemeralclusterv1.TestCompleted, ephemeralclusterv1.ConditionFalse, r.now(), ephemeralclusterv1.CreateTestCompletedSecretFailureReason, err.Error())
-			return nil
+			return err
 		}
+	} else {
 		log.Info("Secret created")
 	}
 
 	upsertCondition(ec, ephemeralclusterv1.TestCompleted, ephemeralclusterv1.ConditionTrue, r.now(), "", "")
 	return nil
-}
-
-func (r *reconciler) buildClientFor(pj *prowv1.ProwJob) (ctrlruntimeclient.Client, error) {
-	buildClient, ok := r.buildClients[pj.Spec.Cluster]
-	if !ok {
-		return nil, fmt.Errorf("uknown cluster %s", pj.Spec.Cluster)
-	}
-	return buildClient, nil
 }
 
 func (r *reconciler) findCIOperatorTestNS(ctx context.Context, buildClient ctrlruntimeclient.Client, pj *prowv1.ProwJob) (string, error) {
@@ -793,7 +787,7 @@ func upsertCondition(ecStatus *ephemeralclusterv1.EphemeralClusterStatus, t ephe
 	newCond := ephemeralclusterv1.EphemeralClusterCondition{
 		Type:               t,
 		Status:             status,
-		LastTransitionTime: v1.NewTime(now),
+		LastTransitionTime: metav1.NewTime(now),
 		Reason:             reason,
 		Message:            msg,
 	}
