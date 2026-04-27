@@ -269,6 +269,66 @@ func TestNormalizeName(t *testing.T) {
 			input:    "sa.ci-operator.build01.config",
 			expected: fmt.Sprintf("sa%sci-operator%sbuild01%sconfig", DotReplacementString, DotReplacementString, DotReplacementString),
 		},
+		{
+			name:     "double underscores",
+			input:    "mac_ai__base_dir",
+			expected: "mac_ai--uu--base_dir",
+		},
+		{
+			name:     "triple underscores",
+			input:    "some___field",
+			expected: "some--uuu--field",
+		},
+		{
+			name:     "quadruple underscores",
+			input:    "test____name",
+			expected: "test--uuuu--name",
+		},
+		{
+			name:     "dots and double underscores",
+			input:    "field.with__both",
+			expected: "field--dot--with--uu--both",
+		},
+		{
+			name:     "real-world example with underscores and dots",
+			input:    "mac_ai__base_work_dir.mac4",
+			expected: "mac_ai--uu--base_work_dir--dot--mac4",
+		},
+		{
+			name:     "multiple double underscores",
+			input:    "a__b__c",
+			expected: "a--uu--b--uu--c",
+		},
+		{
+			name:     "mixed consecutive underscores",
+			input:    "a__b___c____d",
+			expected: "a--uu--b--uuu--c--uuuu--d",
+		},
+		{
+			name:     "starts with double underscores",
+			input:    "__field",
+			expected: "--uu--field",
+		},
+		{
+			name:     "ends with double underscores",
+			input:    "field__",
+			expected: "field--uu--",
+		},
+		{
+			name:     "starts and ends with double underscores",
+			input:    "__field__",
+			expected: "--uu--field--uu--",
+		},
+		{
+			name:     "starts with triple underscores",
+			input:    "___name",
+			expected: "--uuu--name",
+		},
+		{
+			name:     "ends with triple underscores",
+			input:    "name___",
+			expected: "name--uuu--",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -306,6 +366,66 @@ func TestDenormalizeName(t *testing.T) {
 			name:     "no encoding to decode",
 			input:    "simple-name",
 			expected: "simple-name",
+		},
+		{
+			name:     "decode double underscores",
+			input:    "mac_ai--uu--base_dir",
+			expected: "mac_ai__base_dir",
+		},
+		{
+			name:     "decode triple underscores",
+			input:    "some--uuu--field",
+			expected: "some___field",
+		},
+		{
+			name:     "decode quadruple underscores",
+			input:    "test--uuuu--name",
+			expected: "test____name",
+		},
+		{
+			name:     "decode dots and double underscores",
+			input:    "field--dot--with--uu--both",
+			expected: "field.with__both",
+		},
+		{
+			name:     "decode real-world example with underscores and dots",
+			input:    "mac_ai--uu--base_work_dir--dot--mac4",
+			expected: "mac_ai__base_work_dir.mac4",
+		},
+		{
+			name:     "decode multiple double underscores",
+			input:    "a--uu--b--uu--c",
+			expected: "a__b__c",
+		},
+		{
+			name:     "decode mixed consecutive underscores",
+			input:    "a--uu--b--uuu--c--uuuu--d",
+			expected: "a__b___c____d",
+		},
+		{
+			name:     "decode starts with double underscores",
+			input:    "--uu--field",
+			expected: "__field",
+		},
+		{
+			name:     "decode ends with double underscores",
+			input:    "field--uu--",
+			expected: "field__",
+		},
+		{
+			name:     "decode starts and ends with double underscores",
+			input:    "--uu--field--uu--",
+			expected: "__field__",
+		},
+		{
+			name:     "decode starts with triple underscores",
+			input:    "--uuu--name",
+			expected: "___name",
+		},
+		{
+			name:     "decode ends with triple underscores",
+			input:    "name--uuu--",
+			expected: "name___",
 		},
 	}
 

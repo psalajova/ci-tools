@@ -1155,7 +1155,7 @@ type CredentialReference struct {
 	// MountPath is where the secret should be mounted.
 	MountPath string `json:"mount_path"`
 	// Namespace is where the source secret exists.
-	Namespace string `json:"namespace"`
+	Namespace string `json:"namespace,omitempty"`
 	// Name is the name of the secret.
 	Name string `json:"name,omitempty"`
 }
