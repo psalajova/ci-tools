@@ -18,7 +18,9 @@ spec:
     env:
     - name: KUBECONFIG
       value: /etc/app-ci-kubeconfig/kubeconfig
-    image: registry.ci.openshift.org/ocp/4.14:cli
+    - name: KUBECACHEDIR
+      value: /tmp/.kube/cache
+    image: registry.ci.openshift.org/ocp/4.20:cli
     name: promotion
     resources: {}
     volumeMounts:

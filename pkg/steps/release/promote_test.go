@@ -801,7 +801,7 @@ func TestGetPromotionPod(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			testhelper.CompareWithFixture(t, getPromotionPod(testCase.imageMirror, "20240603235401", testCase.namespace, testCase.stepName, "4.14", testCase.nodeArchitectures))
+			testhelper.CompareWithFixture(t, getPromotionPod(testCase.imageMirror, "20240603235401", testCase.namespace, testCase.stepName, "4.20", testCase.nodeArchitectures))
 		})
 	}
 }
