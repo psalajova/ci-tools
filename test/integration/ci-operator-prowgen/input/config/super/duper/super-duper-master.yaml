@@ -43,6 +43,7 @@ tests:
   container:
     from: src
   postsubmit: true
+  max_concurrency: 6
 - as: lint
   commands: make test-lint
   container:

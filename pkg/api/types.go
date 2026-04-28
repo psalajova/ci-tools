@@ -882,6 +882,9 @@ type TestStepConfiguration struct {
 	// Only applicable to presubmits and periodics
 	ShardCount *int `json:"shard_count,omitempty"`
 
+	// MaxConcurrency sets the maximum number of this job running concurrently. 0 means no limit.
+	MaxConcurrency int `json:"max_concurrency,omitempty"`
+
 	// Only one of the following can be not-null.
 	ContainerTestConfiguration         *ContainerTestConfiguration         `json:"container,omitempty"`
 	MultiStageTestConfiguration        *MultiStageTestConfiguration        `json:"steps,omitempty"`
