@@ -234,6 +234,14 @@ func TestGeneratePresubmitForTest(t *testing.T) {
 				options.Capabilities = []string{"intranet", "arm64", "rce", "sshd-bastion"} // rce - release-controller-eligible, sshd-bastion - for multiarch P/Z libvirt jobs
 			},
 		},
+		{
+			description: "presubmit with max_concurrency",
+			test:        "testname",
+			repoInfo:    &ProwgenInfo{Metadata: ciop.Metadata{Org: "org", Repo: "repo", Branch: "branch"}},
+			generateOption: func(options *generatePresubmitOptions) {
+				options.maxConcurrency = 4
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -315,6 +323,15 @@ func TestGeneratePeriodicForTest(t *testing.T) {
 			generateOption: func(options *GeneratePeriodicOptions) {
 				options.Cron = "@yearly"
 				options.Capabilities = []string{"intranet", "arm64", "rce", "sshd-bastion"} // rce - release-controller-eligible, sshd-bastion - for multiarch P/Z libvirt jobs
+			},
+		},
+		{
+			description: "periodic with max_concurrency",
+			test:        "testname",
+			repoInfo:    &ProwgenInfo{Metadata: ciop.Metadata{Org: "org", Repo: "repo", Branch: "branch"}},
+			generateOption: func(options *GeneratePeriodicOptions) {
+				options.Cron = "@yearly"
+				options.MaxConcurrency = 3
 			},
 		},
 	}
@@ -892,6 +909,32 @@ func TestGenerateJobs(t *testing.T) {
 					PipelineSkipIfOnlyChanged: `^(docs/|.*\.md$)`,
 				},
 				PromotionConfiguration: &ciop.PromotionConfiguration{},
+			},
+			repoInfo: &ProwgenInfo{Metadata: ciop.Metadata{
+				Org:    "organization",
+				Repo:   "repository",
+				Branch: "branch",
+			}},
+		},
+		{
+			id: "postsubmit with max_concurrency from test config",
+			config: &ciop.ReleaseBuildConfiguration{
+				Tests: []ciop.TestStepConfiguration{
+					{As: "derTest", ContainerTestConfiguration: &ciop.ContainerTestConfiguration{From: "from"}},
+					{As: "leTest", ContainerTestConfiguration: &ciop.ContainerTestConfiguration{From: "from"}, Postsubmit: true, MaxConcurrency: 6}},
+			},
+			repoInfo: &ProwgenInfo{Metadata: ciop.Metadata{
+				Org:    "organization",
+				Repo:   "repository",
+				Branch: "branch",
+			}},
+		},
+		{
+			id: "periodic with max_concurrency from test config",
+			config: &ciop.ReleaseBuildConfiguration{
+				Tests: []ciop.TestStepConfiguration{
+					{As: "derTest", ContainerTestConfiguration: &ciop.ContainerTestConfiguration{From: "from"}, Cron: utilpointer.String(cron), MaxConcurrency: 3},
+				},
 			},
 			repoInfo: &ProwgenInfo{Metadata: ciop.Metadata{
 				Org:    "organization",

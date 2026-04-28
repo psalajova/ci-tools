@@ -1,0 +1,11 @@
+postsubmits:
+  organization/repository:
+  - always_run: true
+    max_concurrency: 6
+    name: branch-ci-organization-repository-branch-leTest
+presubmits:
+  organization/repository:
+  - always_run: false
+    labels:
+      pj-rehearse.openshift.io/can-be-rehearsed: "true"
+    name: pull-ci-organization-repository-branch-derTest

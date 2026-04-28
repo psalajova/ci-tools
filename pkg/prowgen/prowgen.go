@@ -97,6 +97,7 @@ func GenerateJobs(configSpec *cioperatorapi.ReleaseBuildConfiguration, info *Pro
 					options.ReleaseController = element.ReleaseController
 					options.DisableRehearsal = disableRehearsal
 					options.Retry = element.Retry
+					options.MaxConcurrency = element.MaxConcurrency
 				})
 				periodics = append(periodics, *periodic)
 				if element.Presubmit {
@@ -109,6 +110,9 @@ func GenerateJobs(configSpec *cioperatorapi.ReleaseBuildConfiguration, info *Pro
 					options.skipIfOnlyChanged = element.SkipIfOnlyChanged
 				})
 				postsubmit.MaxConcurrency = 1
+				if element.MaxConcurrency != 0 {
+					postsubmit.MaxConcurrency = element.MaxConcurrency
+				}
 				postsubmits[orgrepo] = append(postsubmits[orgrepo], *postsubmit)
 			} else {
 				handlePresubmit(g, element, info, name, disableRehearsal, configSpec.Resources.RequirementsForStep(element.As).Requests, presubmits, orgrepo)
@@ -228,6 +232,7 @@ func handlePresubmit(g *prowJobBaseBuilder, element cioperatorapi.TestStepConfig
 		options.defaultDisable = element.AlwaysRun != nil && !*element.AlwaysRun
 		options.optional = element.Optional
 		options.disableRehearsal = disableRehearsal
+		options.maxConcurrency = element.MaxConcurrency
 	})
 	v, requestingKVM := requests[cioperatorapi.KVMDeviceLabel]
 	if requestingKVM {
@@ -245,6 +250,7 @@ type generatePresubmitOptions struct {
 	defaultDisable            bool
 	optional                  bool
 	disableRehearsal          bool
+	maxConcurrency            int
 }
 
 func (opts *generatePresubmitOptions) shouldAlwaysRun() bool {
@@ -314,6 +320,7 @@ func generatePresubmitForTest(jobBaseBuilder *prowJobBaseBuilder, name string, i
 		},
 		Optional: opts.optional,
 	}
+	pj.MaxConcurrency = opts.maxConcurrency
 	injectCapabilities(pj.Labels, opts.Capabilities)
 	return pj
 }
@@ -374,6 +381,7 @@ type GeneratePeriodicOptions struct {
 	PathAlias         *string
 	DisableRehearsal  bool
 	Retry             *prowconfig.Retry
+	MaxConcurrency    int
 }
 
 type GeneratePeriodicOption func(options *GeneratePeriodicOptions)
@@ -427,6 +435,7 @@ func GeneratePeriodicForTest(jobBaseBuilder *prowJobBaseBuilder, info *ProwgenIn
 		MinimumInterval: opts.MinimumInterval,
 		Retry:           opts.Retry,
 	}
+	pj.MaxConcurrency = opts.MaxConcurrency
 	injectCapabilities(pj.Labels, opts.Capabilities)
 	return pj
 }
