@@ -246,6 +246,10 @@ func getTagCommand(tagSpecs []string, loglevel int) string {
 // "namespace/streamname-quay:tag", which is the format produced by getQuayProxyTarget when
 // ImageStreamTagReference.Name is non-empty (the standard ocp promotion case).
 // Example: "ocp/4.21-quay:ovn-kubernetes" → "quay-proxy.ci.openshift.org/openshift/ci:ocp_4.21_ovn-kubernetes".
+//
+// The stream segment must end with "-quay"; we split namespace/stream from tag using the last ":" in
+// the segment after "/". Using strings.Index(rest, "-quay:") is wrong when the promotion Name (stream
+// base before "-quay") itself contains "-quay", e.g. "something-quay-operator-quay:component".
 func quayProxyTagFromISKey(isTagKey string) (string, bool) {
 	slashIdx := strings.Index(isTagKey, "/")
 	if slashIdx == -1 {
@@ -253,27 +257,49 @@ func quayProxyTagFromISKey(isTagKey string) (string, bool) {
 	}
 	namespace := isTagKey[:slashIdx]
 	rest := isTagKey[slashIdx+1:]
-	const quaySuffix = "-quay:"
-	quayIdx := strings.Index(rest, quaySuffix)
-	if quayIdx == -1 {
+	lastColon := strings.LastIndex(rest, ":")
+	if lastColon == -1 {
 		return "", false
 	}
-	streamName := rest[:quayIdx]
-	tag := rest[quayIdx+len(quaySuffix):]
-	if namespace == "" || streamName == "" || tag == "" {
+	streamPart := rest[:lastColon]
+	tag := rest[lastColon+1:]
+	if namespace == "" || streamPart == "" || tag == "" {
+		return "", false
+	}
+	const quayStreamSuffix = "-quay"
+	if !strings.HasSuffix(streamPart, quayStreamSuffix) {
+		return "", false
+	}
+	streamName := strings.TrimSuffix(streamPart, quayStreamSuffix)
+	if streamName == "" {
 		return "", false
 	}
 	return fmt.Sprintf("%s/openshift/ci:%s_%s_%s", api.QCIAPPCIDomain, namespace, streamName, tag), true
 }
 
+// promotionCLIImageInfoFilterOS returns the --filter-by-os value matching the promotion pod's
+// node architecture (amd64 vs arm64-only) so oc image info resolves one digest for manifest lists.
+func promotionCLIImageInfoFilterOS(nodeArchitectures []string) string {
+	archs := sets.New[string](nodeArchitectures...)
+	if !archs.Has("amd64") && archs.Has("arm64") {
+		return "linux/arm64"
+	}
+	return "linux/amd64"
+}
+
 // getResolveAndTagCommand generates a shell command that queries QCI for the manifest digest of
 // quayProxyTag (via oc image info, after it has been mirrored) and then uses that digest to tag
 // the IS target. This ensures spec.from always holds the exact QCI digest pullspec.
-func getResolveAndTagCommand(registryConfig, quayProxyTag, isTag string, loglevel int) string {
+//
+// Parses digest from oc image info default text (Digest: sha256:… line). Older oc rejects -o jsonpath
+// for oc image info ("unrecognized --output, only 'json' is supported"); jq/python are unnecessary.
+// --filter-by-os selects one manifest when the tag points at an image index (manifest list); it is
+// ignored for single-manifest references (see oc image info --help).
+func getResolveAndTagCommand(registryConfig, quayProxyTag, isTag string, loglevel int, filterByOS string) string {
 	repo := quayProxyTag[:strings.LastIndex(quayProxyTag, ":")]
 	return fmt.Sprintf(
-		`_digest=$(oc image info --output=json --registry-config=%s %s | jq -r '.digest') && oc tag --source=docker --loglevel=%d --reference-policy='source' --import-mode='PreserveOriginal' --reference %s@${_digest} %s`,
-		registryConfig, quayProxyTag, loglevel, repo, isTag,
+		`_digest=$(oc image info --registry-config=%s --filter-by-os=%s %s | sed -n '/^Digest:[[:space:]]/s/^Digest:[[:space:]]*//p' | head -n1) && oc tag --source=docker --loglevel=%d --reference-policy='source' --import-mode='PreserveOriginal' --reference %s@${_digest} %s`,
+		registryConfig, filterByOS, quayProxyTag, loglevel, repo, isTag,
 	)
 }
 
@@ -359,7 +385,7 @@ func getPromotionPod(imageMirrorTarget map[string]string, timeStr string, namesp
 		// Concrete *-quay IS targets: resolve QCI digest post-mirror, then tag.
 		for _, pair := range resolveAndTagPairs {
 			quayProxyTag, isTag := pair[0], pair[1]
-			resolveCmd := getResolveAndTagCommand(registryConfig, quayProxyTag, isTag, 2)
+			resolveCmd := getResolveAndTagCommand(registryConfig, quayProxyTag, isTag, 2, promotionCLIImageInfoFilterOS(nodeArchitectures))
 			retryCmd := fmt.Sprintf(retryLoopTemplate, 3, fmt.Sprintf("'Digest-tag attempt $r (%s)'", isTag), resolveCmd, retryLoopWithBackoff)
 			tagCommands = append(tagCommands, retryCmd)
 		}
@@ -389,7 +415,7 @@ func getPromotionPod(imageMirrorTarget map[string]string, timeStr string, namesp
 
 	archs := sets.New[string](nodeArchitectures...)
 	if !archs.Has("amd64") && archs.Has("arm64") {
-		image = fmt.Sprintf("%s/%s/4.14:cli", api.DomainForService(api.ServiceRegistry), "ocp-arm64")
+		image = fmt.Sprintf("%s/%s/%s:cli", api.DomainForService(api.ServiceRegistry), "ocp-arm64", cliVersion)
 		nodeSelector = map[string]string{"kubernetes.io/arch": "arm64"}
 	}
 
@@ -409,10 +435,10 @@ func getPromotionPod(imageMirrorTarget map[string]string, timeStr string, namesp
 					Command: command,
 					Args:    args,
 					Env: []coreapi.EnvVar{
-						{
-							Name:  "KUBECONFIG",
-							Value: "/etc/app-ci-kubeconfig/kubeconfig",
-						},
+						// Discovery cache only: without KUBECACHEDIR, client-go defaults to $HOME/.kube/cache; with no
+						// writable HOME in the container that becomes /.kube and logs many INFO lines ("permission denied").
+						{Name: "KUBECONFIG", Value: "/etc/app-ci-kubeconfig/kubeconfig"},
+						{Name: "KUBECACHEDIR", Value: "/tmp/.kube/cache"},
 					},
 					VolumeMounts: []coreapi.VolumeMount{
 						{
