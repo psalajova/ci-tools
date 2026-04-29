@@ -2,5 +2,5 @@ agent: kubernetes
 decorate: true
 decoration_config:
   sparse_checkout_files:
-  - Dockerfile
-name: default-ci-openshift-release-main-
+  - .ci-operator.yaml
+name: default-ci-org-repo-branch-

@@ -1,0 +1,10 @@
+agent: kubernetes
+decorate: true
+decoration_config:
+  sparse_checkout_files:
+  - .ci-operator.yaml
+  - Dockerfile
+  - cmd/tool/build.Dockerfile
+  - images/app/Dockerfile
+  - images/tool.Dockerfile
+name: default-ci-org-repo-branch-
