@@ -3,14 +3,11 @@ periodics:
   cron: '@yearly'
   decorate: true
   decoration_config:
-    sparse_checkout_files:
-    - Dockerfile
+    skip_cloning: true
   extra_refs:
   - base_ref: master
     org: super
     repo: duper
-    sparse_checkout_files:
-    - Dockerfile
   labels:
     ci.openshift.io/generator: prowgen
     pj-rehearse.openshift.io/can-be-rehearsed: "true"
@@ -65,14 +62,11 @@ periodics:
 - agent: kubernetes
   decorate: true
   decoration_config:
-    sparse_checkout_files:
-    - Dockerfile
+    skip_cloning: true
   extra_refs:
   - base_ref: master
     org: super
     repo: duper
-    sparse_checkout_files:
-    - Dockerfile
   interval: 24h
   labels:
     ci.openshift.io/generator: prowgen
@@ -129,14 +123,11 @@ periodics:
   cron: '@yearly'
   decorate: true
   decoration_config:
-    sparse_checkout_files:
-    - Dockerfile
+    skip_cloning: true
   extra_refs:
   - base_ref: master
     org: super
     repo: duper
-    sparse_checkout_files:
-    - Dockerfile
   labels:
     ci.openshift.io/generator: prowgen
     pj-rehearse.openshift.io/can-be-rehearsed: "true"
@@ -192,14 +183,11 @@ periodics:
   cron: '@yearly'
   decorate: true
   decoration_config:
-    sparse_checkout_files:
-    - Dockerfile
+    skip_cloning: true
   extra_refs:
   - base_ref: master
     org: super
     repo: duper
-    sparse_checkout_files:
-    - Dockerfile
   labels:
     ci-operator.openshift.io/release-controller: "true"
     ci.openshift.io/generator: prowgen

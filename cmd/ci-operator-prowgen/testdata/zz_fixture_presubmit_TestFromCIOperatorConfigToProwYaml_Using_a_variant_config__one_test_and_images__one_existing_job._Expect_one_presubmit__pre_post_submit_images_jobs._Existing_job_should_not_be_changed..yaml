@@ -8,8 +8,7 @@ presubmits:
     context: ci/prow/rhel-images
     decorate: true
     decoration_config:
-      sparse_checkout_files:
-      - Dockerfile
+      skip_cloning: true
     labels:
       ci-operator.openshift.io/variant: rhel
       ci.openshift.io/generator: prowgen
@@ -65,8 +64,7 @@ presubmits:
     context: ci/prow/rhel-unit
     decorate: true
     decoration_config:
-      sparse_checkout_files:
-      - Dockerfile
+      skip_cloning: true
     labels:
       ci-operator.openshift.io/variant: rhel
       ci.openshift.io/generator: prowgen

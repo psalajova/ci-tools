@@ -6,8 +6,7 @@ postsubmits:
     - ^branch$
     decorate: true
     decoration_config:
-      sparse_checkout_files:
-      - Dockerfile
+      skip_cloning: true
     labels:
       ci-operator.openshift.io/is-promotion: "true"
     max_concurrency: 1
@@ -70,8 +69,7 @@ presubmits:
     context: ci/prow/images
     decorate: true
     decoration_config:
-      sparse_checkout_files:
-      - Dockerfile
+      skip_cloning: true
     labels:
       pj-rehearse.openshift.io/can-be-rehearsed: "true"
     name: pull-ci-organization-repository-branch-images
