@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/prow/pkg/flagutil"
 
 	"github.com/openshift/ci-tools/pkg/api"
 	"github.com/openshift/ci-tools/pkg/config"
@@ -21,6 +22,8 @@ type options struct {
 
 	BumpRelease   string
 	skipPeriodics bool
+	// skipDerivedConfigBranches lists org/repo values for which main/master is not mirrored to release-*.
+	skipDerivedConfigBranches flagutil.Strings
 }
 
 func (o *options) Validate() error {
@@ -29,12 +32,36 @@ func (o *options) Validate() error {
 		return fmt.Errorf("future releases %v do not contain bump release %v", sets.List(futureReleases), o.BumpRelease)
 	}
 
+	if _, err := o.derivedSkipBranchSet(); err != nil {
+		return err
+	}
+
 	return o.FutureOptions.Validate()
 }
 
 func (o *options) Bind(fs *flag.FlagSet) {
 	fs.StringVar(&o.BumpRelease, "bump-release", "", "Bump the dev config to this release and manage mirroring.")
+	fs.Var(&o.skipDerivedConfigBranches, "skip-derived-config-branch", "Do not mirror main/master to release-* for this org/repo (repeatable). If unset, defaults to openshift/etcd and openshift-priv/etcd.")
 	o.FutureOptions.Bind(fs)
+}
+
+func (o *options) derivedSkipBranchSet() (sets.Set[string], error) {
+	out := sets.New[string]()
+	for _, v := range o.skipDerivedConfigBranches.Strings() {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		parts := strings.Split(v, "/")
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return nil, fmt.Errorf("--skip-derived-config-branch: %q is not org/repo", v)
+		}
+		out.Insert(v)
+	}
+	if out.Len() == 0 {
+		return sets.New[string]("openshift/etcd", "openshift-priv/etcd"), nil
+	}
+	return out, nil
 }
 
 func gatherOptions() options {
@@ -71,9 +98,14 @@ func main() {
 		logrus.Fatalf("Invalid options: %v", err)
 	}
 
+	skipBranches, err := o.derivedSkipBranchSet()
+	if err != nil {
+		logrus.WithError(err).Fatal("Invalid skip-derived-config-branch values.")
+	}
+
 	var toCommit []config.DataWithInfo
 	if err := o.OperateOnCIOperatorConfigDir(o.ConfigDir, api.WithOKD, func(configuration *api.ReleaseBuildConfiguration, info *config.Info) error {
-		for _, output := range generateBranchedConfigs(o.CurrentRelease, o.BumpRelease, o.FutureReleases.Strings(), config.DataWithInfo{Configuration: *configuration, Info: *info}, o.skipPeriodics) {
+		for _, output := range generateBranchedConfigs(o.CurrentRelease, o.BumpRelease, o.FutureReleases.Strings(), config.DataWithInfo{Configuration: *configuration, Info: *info}, o.skipPeriodics, skipBranches) {
 			if !o.Confirm {
 				output.Logger().Info("Would commit new file.")
 				continue
@@ -99,7 +131,7 @@ func main() {
 	}
 }
 
-func generateBranchedConfigs(currentRelease, bumpRelease string, futureReleases []string, input config.DataWithInfo, skipPeriodics bool) []config.DataWithInfo {
+func generateBranchedConfigs(currentRelease, bumpRelease string, futureReleases []string, input config.DataWithInfo, skipPeriodics bool, skipDerivedBranches sets.Set[string]) []config.DataWithInfo {
 	var output []config.DataWithInfo
 	input.Logger().Info("Branching configuration.")
 	currentConfig := input.Configuration
@@ -112,6 +144,10 @@ func generateBranchedConfigs(currentRelease, bumpRelease string, futureReleases 
 		updateImages(&currentConfig, currentRelease, bumpRelease)
 		// this config will continue to run for the dev branch but will be bumped
 		output = append(output, config.DataWithInfo{Configuration: currentConfig, Info: input.Info})
+	}
+
+	if promotion.SkipDerivedConfigsFromDefaultBranch(input.Info.Org, input.Info.Repo, input.Info.Branch, skipDerivedBranches) {
+		return output
 	}
 
 	for _, futureRelease := range futureReleases {
