@@ -6,8 +6,7 @@ postsubmits:
     - ^branch$
     decorate: true
     decoration_config:
-      sparse_checkout_files:
-      - Dockerfile
+      skip_cloning: true
     labels:
       ci-operator.openshift.io/is-promotion: "true"
       ci.openshift.io/generator: prowgen

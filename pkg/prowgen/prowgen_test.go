@@ -262,7 +262,6 @@ func TestGeneratePeriodicForTest(t *testing.T) {
 
 		test           string
 		repoInfo       *ProwgenInfo
-		configSpec     *ciop.ReleaseBuildConfiguration
 		jobRelease     string
 		clone          bool
 		generateOption GeneratePeriodicOption
@@ -335,36 +334,6 @@ func TestGeneratePeriodicForTest(t *testing.T) {
 				options.MaxConcurrency = 3
 			},
 		},
-		{
-			description: "periodic with from_repository build root: ExtraRefs has sparse checkout files",
-			test:        "testname",
-			repoInfo:    &ProwgenInfo{Metadata: ciop.Metadata{Org: "org", Repo: "repo", Branch: "branch"}},
-			configSpec: &ciop.ReleaseBuildConfiguration{
-				InputConfiguration: ciop.InputConfiguration{
-					BuildRootImage: &ciop.BuildRootImageConfiguration{FromRepository: true},
-				},
-			},
-			generateOption: func(options *GeneratePeriodicOptions) {
-				options.Cron = "@yearly"
-			},
-		},
-		{
-			description: "periodic with from_repository build root and images: ExtraRefs has sparse checkout files with dockerfiles",
-			test:        "testname",
-			repoInfo:    &ProwgenInfo{Metadata: ciop.Metadata{Org: "org", Repo: "repo", Branch: "branch"}},
-			configSpec: &ciop.ReleaseBuildConfiguration{
-				InputConfiguration: ciop.InputConfiguration{
-					BuildRootImage: &ciop.BuildRootImageConfiguration{FromRepository: true},
-				},
-				Images: ciop.ImageConfiguration{Items: []ciop.ProjectDirectoryImageBuildStepConfiguration{
-					{To: "image-default", ProjectDirectoryImageBuildInputs: ciop.ProjectDirectoryImageBuildInputs{}},
-					{To: "image-with-ctx", ProjectDirectoryImageBuildInputs: ciop.ProjectDirectoryImageBuildInputs{ContextDir: "images/app"}},
-				}},
-			},
-			generateOption: func(options *GeneratePeriodicOptions) {
-				options.Cron = "@yearly"
-			},
-		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -372,12 +341,8 @@ func TestGeneratePeriodicForTest(t *testing.T) {
 			if generateOption == nil {
 				generateOption = func(options *GeneratePeriodicOptions) {}
 			}
-			configSpec := tc.configSpec
-			if configSpec == nil {
-				configSpec = &ciop.ReleaseBuildConfiguration{}
-			}
 			test := ciop.TestStepConfiguration{As: tc.test}
-			jobBaseGen := NewProwJobBaseBuilderForTest(configSpec, tc.repoInfo, newFakePodSpecBuilder(), test)
+			jobBaseGen := NewProwJobBaseBuilderForTest(&ciop.ReleaseBuildConfiguration{}, tc.repoInfo, newFakePodSpecBuilder(), test)
 			testhelper.CompareWithFixture(t, GeneratePeriodicForTest(jobBaseGen, tc.repoInfo, generateOption))
 		})
 	}

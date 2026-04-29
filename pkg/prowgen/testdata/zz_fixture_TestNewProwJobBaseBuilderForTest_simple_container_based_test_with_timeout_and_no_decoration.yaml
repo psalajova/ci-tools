@@ -1,8 +1,6 @@
 agent: kubernetes
 decorate: true
 decoration_config:
-  sparse_checkout_files:
-  - .ci-operator.yaml
   timeout: 1s
 name: prefix-ci-o-r-b-simple
 spec:
