@@ -274,6 +274,13 @@ func ciOperatorConfigsCallback(o options, configsByRepo configsByRepo, flattened
 		rbc.Metadata.Org = o.toOrg
 		rbc.Metadata.Repo = repoInfo.Repo
 
+		if o.toOrg == "openshift-priv" {
+			if rbc.Prowgen == nil {
+				rbc.Prowgen = &api.ProwgenOverrides{}
+			}
+			rbc.Prowgen.Private = true
+		}
+
 		if len(rbc.Tests) > 0 || len(rbc.Images.Items) > 0 {
 			configsByRepo[repoInfo.Repo] = append(configsByRepo[repoInfo.Repo], config.DataWithInfo{
 				Configuration: *rbc,
