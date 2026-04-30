@@ -63,6 +63,18 @@ func IsBumpable(branch, currentRelease string) bool {
 	return branch != fmt.Sprintf("openshift-%s", currentRelease)
 }
 
+// SkipDerivedConfigsFromDefaultBranch skips main/master → release-* mirroring when org/repo
+// is in skipBranches (keys are literal "org/repo"). Empty skipBranches never skips.
+func SkipDerivedConfigsFromDefaultBranch(org, repo, branch string, skipBranches sets.Set[string]) bool {
+	if skipBranches == nil || skipBranches.Len() == 0 {
+		return false
+	}
+	if branch != "master" && branch != "main" {
+		return false
+	}
+	return skipBranches.Has(org + "/" + repo)
+}
+
 // DetermineReleaseBranch determines the branch that will be used to the future release,
 // based on the branch that is currently promoting to the current release.
 func DetermineReleaseBranch(currentRelease, futureRelease, currentBranch string) (string, error) {

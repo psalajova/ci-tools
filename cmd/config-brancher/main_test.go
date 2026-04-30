@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/prow/pkg/flagutil"
 
 	"github.com/openshift/ci-tools/pkg/api"
@@ -17,13 +18,14 @@ func TestGenerateBranchedConfigs(t *testing.T) {
 	interval := "72h"
 	cron := "@weekly"
 	var testCases = []struct {
-		name           string
-		currentRelease string
-		bumpRelease    string
-		futureReleases []string
-		input          config.DataWithInfo
-		skipPeriodics  bool
-		output         []config.DataWithInfo
+		name                string
+		currentRelease      string
+		bumpRelease         string
+		futureReleases      []string
+		input               config.DataWithInfo
+		skipPeriodics       bool
+		skipDerivedBranches sets.Set[string]
+		output              []config.DataWithInfo
 	}{
 		{
 			name:           "config that doesn't promote anywhere is ignored",
@@ -35,6 +37,27 @@ func TestGenerateBranchedConfigs(t *testing.T) {
 				},
 				Info: config.Info{
 					Metadata: api.Metadata{Org: "org", Repo: "repo", Branch: "branch"},
+				},
+			},
+			output: nil,
+		},
+		{
+			name:                "etcd main skips derived release-* configs",
+			currentRelease:      "5.0",
+			bumpRelease:         "",
+			futureReleases:      []string{"5.0", "4.23", "5.1"},
+			skipDerivedBranches: sets.New[string]("openshift/etcd"),
+			input: config.DataWithInfo{
+				Configuration: api.ReleaseBuildConfiguration{
+					PromotionConfiguration: &api.PromotionConfiguration{
+						Targets: []api.PromotionTarget{{
+							Name:      "5.0",
+							Namespace: "ocp",
+						}},
+					},
+				},
+				Info: config.Info{
+					Metadata: api.Metadata{Org: "openshift", Repo: "etcd", Branch: "main"},
 				},
 			},
 			output: nil,
@@ -533,7 +556,7 @@ func TestGenerateBranchedConfigs(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			actual, expected := generateBranchedConfigs(testCase.currentRelease, testCase.bumpRelease, testCase.futureReleases, testCase.input, testCase.skipPeriodics), testCase.output
+			actual, expected := generateBranchedConfigs(testCase.currentRelease, testCase.bumpRelease, testCase.futureReleases, testCase.input, testCase.skipPeriodics, testCase.skipDerivedBranches), testCase.output
 			if len(actual) != len(expected) {
 				t.Fatalf("%s: did not generate correct amount of output configs, needed %d got %d", testCase.name, len(expected), len(actual))
 			}

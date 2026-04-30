@@ -111,6 +111,35 @@ func TestAllPromotionImageStreamTags(t *testing.T) {
 	}
 }
 
+func TestSkipDerivedConfigsFromDefaultBranch(t *testing.T) {
+	skipPublic := sets.New[string]("openshift/etcd")
+	skipPriv := sets.New[string]("openshift-priv/etcd")
+	skipBoth := sets.New[string]("openshift/etcd", "openshift-priv/etcd")
+	for _, tc := range []struct {
+		name              string
+		org, repo, branch string
+		skipBranches      sets.Set[string]
+		want              bool
+	}{
+		{name: "openshift etcd main", org: "openshift", repo: "etcd", branch: "main", skipBranches: skipPublic, want: true},
+		{name: "openshift etcd master", org: "openshift", repo: "etcd", branch: "master", skipBranches: skipPublic, want: true},
+		{name: "openshift-priv etcd main", org: "openshift-priv", repo: "etcd", branch: "main", skipBranches: skipPriv, want: true},
+		{name: "openshift-priv etcd main only public in set", org: "openshift-priv", repo: "etcd", branch: "main", skipBranches: skipPublic, want: false},
+		{name: "openshift etcd product branch", org: "openshift", repo: "etcd", branch: "openshift-5.0", skipBranches: skipBoth, want: false},
+		{name: "openshift etcd release branch", org: "openshift", repo: "etcd", branch: "release-5.0", skipBranches: skipBoth, want: false},
+		{name: "other repo", org: "openshift", repo: "other", branch: "main", skipBranches: skipBoth, want: false},
+		{name: "other org", org: "other", repo: "etcd", branch: "main", skipBranches: skipBoth, want: false},
+		{name: "nil skip set", org: "openshift", repo: "etcd", branch: "main", skipBranches: nil, want: false},
+		{name: "empty skip set", org: "openshift", repo: "etcd", branch: "main", skipBranches: sets.New[string](), want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := SkipDerivedConfigsFromDefaultBranch(tc.org, tc.repo, tc.branch, tc.skipBranches); got != tc.want {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
+	}
+}
+
 func TestDetermineReleaseBranches(t *testing.T) {
 	var testCases = []struct {
 		name                                         string
