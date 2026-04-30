@@ -6,6 +6,8 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
+
+	kyaml "sigs.k8s.io/yaml"
 )
 
 func TestOverlay(t *testing.T) {
@@ -341,6 +343,206 @@ func TestInputImageTagStepConfiguration(t *testing.T) {
 				if diff := cmp.Diff(testCase.expectedFormattedSources, testCase.config.FormattedSources()); diff != "" {
 					t.Errorf("Unexpected formatted sources : %v", diff)
 				}
+			}
+		})
+	}
+}
+
+func TestUnmarshalClusterProfilesList(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name                   string
+		data                   string
+		wantClusterProfileList ClusterProfilesList
+	}{
+		{
+			name: "Unmarshal legacy schema",
+			data: `
+- profile: aws
+  owners:
+  - org: 3scale
+    repos:
+    - 3scale-operator
+`,
+			wantClusterProfileList: ClusterProfilesList{{
+				Profile: "aws",
+				Owners: []ClusterProfileOwners{{
+					Org:   "3scale",
+					Repos: []string{"3scale-operator"},
+				}},
+			}},
+		},
+		{
+			name: "Unmarshal new schema",
+			data: `
+konflux:
+  cluster_groups:
+    konflux_prod:
+    - rh01
+
+cluster_profiles:
+- profile: aws
+  owners:
+  - org: 3scale
+    repos:
+    - 3scale-operator
+- name: aws-2
+  owners:
+  - konflux:
+      tenant: konflux-ui
+      clusters:
+      - dev
+      cluster_groups:
+      - konflux_prod
+`,
+			wantClusterProfileList: ClusterProfilesList{{
+				Profile: "aws",
+				Owners: []ClusterProfileOwners{{
+					Org:   "3scale",
+					Repos: []string{"3scale-operator"},
+				}},
+			}, {
+				Name:    "aws-2",
+				Profile: "aws-2",
+				Owners: []ClusterProfileOwners{{
+					Konflux: &ClusterProfileKonfluxOwner{
+						Tenant:        "konflux-ui",
+						ClusterGroups: []string{"konflux_prod"},
+						Clusters:      []string{"dev", "rh01"},
+					},
+				}},
+			}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotClusterProfileList := &ClusterProfilesList{}
+			if err := kyaml.Unmarshal([]byte(tc.data), gotClusterProfileList); err != nil {
+				t.Fatalf("unmarshal: %s", err)
+			}
+
+			if diff := cmp.Diff(tc.wantClusterProfileList, *gotClusterProfileList); diff != "" {
+				t.Errorf("unexpected profiles: %s", diff)
+			}
+		})
+	}
+}
+
+func TestResolveClusterProfileList(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		profiles     clusterProfilesList2
+		wantProfiles clusterProfilesList2
+		wantErr      string
+	}{
+		{
+			name: "Resolve cluster groups",
+			profiles: clusterProfilesList2{
+				KonfluxConfig: &ClusterProfileKonfluxConfig{
+					ClusterGroups: map[string][]string{
+						"prod": {"prod_1"},
+						"stg":  {"stg_0"},
+					},
+				},
+				ClusterProfiles: []ClusterProfileDetails{{
+					Profile: "aws",
+					Owners: []ClusterProfileOwners{{
+						Konflux: &ClusterProfileKonfluxOwner{
+							Tenant:        "knflx-tenant",
+							ClusterGroups: []string{"prod", "stg"},
+							Clusters:      []string{"dev"},
+						},
+					}},
+				}, {
+					Profile: "aws-2",
+					Owners: []ClusterProfileOwners{{
+						Konflux: &ClusterProfileKonfluxOwner{
+							Tenant:   "knflx-tenant-2",
+							Clusters: []string{"dev"},
+						},
+					}},
+				}},
+			},
+			wantProfiles: clusterProfilesList2{
+				KonfluxConfig: &ClusterProfileKonfluxConfig{
+					ClusterGroups: map[string][]string{
+						"prod": {"prod_1"},
+						"stg":  {"stg_0"},
+					},
+				},
+				ClusterProfiles: []ClusterProfileDetails{{
+					Profile: "aws",
+					Owners: []ClusterProfileOwners{{
+						Konflux: &ClusterProfileKonfluxOwner{
+							Tenant:        "knflx-tenant",
+							ClusterGroups: []string{"prod", "stg"},
+							Clusters:      []string{"dev", "prod_1", "stg_0"},
+						},
+					}},
+				}, {
+					Profile: "aws-2",
+					Owners: []ClusterProfileOwners{{
+						Konflux: &ClusterProfileKonfluxOwner{
+							Tenant:   "knflx-tenant-2",
+							Clusters: []string{"dev"},
+						},
+					}},
+				}},
+			},
+		},
+		{
+			name: "Override profile when name is set",
+			profiles: clusterProfilesList2{
+				ClusterProfiles: []ClusterProfileDetails{{
+					Name:    "aws",
+					Profile: "foo",
+				}},
+			},
+			wantProfiles: clusterProfilesList2{
+				ClusterProfiles: []ClusterProfileDetails{{
+					Name:    "aws",
+					Profile: "aws",
+				}},
+			},
+		},
+		{
+			name: "Cluster group does not exist",
+			profiles: clusterProfilesList2{
+				ClusterProfiles: []ClusterProfileDetails{{
+					Profile: "aws",
+					Owners: []ClusterProfileOwners{{
+						Konflux: &ClusterProfileKonfluxOwner{
+							Tenant:        "knflx-tenant",
+							ClusterGroups: []string{"foobar"},
+						},
+					}},
+				}},
+			},
+			wantErr: "profiles[0].owners[0] cluster group foobar not found",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotErr := tc.profiles.Resolve()
+			if tc.wantErr != "" {
+				if gotErr == nil {
+					t.Fatalf("want err %s but go nil", tc.wantErr)
+				}
+				if tc.wantErr != gotErr.Error() {
+					t.Fatalf("want err %s but go %s", tc.wantErr, gotErr.Error())
+				}
+				return
+			}
+			if gotErr != nil {
+				t.Fatalf("unexpected error: %v", gotErr)
+			}
+
+			if diff := cmp.Diff(tc.wantProfiles, tc.profiles); diff != "" {
+				t.Errorf("unexpected profiles: %s", diff)
 			}
 		})
 	}

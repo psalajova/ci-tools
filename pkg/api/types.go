@@ -1,9 +1,13 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
+	"regexp"
+	"slices"
 	"strings"
 
+	aggerrs "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	prowconfig "sigs.k8s.io/prow/pkg/config"
@@ -2968,11 +2972,106 @@ func (m *MetadataWithTest) JobName(prefix string) string {
 	return m.Metadata.JobName(prefix, m.Test)
 }
 
+type ClusterProfileKonfluxConfig struct {
+	ClusterGroups map[string][]string `yaml:"cluster_groups,omitempty" json:"cluster_groups,omitempty"`
+}
+
+// NOTE: clusterProfilesList2 will replace ClusterProfilesList as soon as the
+// migration toward the new schema is done
+type clusterProfilesList2 struct {
+	KonfluxConfig   *ClusterProfileKonfluxConfig `yaml:"konflux,omitempty" json:"konflux,omitempty"`
+	ClusterProfiles []ClusterProfileDetails      `yaml:"cluster_profiles,omitempty" json:"cluster_profiles,omitempty"`
+}
+
+func (cpl2 *clusterProfilesList2) Resolve() error {
+	errs := make([]error, 0)
+
+	clusterGroups := make(map[string][]string)
+	if cpl2.KonfluxConfig != nil {
+		clusterGroups = cpl2.KonfluxConfig.ClusterGroups
+	}
+
+	for i := range cpl2.ClusterProfiles {
+		profile := &cpl2.ClusterProfiles[i]
+
+		// NOTE: For backward compatibility only. Remove as soon as the
+		// migration to the new scheme is done.
+		if profile.Name != "" {
+			profile.Profile = profile.Name
+		}
+
+	ownersLoop:
+		for j := range profile.Owners {
+			owner := &profile.Owners[j]
+			if owner.Konflux == nil {
+				continue ownersLoop
+			}
+
+			allClusters := sets.New(owner.Konflux.Clusters...)
+
+		clusterGroupsLoop:
+			for _, clusterGroupName := range owner.Konflux.ClusterGroups {
+				clusters, ok := clusterGroups[clusterGroupName]
+				if !ok {
+					err := fmt.Errorf("profiles[%d].owners[%d] cluster group %s not found", i, j, clusterGroupName)
+					errs = append(errs, err)
+					continue clusterGroupsLoop
+				}
+				allClusters.Insert(clusters...)
+			}
+
+			if allClusters.Len() > 0 {
+				owner.Konflux.Clusters = allClusters.UnsortedList()
+				slices.Sort(owner.Konflux.Clusters)
+			}
+		}
+	}
+
+	return aggerrs.NewAggregate(errs)
+}
+
 type ClusterProfilesList []ClusterProfileDetails
 type ClusterProfilesMap map[ClusterProfile]ClusterProfileDetails
 
+func (cpl *ClusterProfilesList) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+
+	// NOTE: If the json string starts with `[`, it means we are unmarshaling the
+	// old version of `ClusterProfileList`. This code exists for backward compatibility
+	// reasons and will be deleted as soon as the transition toward the new scheme is done.
+	oldSchema, err := regexp.Match(`^\s*\[`, data)
+	if err != nil {
+		return fmt.Errorf("detect new schema: %w", err)
+	}
+
+	if !oldSchema {
+		profileListEnhanced := &clusterProfilesList2{}
+		if err := json.Unmarshal(data, profileListEnhanced); err != nil {
+			return err
+		}
+
+		if err := profileListEnhanced.Resolve(); err != nil {
+			return fmt.Errorf("resolve cluster profile list: %w", err)
+		}
+
+		*cpl = profileListEnhanced.ClusterProfiles
+		return nil
+	}
+
+	cpDetails := make([]ClusterProfileDetails, 0)
+	if err := json.Unmarshal(data, &cpDetails); err != nil {
+		return err
+	}
+
+	*cpl = cpDetails
+	return nil
+}
+
 type ClusterProfileDetails struct {
-	Profile     ClusterProfile         `yaml:"profile" json:"profile"`
+	Profile     ClusterProfile         `yaml:"profile,omitempty" json:"profile,omitempty"`
+	Name        ClusterProfile         `yaml:"name,omitempty" json:"name,omitempty"`
 	Owners      []ClusterProfileOwners `yaml:"owners,omitempty" json:"owners,omitempty"`
 	ClusterType string                 `yaml:"cluster_type,omitempty" json:"cluster_type,omitempty"`
 	LeaseType   string                 `yaml:"lease_type,omitempty" json:"lease_type,omitempty"`
@@ -2980,9 +3079,16 @@ type ClusterProfileDetails struct {
 	ConfigMap   string                 `yaml:"config_map,omitempty" json:"config_map,omitempty"`
 }
 
+type ClusterProfileKonfluxOwner struct {
+	Tenant        string   `yaml:"tenant,omitempty" json:"tenant,omitempty"`
+	Clusters      []string `yaml:"clusters,omitempty" json:"clusters,omitempty"`
+	ClusterGroups []string `yaml:"cluster_groups,omitempty" json:"cluster_groups,omitempty"`
+}
+
 type ClusterProfileOwners struct {
-	Org   string   `yaml:"org" json:"org"`
-	Repos []string `yaml:"repos,omitempty" json:"repos,omitempty"`
+	Org     string                      `yaml:"org,omitempty" json:"org,omitempty"`
+	Repos   []string                    `yaml:"repos,omitempty" json:"repos,omitempty"`
+	Konflux *ClusterProfileKonfluxOwner `yaml:"konflux,omitempty" json:"konflux,omitempty"`
 }
 type ClusterClaimOwnersMap map[string]ClusterClaimDetails
 
