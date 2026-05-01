@@ -130,6 +130,10 @@ func (blockingStep) SubTests() []*junit.TestCase {
 	return []*junit.TestCase{&ret}
 }
 
+func (blockingStep) SubSteps() []api.CIOperatorStepDetailInfo {
+	return []api.CIOperatorStepDetailInfo{{StepName: "inner-step"}}
+}
+
 func TestRun(t *testing.T) {
 	ciOpNamespace := "ci-op-1234"
 
@@ -334,6 +338,23 @@ func TestRun(t *testing.T) {
 
 		})
 	}
+}
+
+func TestIPPoolStepForward(t *testing.T) {
+	step := stepNeedsLease{}
+	withIPPool := IPPoolStep(nil, nil, api.StepLease{ResourceType: "aws-ip-pool", Env: api.DefaultIPPoolLeaseEnv}, &step, nil, emptyNamespace, nil)
+	t.Run("SubTests", func(t *testing.T) {
+		s, l := step.SubTests(), withIPPool.(SubtestReporter).SubTests()
+		if diff := cmp.Diff(s, l); diff != "" {
+			t.Errorf("not properly forwarded: %s", diff)
+		}
+	})
+	t.Run("SubSteps", func(t *testing.T) {
+		s, l := step.SubSteps(), withIPPool.(SubStepReporter).SubSteps()
+		if diff := cmp.Diff(s, l); diff != "" {
+			t.Errorf("not properly forwarded: %s", diff)
+		}
+	})
 }
 
 type fakeSecretClient struct {

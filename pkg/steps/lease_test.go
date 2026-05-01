@@ -62,6 +62,10 @@ func (stepNeedsLease) SubTests() []*junit.TestCase {
 	return []*junit.TestCase{&ret}
 }
 
+func (stepNeedsLease) SubSteps() []api.CIOperatorStepDetailInfo {
+	return []api.CIOperatorStepDetailInfo{{StepName: "inner-step"}}
+}
+
 func emptyNamespace() string { return "" }
 
 func TestLeaseStepForward(t *testing.T) {
@@ -121,6 +125,12 @@ func TestLeaseStepForward(t *testing.T) {
 	})
 	t.Run("SubTests", func(T *testing.T) {
 		s, l := step.SubTests(), withLease.(SubtestReporter).SubTests()
+		if !reflect.DeepEqual(l, s) {
+			t.Errorf("not properly forwarded: %s", diff.ObjectDiff(l, s))
+		}
+	})
+	t.Run("SubSteps", func(T *testing.T) {
+		s, l := step.SubSteps(), withLease.(SubStepReporter).SubSteps()
 		if !reflect.DeepEqual(l, s) {
 			t.Errorf("not properly forwarded: %s", diff.ObjectDiff(l, s))
 		}

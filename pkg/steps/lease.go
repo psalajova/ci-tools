@@ -133,6 +133,13 @@ func (s *leaseStep) SubTests() []*junit.TestCase {
 	return nil
 }
 
+func (s *leaseStep) SubSteps() []api.CIOperatorStepDetailInfo {
+	if subSteps, ok := s.wrapped.(SubStepReporter); ok {
+		return subSteps.SubSteps()
+	}
+	return nil
+}
+
 func (s *leaseStep) Run(ctx context.Context) error {
 	return results.ForReason("utilizing_lease").ForError(s.run(ctx))
 }
