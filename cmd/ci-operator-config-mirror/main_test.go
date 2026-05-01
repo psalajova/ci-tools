@@ -278,6 +278,7 @@ func TestCIOperatorConfigsCallback(t *testing.T) {
 					Configuration: api.ReleaseBuildConfiguration{
 						Metadata:              api.Metadata{Org: "openshift-priv", Repo: "kubernetes"},
 						CanonicalGoRepository: ptr.To("github.com/openshift/kubernetes"),
+						Prowgen:               &api.ProwgenOverrides{Private: true},
 						Tests:                 []api.TestStepConfiguration{{As: "e2e"}},
 					},
 					Info: config.Info{Metadata: api.Metadata{Org: "openshift-priv", Repo: "kubernetes"}},
@@ -334,6 +335,7 @@ func TestCIOperatorConfigsCallback(t *testing.T) {
 					Configuration: api.ReleaseBuildConfiguration{
 						Metadata:              api.Metadata{Org: "openshift-priv", Repo: "migtools-filebrowser"},
 						CanonicalGoRepository: ptr.To("github.com/migtools/filebrowser"),
+						Prowgen:               &api.ProwgenOverrides{Private: true},
 						Tests:                 []api.TestStepConfiguration{{As: "e2e"}},
 					},
 					Info: config.Info{Metadata: api.Metadata{Org: "openshift-priv", Repo: "migtools-filebrowser"}},
