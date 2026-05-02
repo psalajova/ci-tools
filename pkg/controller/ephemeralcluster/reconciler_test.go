@@ -490,7 +490,10 @@ func TestReconcile(t *testing.T) {
 					Name:      "foo-credentials",
 					Namespace: "bar",
 				},
-				Data: map[string][]byte{"kubeconfig": []byte("kubeconfig")},
+				Data: map[string][]byte{
+					"kubeconfig":        []byte("kubeconfig"),
+					"kubeAdminPassword": {},
+				},
 			},
 			wantEC: &ephemeralclusterv1.EphemeralCluster{
 				ObjectMeta: metav1.ObjectMeta{

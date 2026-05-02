@@ -543,7 +543,10 @@ func (r *reconciler) fetchHiveSecrets(
 		return
 	}
 
-	secretData := map[string][]byte{"kubeconfig": kubeconfig, "kubeAdminPassword": passwd}
+	secretData := map[string][]byte{
+		"kubeconfig":        kubeconfig,
+		"kubeAdminPassword": passwd,
+	}
 	if err := r.createCredentialsSecret(ctx, log, ec, secretData); err != nil {
 		log.WithError(err).Error("Failed to create credentials secret")
 		upsertCondition(ecStatus, ephemeralclusterv1.ClusterReady, ephemeralclusterv1.ConditionFalse, r.now(), ephemeralclusterv1.SecretsFetchFailureReason, err.Error())
@@ -579,7 +582,10 @@ func (r *reconciler) fetchClusterKubeconfig(
 		return
 	}
 
-	secretData := map[string][]byte{"kubeconfig": kubeconfig}
+	secretData := map[string][]byte{
+		"kubeconfig":        kubeconfig,
+		"kubeAdminPassword": {},
+	}
 	if err := r.createCredentialsSecret(ctx, log, ec, secretData); err != nil {
 		log.WithError(err).Error("Failed to create credentials secret")
 		upsertCondition(ecStatus, ephemeralclusterv1.ClusterReady, ephemeralclusterv1.ConditionFalse, r.now(), ephemeralclusterv1.SecretsFetchFailureReason, err.Error())
