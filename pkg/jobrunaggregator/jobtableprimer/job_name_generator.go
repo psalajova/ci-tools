@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/openshift/ci-tools/pkg/jobrunaggregator/jobrunaggregatorapi"
@@ -101,10 +102,11 @@ func readConfigURL(url string, into interface{}, unmarshal func(data []byte, v a
 		return false, fmt.Errorf("error requesting %v: %w", url, err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == 404 && isTemplateException(url) {
-		fmt.Println("SKIPPING template exception config with URL 404 not found: " + url)
+	if resp.StatusCode == http.StatusNotFound && isTemplateException(url) {
+		logrus.WithField("url", url).Info("skipping pre-branch-cut config: URL 404 not found")
 		return true, nil
-	} else if resp.StatusCode < 200 || resp.StatusCode > 299 {
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return false, fmt.Errorf("error reading %v: %v", url, resp.StatusCode)
 	}
 
