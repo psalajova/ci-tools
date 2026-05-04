@@ -244,6 +244,7 @@ func TestResolveCredentialReferences(t *testing.T) {
 				},
 			},
 			gsmConfig: &api.GSMConfig{
+				DPTPCollection: "test-platform-infra",
 				Bundles: []api.GSMBundle{
 					{
 						Name:          "docker-bundle",
@@ -253,7 +254,7 @@ func TestResolveCredentialReferences(t *testing.T) {
 						},
 						DockerConfig: &api.DockerConfigSpec{
 							Registries: []api.RegistryAuthData{
-								{Collection: "creds", Group: "registry", RegistryURL: "registry.ci.openshift.org", AuthField: "auth"},
+								{Group: "registry", RegistryURL: "registry.ci.openshift.org", AuthField: "auth"},
 							},
 						},
 					},

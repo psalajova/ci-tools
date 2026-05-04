@@ -14,11 +14,17 @@ import (
 	"github.com/openshift/ci-tools/pkg/util/gzip"
 )
 
+const (
+	// DPTPGSMCollection is the default GSM collection for DPTP-managed secrets (dockerconfig items)
+	DPTPGSMCollection = "test-platform-infra"
+)
+
 // GSMConfig is the top-level configuration for GSM-based secrets
 type GSMConfig struct {
-	ClusterGroups map[string][]string       `json:"cluster_groups,omitempty"`
-	Components    map[string][]GSMSecretRef `json:"components,omitempty"`
-	Bundles       []GSMBundle               `json:"bundles"`
+	ClusterGroups  map[string][]string       `json:"cluster_groups,omitempty"`
+	DPTPCollection string                    `json:"dptp_collection,omitempty"`
+	Components     map[string][]GSMSecretRef `json:"components,omitempty"`
+	Bundles        []GSMBundle               `json:"bundles,omitempty"`
 }
 
 // GSMBundle defines a logical group of GSM secrets
@@ -67,8 +73,8 @@ type DockerConfigSpec struct {
 }
 
 // RegistryAuthData specifies registry credentials
+// Collection is always DPTPGSMCollection, which matches dptp_collection in the GSM config
 type RegistryAuthData struct {
-	Collection  string `json:"collection"`
 	Group       string `json:"group"`
 	RegistryURL string `json:"registry_url"`
 	AuthField   string `json:"auth_field"`
@@ -118,6 +124,15 @@ func (c *GSMConfig) UnmarshalJSON(d []byte) error {
 
 func (c *GSMConfig) resolve() error {
 	var errs []error
+
+	if c.DPTPCollection == "" {
+		for _, bundle := range c.Bundles {
+			if bundle.DockerConfig != nil {
+				c.DPTPCollection = DPTPGSMCollection
+				break
+			}
+		}
+	}
 
 	// Expand cluster_groups to concrete cluster names
 	for bundleIdx := range c.Bundles {
@@ -262,6 +277,21 @@ type bundleKey struct {
 // Expects a resolved config (resolve() is called automatically during unmarshaling).
 func (c *GSMConfig) Validate() error {
 	var errs []error
+
+	// Validate that dptp_collection is set if any bundle uses dockerconfig
+	hasDockerConfig := false
+	for _, bundle := range c.Bundles {
+		if bundle.DockerConfig != nil {
+			hasDockerConfig = true
+			break
+		}
+	}
+	if hasDockerConfig && c.DPTPCollection == "" {
+		errs = append(errs, fmt.Errorf("dptp_collection must be set when bundles use dockerconfig"))
+	}
+	if c.DPTPCollection != "" && !gsmvalidation.ValidateCollectionName(c.DPTPCollection) {
+		errs = append(errs, fmt.Errorf("dptp_collection has invalid collection name: %s", c.DPTPCollection))
+	}
 
 	// Validate components
 	componentNames := make(map[string]bool)
@@ -423,9 +453,6 @@ func validateDockerConfig(dc *DockerConfigSpec, bundleIdx int, bundleName string
 	}
 
 	for i, reg := range dc.Registries {
-		if !gsmvalidation.ValidateCollectionName(reg.Collection) {
-			errs = append(errs, fmt.Errorf("bundle[%d] %s dockerconfig registry[%d] has invalid collection string", bundleIdx, bundleName, i))
-		}
 		if !gsmvalidation.ValidateGroupName(reg.Group) {
 			errs = append(errs, fmt.Errorf("bundle[%d] %s dockerconfig registry[%d] has invalid group string", bundleIdx, bundleName, i))
 		}

@@ -457,38 +457,38 @@ func constructDockerConfigJSONFromVault(client secrets.ReadOnlyClient, dockerCon
 }
 
 // constructDockerConfigJSONFromGSM constructs a .dockerconfigjson from GSM secrets cache
-func constructDockerConfigJSONFromGSM(secretsCache map[gsmSecretRef]fetchedSecret, registries []api.RegistryAuthData) ([]byte, error) {
+func constructDockerConfigJSONFromGSM(secretsCache map[gsmSecretRef]fetchedSecret, registries []api.RegistryAuthData, gsmDPTPCollection string) ([]byte, error) {
 	auths := make(map[string]secretbootstrap.DockerAuth)
 
 	for _, reg := range registries {
 		authData := secretbootstrap.DockerAuth{}
 
 		authRef := gsmSecretRef{
-			collection: reg.Collection,
+			collection: gsmDPTPCollection,
 			group:      reg.Group,
 			field:      reg.AuthField,
 		}
 		fetchedAuth, exists := secretsCache[authRef]
 		if !exists {
-			return nil, fmt.Errorf("auth field '%s' (collection: %s, group: %s) not found in fetched secrets", reg.AuthField, reg.Collection, reg.Group)
+			return nil, fmt.Errorf("auth field '%s' (collection: %s, group: %s) not found in fetched secrets", reg.AuthField, gsmDPTPCollection, reg.Group)
 		}
 		if fetchedAuth.err != nil {
-			return nil, fmt.Errorf("couldn't get auth field '%s' (collection: %s, group: %s): %w", reg.AuthField, reg.Collection, reg.Group, fetchedAuth.err)
+			return nil, fmt.Errorf("couldn't get auth field '%s' (collection: %s, group: %s): %w", reg.AuthField, gsmDPTPCollection, reg.Group, fetchedAuth.err)
 		}
 		authData.Auth = string(bytes.TrimSpace(fetchedAuth.payload))
 
 		if reg.EmailField != "" {
 			emailRef := gsmSecretRef{
-				collection: reg.Collection,
+				collection: gsmDPTPCollection,
 				group:      reg.Group,
 				field:      reg.EmailField,
 			}
 			fetchedEmail, exists := secretsCache[emailRef]
 			if !exists {
-				return nil, fmt.Errorf("email field '%s' (collection: %s, group: %s) not found in fetched secrets", reg.EmailField, reg.Collection, reg.Group)
+				return nil, fmt.Errorf("email field '%s' (collection: %s, group: %s) not found in fetched secrets", reg.EmailField, gsmDPTPCollection, reg.Group)
 			}
 			if fetchedEmail.err != nil {
-				return nil, fmt.Errorf("couldn't get email field '%s' (collection: %s, group: %s): %w", reg.EmailField, reg.Collection, reg.Group, fetchedEmail.err)
+				return nil, fmt.Errorf("couldn't get email field '%s' (collection: %s, group: %s): %w", reg.EmailField, gsmDPTPCollection, reg.Group, fetchedEmail.err)
 			}
 			authData.Email = string(fetchedEmail.payload)
 		}
@@ -1375,7 +1375,7 @@ func constructSecretsFromGSM(
 		}
 		for _, registryEntry := range bundle.DockerConfig.Registries {
 			s := gsmSecretRef{
-				collection: registryEntry.Collection,
+				collection: gsmConfig.DPTPCollection,
 				group:      registryEntry.Group,
 				field:      registryEntry.AuthField,
 			}
@@ -1383,7 +1383,7 @@ func constructSecretsFromGSM(
 
 			if registryEntry.EmailField != "" {
 				s := gsmSecretRef{
-					collection: registryEntry.Collection,
+					collection: gsmConfig.DPTPCollection,
 					group:      registryEntry.Group,
 					field:      registryEntry.EmailField,
 				}
@@ -1496,7 +1496,7 @@ func constructSecretsFromGSM(
 		}
 
 		if bundle.DockerConfig != nil {
-			dockerConfigData, err := constructDockerConfigJSONFromGSM(fetchedGsmSecretsMap, bundle.DockerConfig.Registries)
+			dockerConfigData, err := constructDockerConfigJSONFromGSM(fetchedGsmSecretsMap, bundle.DockerConfig.Registries, gsmConfig.DPTPCollection)
 			if err != nil {
 				logrus.WithError(err).Errorf("skipping bundle %s: failed to construct dockerconfig", bundle.Name)
 				errs = append(errs, fmt.Errorf("bundle %s: failed to construct dockerconfig: %w", bundle.Name, err))

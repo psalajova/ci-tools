@@ -1284,13 +1284,14 @@ func TestGSMConfigValidate(t *testing.T) {
 		{
 			name: "valid config - dockerconfig with empty 'as' field defaults to .dockerconfigjson",
 			config: GSMConfig{
+				DPTPCollection: DPTPGSMCollection,
 				Bundles: []GSMBundle{
 					{
 						Name: "test-bundle",
 						DockerConfig: &DockerConfigSpec{
 							As: "",
 							Registries: []RegistryAuthData{
-								{Collection: "creds", Group: "group1", RegistryURL: "quay.io", AuthField: "auth"},
+								{Group: "group1", RegistryURL: "quay.io", AuthField: "auth"},
 							},
 						},
 						SyncToCluster: true,
@@ -1305,6 +1306,7 @@ func TestGSMConfigValidate(t *testing.T) {
 		{
 			name: "error: dockerconfig with no registries",
 			config: GSMConfig{
+				DPTPCollection: DPTPGSMCollection,
 				Bundles: []GSMBundle{
 					{
 						Name: "test-bundle",
@@ -1323,14 +1325,14 @@ func TestGSMConfigValidate(t *testing.T) {
 			errorContains: "dockerconfig has no registries",
 		},
 		{
-			name: "error: dockerconfig registry with empty collection",
+			name: "error: dockerconfig without dptp_collection set",
 			config: GSMConfig{
 				Bundles: []GSMBundle{
 					{
 						Name: "test-bundle",
 						DockerConfig: &DockerConfigSpec{
 							Registries: []RegistryAuthData{
-								{Collection: "", Group: "group1", RegistryURL: "quay.io", AuthField: "auth"},
+								{Group: "group1", RegistryURL: "quay.io", AuthField: "auth"},
 							},
 						},
 						SyncToCluster: true,
@@ -1341,18 +1343,19 @@ func TestGSMConfigValidate(t *testing.T) {
 				},
 			},
 			expectError:   true,
-			errorContains: "bundle[0] test-bundle dockerconfig registry[0] has invalid collection string",
+			errorContains: "dptp_collection must be set when bundles use dockerconfig",
 		},
 		{
 			name: "error: dockerconfig registry with empty registry_url",
 			config: GSMConfig{
+				DPTPCollection: DPTPGSMCollection,
 				Bundles: []GSMBundle{
 					{
 						Name: "test-bundle",
 						DockerConfig: &DockerConfigSpec{
 							As: ".dockerconfigjson",
 							Registries: []RegistryAuthData{
-								{Collection: "creds", Group: "group1", RegistryURL: "", AuthField: "auth"},
+								{Group: "group1", RegistryURL: "", AuthField: "auth"},
 							},
 						},
 						SyncToCluster: true,
@@ -1368,13 +1371,14 @@ func TestGSMConfigValidate(t *testing.T) {
 		{
 			name: "error: dockerconfig registry with empty auth_field",
 			config: GSMConfig{
+				DPTPCollection: DPTPGSMCollection,
 				Bundles: []GSMBundle{
 					{
 						Name: "test-bundle",
 						DockerConfig: &DockerConfigSpec{
 							As: ".dockerconfigjson",
 							Registries: []RegistryAuthData{
-								{Collection: "creds", Group: "group1", RegistryURL: "quay.io", AuthField: ""},
+								{Group: "group1", RegistryURL: "quay.io", AuthField: ""},
 							},
 						},
 						SyncToCluster: true,
@@ -1406,12 +1410,13 @@ func TestGSMConfigValidate(t *testing.T) {
 		{
 			name: "error: sync_to_cluster true but no targets (dockerconfig bundle)",
 			config: GSMConfig{
+				DPTPCollection: DPTPGSMCollection,
 				Bundles: []GSMBundle{
 					{
 						Name: "test-dockerconfig",
 						DockerConfig: &DockerConfigSpec{
 							Registries: []RegistryAuthData{
-								{Collection: "test-platform-infra", Group: "build_farm", RegistryURL: "registry.ci.openshift.org", AuthField: "token"},
+								{Group: "group1", RegistryURL: "quay.io", AuthField: "auth"},
 							},
 						},
 						SyncToCluster: true,
@@ -1425,12 +1430,13 @@ func TestGSMConfigValidate(t *testing.T) {
 		{
 			name: "error: target with empty cluster (dockerconfig bundle)",
 			config: GSMConfig{
+				DPTPCollection: DPTPGSMCollection,
 				Bundles: []GSMBundle{
 					{
 						Name: "test-dockerconfig",
 						DockerConfig: &DockerConfigSpec{
 							Registries: []RegistryAuthData{
-								{Collection: "test-platform-infra", Group: "build_farm", RegistryURL: "registry.ci.openshift.org", AuthField: "token"},
+								{Group: "group1", RegistryURL: "quay.io", AuthField: "auth"},
 							},
 						},
 						SyncToCluster: true,
@@ -1446,12 +1452,13 @@ func TestGSMConfigValidate(t *testing.T) {
 		{
 			name: "error: dockerconfig with sync_to_cluster false",
 			config: GSMConfig{
+				DPTPCollection: DPTPGSMCollection,
 				Bundles: []GSMBundle{
 					{
 						Name: "test-dockerconfig-bundle",
 						DockerConfig: &DockerConfigSpec{
 							Registries: []RegistryAuthData{
-								{Collection: "test-platform-infra", Group: "build_farm", RegistryURL: "registry.ci.openshift.org", AuthField: "token"},
+								{Group: "group1", RegistryURL: "quay.io", AuthField: "auth"},
 							},
 						},
 						SyncToCluster: false,

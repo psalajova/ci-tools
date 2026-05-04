@@ -302,6 +302,7 @@ func TestValidateContexts(t *testing.T) {
 				Secrets:         []secretbootstrap.SecretConfig{{}},
 			},
 			gsmConfig: api.GSMConfig{
+				DPTPCollection: api.DPTPGSMCollection,
 				Components: map[string][]api.GSMSecretRef{
 					"some-component": {
 						{
@@ -325,7 +326,6 @@ func TestValidateContexts(t *testing.T) {
 						DockerConfig: &api.DockerConfigSpec{
 							Registries: []api.RegistryAuthData{
 								{
-									Collection:  "test-platform",
 									Group:       "build_cluster",
 									AuthField:   "target-dc-field",
 									RegistryURL: "https://registry.io",
