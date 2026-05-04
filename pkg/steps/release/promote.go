@@ -287,20 +287,30 @@ func promotionCLIImageInfoFilterOS(nodeArchitectures []string) string {
 	return "linux/amd64"
 }
 
-// getResolveAndTagCommand generates a shell command that queries QCI for the manifest digest of
-// quayProxyTag (via oc image info, after it has been mirrored) and then uses that digest to tag
-// the IS target. This ensures spec.from always holds the exact QCI digest pullspec.
-//
-// Parses digest from oc image info default text (Digest: sha256:… line). Older oc rejects -o jsonpath
-// for oc image info ("unrecognized --output, only 'json' is supported"); jq/python are unnecessary.
-// --filter-by-os selects one manifest when the tag points at an image index (manifest list); it is
-// ignored for single-manifest references (see oc image info --help).
-func getResolveAndTagCommand(registryConfig, quayProxyTag, isTag string, loglevel int, filterByOS string) string {
+const quayPromotionDigestTagAttempts = 5
+
+// getResolveAndTagRetryShell resolves quay-proxy digest via oc image info and oc tags the IST; retries when QCI moves after mirror.
+func getResolveAndTagRetryShell(registryConfig, quayProxyTag, isTag string, loglevel int, filterByOS string) string {
 	repo := quayProxyTag[:strings.LastIndex(quayProxyTag, ":")]
-	return fmt.Sprintf(
-		`_digest=$(oc image info --registry-config=%s --filter-by-os=%s %s | sed -n '/^Digest:[[:space:]]/s/^Digest:[[:space:]]*//p' | head -n1) && oc tag --source=docker --loglevel=%d --reference-policy='source' --import-mode='PreserveOriginal' --reference %s@${_digest} %s`,
-		registryConfig, filterByOS, quayProxyTag, loglevel, repo, isTag,
-	)
+	n := quayPromotionDigestTagAttempts
+	return fmt.Sprintf(`for r in {1..%d}; do
+  _digest=$(oc image info --registry-config=%s --filter-by-os=%s %s | sed -n '/^Digest:[[:space:]]/s/^Digest:[[:space:]]*//p' | head -n1)
+  if [ -n "${_digest}" ] && oc tag --source=docker --loglevel=%d --reference-policy='source' --import-mode='PreserveOriginal' --reference %s@${_digest} %s; then
+    break
+  fi
+  echo "promotion-quay: digest-tag failed for %s attempt ${r}/%d (QCI digest may have moved after mirror)" >&2
+  if [ "${r}" -eq %d ]; then
+    exit 1
+  fi
+  echo "promotion-quay: retrying digest-tag for %s (attempt $((r+1))/%d after randomized backoff)" >&2
+  backoff=$(($RANDOM %% %d))s
+  sleep "${backoff}"
+done
+`, n, registryConfig, filterByOS, quayProxyTag, loglevel, repo, isTag,
+		isTag, n,
+		n,
+		isTag, n,
+		120)
 }
 
 const (
@@ -385,9 +395,7 @@ func getPromotionPod(imageMirrorTarget map[string]string, timeStr string, namesp
 		// Concrete *-quay IS targets: resolve QCI digest post-mirror, then tag.
 		for _, pair := range resolveAndTagPairs {
 			quayProxyTag, isTag := pair[0], pair[1]
-			resolveCmd := getResolveAndTagCommand(registryConfig, quayProxyTag, isTag, 2, promotionCLIImageInfoFilterOS(nodeArchitectures))
-			retryCmd := fmt.Sprintf(retryLoopTemplate, 3, fmt.Sprintf("'Digest-tag attempt $r (%s)'", isTag), resolveCmd, retryLoopWithBackoff)
-			tagCommands = append(tagCommands, retryCmd)
+			tagCommands = append(tagCommands, getResolveAndTagRetryShell(registryConfig, quayProxyTag, isTag, 2, promotionCLIImageInfoFilterOS(nodeArchitectures)))
 		}
 
 		tagCommands = append(tagCommands, "set -e")

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -1087,6 +1088,29 @@ func TestGetPublicImageReference(t *testing.T) {
 				t.Errorf("%s: got incorrect public image reference: %v", testCase.name, diff.ObjectDiff(actual, expected))
 			}
 		})
+	}
+}
+
+func TestGetResolveAndTagRetryShell(t *testing.T) {
+	regcfg := "/etc/push-secret/.dockerconfigjson"
+	proxyTag := "quay-proxy.ci.openshift.org/openshift/ci:ocp_4.21_ovn-kubernetes"
+	isTag := "ocp/4.21-quay:ovn-kubernetes"
+	got := getResolveAndTagRetryShell(regcfg, proxyTag, isTag, 2, "linux/amd64")
+
+	for _, sub := range []string{
+		"for r in {1..5}",
+		"oc image info --registry-config=" + regcfg + " --filter-by-os=linux/amd64 " + proxyTag,
+		"oc tag --source=docker --loglevel=2 --reference-policy='source' --import-mode='PreserveOriginal' --reference quay-proxy.ci.openshift.org/openshift/ci@${_digest} " + isTag,
+		"promotion-quay: digest-tag failed for " + isTag,
+		"promotion-quay: retrying digest-tag for " + isTag,
+		`[ "${r}" -eq 5 ]`,
+		"exit 1",
+		"$(($RANDOM % 120))",
+		`sleep "${backoff}"`,
+	} {
+		if !strings.Contains(got, sub) {
+			t.Fatalf("missing substring %q in:\n%s", sub, got)
+		}
 	}
 }
 
