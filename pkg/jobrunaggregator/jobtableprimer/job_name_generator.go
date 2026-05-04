@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"sort"
 	"strings"
-	"time"
 
+	"github.com/sirupsen/logrus"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/openshift/ci-tools/pkg/jobrunaggregator/jobrunaggregatorapi"
@@ -38,6 +38,9 @@ type jobNameGenerator struct {
 }
 
 var (
+	templateException = []string{
+		"openshift-release-release-5.0-periodics.yaml",
+	}
 	periodicURLTemplates = []string{
 		"https://raw.githubusercontent.com/openshift/release/main/ci-operator/jobs/openshift/release/openshift-release-release-%s-periodics.yaml",
 		"https://raw.githubusercontent.com/openshift/release/main/ci-operator/jobs/openshift/hypershift/openshift-hypershift-release-%s-periodics.yaml",
@@ -84,17 +87,26 @@ func (s *jobNameGenerator) UpdateURLsForAllReleases(releases []jobrunaggregatora
 	}
 }
 
+func isTemplateException(url string) bool {
+	for _, exception := range templateException {
+		if strings.Contains(url, exception) {
+			return true
+		}
+	}
+	return false
+}
+
 func readConfigURL(url string, into interface{}, unmarshal func(data []byte, v any) error) (skip bool, failure error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return false, fmt.Errorf("error requesting %v: %w", url, err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == 404 && strings.Contains(url, "-5.0") && time.Now().Format(time.DateOnly) < "2026-05-01" {
-		// TRT defined the 5.0 release prior to branch cut for sippy's use; ignore if not defined
-		fmt.Println("SKIPPING premature 5.0 config with URL 404 not found: " + url)
+	if resp.StatusCode == http.StatusNotFound && isTemplateException(url) {
+		logrus.WithField("url", url).Info("skipping pre-branch-cut config: URL 404 not found")
 		return true, nil
-	} else if resp.StatusCode < 200 || resp.StatusCode > 299 {
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return false, fmt.Errorf("error reading %v: %v", url, resp.StatusCode)
 	}
 
