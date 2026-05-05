@@ -162,6 +162,39 @@ func TestGetChangedCiopConfigs(t *testing.T) {
 			},
 		},
 	}, {
+		name: "config with Retry containing unexported fields does not panic",
+		configGenerator: func(t *testing.T) (config.DataByFilename, config.DataByFilename) {
+			before := config.DataByFilename{"org-repo-branch.yaml": baseCiopConfig}
+			afterConfig := config.DataWithInfo{}
+			if err := deepcopy.Copy(&afterConfig, &baseCiopConfig); err != nil {
+				t.Fatal(err)
+			}
+			afterConfig.Configuration.RawSteps = []cioperatorapi.StepConfiguration{{
+				TestStepConfiguration: &cioperatorapi.TestStepConfiguration{
+					As:       "raw-test",
+					Commands: "echo test",
+					Retry:    &prowconfig.Retry{Attempts: 3, Interval: "10s"},
+				},
+			}}
+			after := config.DataByFilename{"org-repo-branch.yaml": afterConfig}
+			return before, after
+		},
+		expected: func() config.DataByFilename {
+			expected := config.DataWithInfo{}
+			if err := deepcopy.Copy(&expected, &baseCiopConfig); err != nil {
+				t.Fatal(err)
+			}
+			expected.Configuration.RawSteps = []cioperatorapi.StepConfiguration{{
+				TestStepConfiguration: &cioperatorapi.TestStepConfiguration{
+					As:       "raw-test",
+					Commands: "echo test",
+					Retry:    &prowconfig.Retry{Attempts: 3, Interval: "10s"},
+				},
+			}}
+			return config.DataByFilename{"org-repo-branch.yaml": expected}
+		},
+		expectedAffectedJobs: map[string]sets.Set[string]{},
+	}, {
 		name: "one potential rehearsal disabled due to un-restricted network access set to 'false'",
 		configGenerator: func(t *testing.T) (config.DataByFilename, config.DataByFilename) {
 			before := config.DataByFilename{"org-repo-branch.yaml": baseCiopConfig}
@@ -198,7 +231,10 @@ func TestGetChangedCiopConfigs(t *testing.T) {
 			actual, affectedJobs, disabledDueToNetworkAccessToggle := GetChangedCiopConfigs(before, after, logrus.NewEntry(logrus.New()))
 			expected := tc.expected()
 
-			if diff := cmp.Diff(expected, actual); diff != "" {
+			if diff := cmp.Diff(expected, actual,
+				cmpopts.IgnoreUnexported(cioperatorapi.ProjectDirectoryImageBuildStepConfiguration{}),
+				cmpopts.IgnoreUnexported(prowconfig.Retry{}),
+			); diff != "" {
 				t.Errorf("Detected changed ci-operator config changes differ from expected:\n%s", diff)
 			}
 
