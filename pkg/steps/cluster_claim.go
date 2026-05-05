@@ -24,6 +24,7 @@ import (
 
 	"github.com/openshift/ci-tools/pkg/api"
 	apiutils "github.com/openshift/ci-tools/pkg/api/utils"
+	"github.com/openshift/ci-tools/pkg/junit"
 	"github.com/openshift/ci-tools/pkg/kubernetes"
 	"github.com/openshift/ci-tools/pkg/results"
 	"github.com/openshift/ci-tools/pkg/secrets"
@@ -61,6 +62,20 @@ func (s *clusterClaimStep) Requires() []api.StepLink            { return s.wrapp
 func (s *clusterClaimStep) Creates() []api.StepLink             { return s.wrapped.Creates() }
 func (s *clusterClaimStep) Objects() []ctrlruntimeclient.Object { return s.wrapped.Objects() }
 func (s *clusterClaimStep) Provides() api.ParameterMap          { return s.wrapped.Provides() }
+
+func (s *clusterClaimStep) SubTests() []*junit.TestCase {
+	if subTests, ok := s.wrapped.(SubtestReporter); ok {
+		return subTests.SubTests()
+	}
+	return nil
+}
+
+func (s *clusterClaimStep) SubSteps() []api.CIOperatorStepDetailInfo {
+	if subSteps, ok := s.wrapped.(SubStepReporter); ok {
+		return subSteps.SubSteps()
+	}
+	return nil
+}
 
 func (s *clusterClaimStep) Run(ctx context.Context) error {
 	return results.ForReason("utilizing_cluster_claim").ForError(s.run(ctx))

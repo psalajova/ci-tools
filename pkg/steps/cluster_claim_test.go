@@ -334,3 +334,20 @@ func (client *clusterClaimStatusSettingClient) Create(ctx context.Context, obj c
 	}
 	return client.WithWatch.Create(ctx, obj, opts...)
 }
+
+func TestClusterClaimStepForward(t *testing.T) {
+	step := stepNeedsLease{}
+	withClaim := ClusterClaimStep("test", &api.ClusterClaim{}, nil, nil, nil, &step, nil)
+	t.Run("SubTests", func(t *testing.T) {
+		s, l := step.SubTests(), withClaim.(SubtestReporter).SubTests()
+		if diff := cmp.Diff(s, l); diff != "" {
+			t.Errorf("not properly forwarded: %s", diff)
+		}
+	})
+	t.Run("SubSteps", func(t *testing.T) {
+		s, l := step.SubSteps(), withClaim.(SubStepReporter).SubSteps()
+		if diff := cmp.Diff(s, l); diff != "" {
+			t.Errorf("not properly forwarded: %s", diff)
+		}
+	})
+}
