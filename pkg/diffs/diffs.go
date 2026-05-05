@@ -58,7 +58,10 @@ func GetChangedCiopConfigs(masterConfig, prConfig config.DataByFilename, logger 
 			return out
 		}
 
-		if diff := cmp.Diff(withoutTests(oldConfig.Configuration), withoutTests(newConfig.Configuration), cmpopts.IgnoreUnexported(api.ProjectDirectoryImageBuildStepConfiguration{})); diff != "" {
+		if diff := cmp.Diff(withoutTests(oldConfig.Configuration), withoutTests(newConfig.Configuration),
+			cmpopts.IgnoreUnexported(api.ProjectDirectoryImageBuildStepConfiguration{}),
+			cmpopts.IgnoreUnexported(prowconfig.Retry{}),
+		); diff != "" {
 			logger.WithField(logCiopConfig, filename).Info(changedCiopConfigMsg)
 			configs[filename] = newConfig
 			continue
