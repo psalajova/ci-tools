@@ -3795,7 +3795,8 @@ func TestConstructSecretsFromGSM(t *testing.T) {
 						SyncToCluster: true,
 						GSMSecrets: []api.GSMSecretRef{
 							{
-								Group: "build-farm",
+								Collection: "test-infra",
+								Group:      "build-farm",
 								Fields: []api.FieldEntry{
 									{Name: "username"},
 									{Name: "password"},
@@ -3841,7 +3842,8 @@ func TestConstructSecretsFromGSM(t *testing.T) {
 						SyncToCluster: true,
 						GSMSecrets: []api.GSMSecretRef{
 							{
-								Group: "ibmcloud/ci",
+								Collection: "vsphere",
+								Group:      "ibmcloud/ci",
 								Fields: []api.FieldEntry{
 									{Name: "token"},
 								},
@@ -3884,7 +3886,8 @@ func TestConstructSecretsFromGSM(t *testing.T) {
 						SyncToCluster: true,
 						GSMSecrets: []api.GSMSecretRef{
 							{
-								Group: "group1",
+								Collection: "test",
+								Group:      "group1",
 								Fields: []api.FieldEntry{
 									{Name: "aws_creds"},
 									{Name: "--dot--dockerconfigjson"},
@@ -3992,7 +3995,8 @@ func TestConstructSecretsFromGSM(t *testing.T) {
 						SyncToCluster: true,
 						GSMSecrets: []api.GSMSecretRef{
 							{
-								Group: "group1",
+								Collection: "test",
+								Group:      "group1",
 								Fields: []api.FieldEntry{
 									{Name: "key"},
 								},
@@ -4036,7 +4040,8 @@ func TestConstructSecretsFromGSM(t *testing.T) {
 						SyncToCluster: true,
 						GSMSecrets: []api.GSMSecretRef{
 							{
-								Group: "group1",
+								Collection: "test",
+								Group:      "group1",
 								Fields: []api.FieldEntry{
 									{Name: "missing-field"},
 								},
@@ -4063,7 +4068,8 @@ func TestConstructSecretsFromGSM(t *testing.T) {
 						SyncToCluster: true,
 						GSMSecrets: []api.GSMSecretRef{
 							{
-								Group: "group1",
+								Collection: "test",
+								Group:      "group1",
 								Fields: []api.FieldEntry{
 									{Name: "field1"},
 									{Name: "field2"},
@@ -4093,7 +4099,8 @@ func TestConstructSecretsFromGSM(t *testing.T) {
 						SyncToCluster: true,
 						GSMSecrets: []api.GSMSecretRef{
 							{
-								Group: "grp1",
+								Collection: "col1",
+								Group:      "grp1",
 								Fields: []api.FieldEntry{
 									{Name: "key1"},
 								},
@@ -4111,7 +4118,8 @@ func TestConstructSecretsFromGSM(t *testing.T) {
 						SyncToCluster: true,
 						GSMSecrets: []api.GSMSecretRef{
 							{
-								Group: "grp2",
+								Collection: "col2",
+								Group:      "grp2",
 								Fields: []api.FieldEntry{
 									{Name: "key2"},
 								},
@@ -4168,7 +4176,8 @@ func TestConstructSecretsFromGSM(t *testing.T) {
 						SyncToCluster: true,
 						GSMSecrets: []api.GSMSecretRef{
 							{
-								Group: "",
+								Collection: "simple",
+								Group:      "",
 								Fields: []api.FieldEntry{
 									{Name: "token"},
 								},
