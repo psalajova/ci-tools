@@ -19,30 +19,31 @@ const (
 )
 
 type options struct {
-	dryRun                     bool
-	gsmProjectName             string
-	gsmProjectNumber           string
-	releaseRepoPath            string
-	org                        string
-	repo                       string
-	ocpContext                 string
-	ocpNamespace               string
-	targetedMode               bool
-	massMigration              bool
-	migrateCredentialsOnly     bool
-	migrateClusterProfilesOnly bool
-	migrateAll                 bool
-	removeStaleCredentials     bool
-	normalizeStepRegistry      bool
-	skipGSMCreation            bool
-	skipCSIFlag                bool
-	addCSIFlag                 bool
-	updateRoverGroups          bool
-	validate                   bool
-	commentOutUnmigrated       bool
-	vaultCollectionsFile       string
-	vaultCacheFile             string
-	logLevel                   string
+	dryRun                       bool
+	gsmProjectName               string
+	gsmProjectNumber             string
+	releaseRepoPath              string
+	org                          string
+	repo                         string
+	ocpContext                   string
+	ocpNamespace                 string
+	targetedMode                 bool
+	massMigration                bool
+	migrateCredentialsOnly       bool
+	migrateClusterProfilesOnly   bool
+	migrateAll                   bool
+	removeStaleCredentials       bool
+	normalizeStepRegistry        bool
+	skipGSMCreation              bool
+	skipCSIFlag                  bool
+	addCSIFlag                   bool
+	updateRoverGroups            bool
+	validate                     bool
+	skipClusterProfileValidation bool
+	commentOutUnmigrated         bool
+	vaultCollectionsFile         string
+	vaultCacheFile               string
+	logLevel                     string
 }
 
 func parseOptions() *options {
@@ -67,6 +68,7 @@ func parseOptions() *options {
 	flagSet.BoolVar(&o.addCSIFlag, "add-csi-flag", false, "Add EnableSecretsStoreCSIDriver flag to all ci-operator configs (standalone mode)")
 	flagSet.BoolVar(&o.updateRoverGroups, "update-rover-groups", false, "Update sync-rover-groups/_config.yaml with collection-to-group mappings from vault-collections file")
 	flagSet.BoolVar(&o.validate, "validate", false, "Validate that all GSM secrets referenced by bundles, credential stanzas, and secrets stanzas exist in GSM")
+	flagSet.BoolVar(&o.skipClusterProfileValidation, "skip-cluster-profile-validation", true, "Skip cluster profile bundle coverage validation")
 	flagSet.BoolVar(&o.commentOutUnmigrated, "comment-out-unmigrated", false, "Find and comment out unmigrated credential entries (run after --migrate-credentials-only)")
 	flagSet.StringVar(&o.vaultCollectionsFile, "vault-collections-file", "vault-collections-owners.yaml", "Path to vault-collections-owners.yaml with rover group assignments")
 	flagSet.StringVar(&o.vaultCacheFile, "vault-cache-file", "", "Path to cache Vault data on disk (dev only, speeds up repeated runs)")
@@ -143,7 +145,7 @@ func main() {
 				logrus.WithError(err).Error("Failed to close GSM client")
 			}
 		}(gsmClient)
-		if err := gsmassmigration.ValidateGSMReferences(ctx, gsmClient, o.gsmProjectNumber, o.releaseRepoPath); err != nil {
+		if err := gsmassmigration.ValidateGSMReferences(ctx, gsmClient, o.gsmProjectNumber, o.releaseRepoPath, o.skipClusterProfileValidation); err != nil {
 			logrus.WithError(err).Fatal("Validation failed")
 		}
 		return

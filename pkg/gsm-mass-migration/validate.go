@@ -34,6 +34,7 @@ func ValidateGSMReferences(
 	gsmClient gsmsecrets.SecretManagerClient,
 	projectNumber string,
 	releaseRepoPath string,
+	skipClusterProfileValidation bool,
 ) error {
 	// 1. Collect all references
 	refs, bundleNames, err := collectAllReferences(releaseRepoPath)
@@ -135,9 +136,14 @@ func ValidateGSMReferences(
 	}
 
 	// 5. Validate cluster profile bundle coverage
-	profilesMissing, err := validateClusterProfileBundles(releaseRepoPath, bundleNames)
-	if err != nil {
-		return fmt.Errorf("failed to validate cluster profile bundles: %w", err)
+	var profilesMissing []string
+	if skipClusterProfileValidation {
+		logrus.Info("Skipping cluster profile bundle validation (--skip-cluster-profile-validation=true)")
+	} else {
+		profilesMissing, err = validateClusterProfileBundles(releaseRepoPath, bundleNames)
+		if err != nil {
+			return fmt.Errorf("failed to validate cluster profile bundles: %w", err)
+		}
 	}
 
 	totalErrors := len(missing) + len(profilesMissing)
@@ -408,15 +414,12 @@ func extractSecretRefs(bundleNames sets.Set[string], source string, secrets ...*
 // are expected to use the other profile's bundle and are skipped.
 // Profiles that are known to not need bundles:
 // - openshift-org-*: part of the "cluster profile sets" initiative, not yet active
-// - vsphere-elastic-poc: reserved for future use, not yet active
 var profilesToSkip = sets.New(
 	"openshift-org-aws",
 	"openshift-org-azure",
 	"openshift-org-gcp",
-	"vsphere-elastic-poc",
 )
 
-// TODO: rework for new ClusterProfiles API (cluster profiles moved from ci-tools to cluster-profiles-config.yaml)
 func validateClusterProfileBundles(releaseRepoPath string, bundleNames sets.Set[string]) ([]string, error) {
 	configPath := path.Join(releaseRepoPath, "ci-operator/step-registry/cluster-profiles/cluster-profiles-config.yaml")
 	content, err := os.ReadFile(configPath)
@@ -453,6 +456,8 @@ func validateClusterProfileBundles(releaseRepoPath string, bundleNames sets.Set[
 		}
 	}
 
-	logrus.Infof("Cluster profile bundle coverage: %d/%d covered, %d missing", covered, len(profilesConfig.Items), len(missing))
+	checked := covered + len(missing)
+	skipped := len(profilesConfig.Items) - checked
+	logrus.Infof("Cluster profile bundle coverage: %d/%d covered, %d missing, %d skipped", covered, checked, len(missing), skipped)
 	return missing, nil
 }
