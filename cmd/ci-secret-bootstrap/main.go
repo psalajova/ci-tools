@@ -17,8 +17,11 @@ import (
 	"time"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
+	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	coreapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -1157,6 +1160,77 @@ func (o *options) validateItems(client secrets.ReadOnlyClient) error {
 	return utilerrors.NewAggregate(errs)
 }
 
+func validateGSMItems(ctx context.Context, gsmClient gsm.SecretManagerClient, gsmConfig *api.GSMConfig, gsmProjectConfig gsm.Config) error {
+	var errs []error
+	checked := sets.New[string]()
+	discoveredFields := make(map[collectionGroupKey][]string)
+
+	for _, bundle := range gsmConfig.Bundles {
+		for _, secretEntry := range bundle.GSMSecrets {
+			if len(secretEntry.Fields) == 0 {
+				if !bundle.SyncToCluster {
+					continue
+				}
+				key := collectionGroupKey{
+					collection: secretEntry.Collection,
+					group:      secretEntry.Group,
+				}
+				if _, alreadyDiscovered := discoveredFields[key]; !alreadyDiscovered {
+					fieldNames, err := gsm.ListSecretFieldsByCollectionAndGroup(ctx, gsmClient, gsmProjectConfig, secretEntry.Collection, secretEntry.Group)
+					if err != nil {
+						errs = append(errs, fmt.Errorf("failed to list fields for collection=%s, group=%s: %w", secretEntry.Collection, secretEntry.Group, err))
+						continue
+					}
+					if len(fieldNames) == 0 {
+						errs = append(errs, fmt.Errorf("no secrets found for collection=%s, group=%s", secretEntry.Collection, secretEntry.Group))
+					}
+					discoveredFields[key] = fieldNames
+				}
+			} else {
+				for _, field := range secretEntry.Fields {
+					resourceName := gsm.GetGSMSecretResourceName(gsmProjectConfig.ProjectIdNumber, secretEntry.Collection, secretEntry.Group, field.Name)
+					if checked.Has(resourceName) {
+						continue
+					}
+					checked.Insert(resourceName)
+					if _, err := gsmClient.GetSecret(ctx, &secretmanagerpb.GetSecretRequest{Name: resourceName}); err != nil {
+						if s, ok := status.FromError(err); ok && s.Code() == codes.NotFound {
+							errs = append(errs, fmt.Errorf("secret %s does not exist in GSM", gsm.GetGSMSecretName(secretEntry.Collection, secretEntry.Group, field.Name)))
+						} else {
+							errs = append(errs, fmt.Errorf("failed to check secret %s: %w", gsm.GetGSMSecretName(secretEntry.Collection, secretEntry.Group, field.Name), err))
+						}
+					}
+				}
+			}
+		}
+
+		if bundle.DockerConfig == nil {
+			continue
+		}
+		for _, reg := range bundle.DockerConfig.Registries {
+			for _, field := range []string{reg.AuthField, reg.EmailField} {
+				if field == "" {
+					continue
+				}
+				resourceName := gsm.GetGSMSecretResourceName(gsmProjectConfig.ProjectIdNumber, gsmConfig.DPTPCollection, reg.Group, field)
+				if checked.Has(resourceName) {
+					continue
+				}
+				checked.Insert(resourceName)
+				if _, err := gsmClient.GetSecret(ctx, &secretmanagerpb.GetSecretRequest{Name: resourceName}); err != nil {
+					if s, ok := status.FromError(err); ok && s.Code() == codes.NotFound {
+						errs = append(errs, fmt.Errorf("secret %s does not exist in GSM", gsm.GetGSMSecretName(gsmConfig.DPTPCollection, reg.Group, field)))
+					} else {
+						errs = append(errs, fmt.Errorf("failed to check secret %s: %w", gsm.GetGSMSecretName(gsmConfig.DPTPCollection, reg.Group, field), err))
+					}
+				}
+			}
+		}
+	}
+
+	return utilerrors.NewAggregate(errs)
+}
+
 // stripDPTPPrefixFromItem strips the dptp prefix from an item name. It is needed when
 // interacting with the secret generator config, because the secret generator gets the full
 // dptp prefix as cli arg (kv/dptp) whereas the ci-secret-bootstrapper which needs to interact with
@@ -1196,7 +1270,7 @@ func main() {
 	}
 
 	var gsmClient *secretmanager.Client
-	if o.enableGsm && !o.validateOnly {
+	if o.enableGsm && o.gsmCredentialsFile != "" {
 		ctx := context.Background()
 		opts := []option.ClientOption{option.WithCredentialsFile(o.gsmCredentialsFile)}
 		gsmClient, err = secretmanager.NewClient(ctx, opts...)
@@ -1239,6 +1313,13 @@ func reconcileSecrets(o options, vaultClient secrets.ReadOnlyClient, gsmClient *
 			// Check for conflicts between Vault and GSM configs
 			if err := validateGSMVaultConflicts(&gsmConfig, &config); err != nil {
 				return append(errs, fmt.Errorf("conflicts between Vault and GSM configs: %w", err))
+			}
+			if gsmClient != nil {
+				if err := validateGSMItems(context.Background(), gsmClient, &gsmConfig, o.gsmProjectConfig); err != nil {
+					return append(errs, fmt.Errorf("failed to validate GSM items: %w", err))
+				}
+			} else {
+				logrus.Warn("GSM credentials not provided, skipping GSM secret existence validation")
 			}
 			logrus.Infof("GSM config file %s has been validated", o.gsmConfigPath)
 		}

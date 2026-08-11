@@ -19,6 +19,8 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/googleapis/gax-go/v2"
 	vaultApi "github.com/hashicorp/vault/api"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	coreapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -2383,7 +2385,12 @@ func (f *fakeGSMClient) ListSecrets(ctx context.Context, req *secretmanagerpb.Li
 }
 
 func (f *fakeGSMClient) GetSecret(ctx context.Context, req *secretmanagerpb.GetSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error) {
-	return nil, fmt.Errorf("not implemented")
+	for key := range f.secrets {
+		if strings.TrimSuffix(key, "/versions/latest") == req.Name {
+			return &secretmanagerpb.Secret{Name: req.Name}, nil
+		}
+	}
+	return nil, status.Error(codes.NotFound, "secret not found: "+req.Name)
 }
 
 func (f *fakeGSMClient) DeleteSecret(ctx context.Context, req *secretmanagerpb.DeleteSecretRequest, opts ...gax.CallOption) error {
@@ -4700,6 +4707,148 @@ func TestGenerateUserSecretLabels(t *testing.T) {
 				t.Errorf("expected error: %q, got: %q", tc.expectedError, err.Error())
 			} else if tc.expectedError == "" {
 				equal(t, "labels", tc.expected, label)
+			}
+		})
+	}
+}
+
+func TestValidateGSMItems(t *testing.T) {
+	projectID := "123456"
+	projectConfig := gsm.Config{ProjectIdNumber: projectID}
+
+	makeResourceName := func(collection, group, field string) string {
+		return gsm.GetGSMSecretResourceName(projectID, collection, group, field) + "/versions/latest"
+	}
+
+	testCases := []struct {
+		name          string
+		gsmConfig     api.GSMConfig
+		secrets       map[string][]byte
+		expectedError string
+	}{
+		{
+			name: "all explicit fields exist",
+			gsmConfig: api.GSMConfig{
+				Bundles: []api.GSMBundle{
+					{
+						Name: "test-bundle",
+						GSMSecrets: []api.GSMSecretRef{
+							{Collection: "col", Group: "grp", Fields: []api.FieldEntry{{Name: "field1"}, {Name: "field2"}}},
+						},
+					},
+				},
+			},
+			secrets: map[string][]byte{
+				makeResourceName("col", "grp", "field1"): []byte("val1"),
+				makeResourceName("col", "grp", "field2"): []byte("val2"),
+			},
+		},
+		{
+			name: "missing explicit field",
+			gsmConfig: api.GSMConfig{
+				Bundles: []api.GSMBundle{
+					{
+						Name: "test-bundle",
+						GSMSecrets: []api.GSMSecretRef{
+							{Collection: "col", Group: "grp", Fields: []api.FieldEntry{{Name: "missing"}}},
+						},
+					},
+				},
+			},
+			secrets:       map[string][]byte{},
+			expectedError: "secret col__grp__missing does not exist in GSM",
+		},
+		{
+			name: "missing dockerconfig auth field",
+			gsmConfig: api.GSMConfig{
+				DPTPCollection: "dptp",
+				Bundles: []api.GSMBundle{
+					{
+						Name: "test-bundle",
+						DockerConfig: &api.DockerConfigSpec{
+							Registries: []api.RegistryAuthData{
+								{Group: "registry-grp", AuthField: "auth-token", RegistryURL: "quay.io"},
+							},
+						},
+					},
+				},
+			},
+			secrets:       map[string][]byte{},
+			expectedError: "secret dptp__registry-grp__auth-token does not exist in GSM",
+		},
+		{
+			name: "dockerconfig with existing fields",
+			gsmConfig: api.GSMConfig{
+				DPTPCollection: "dptp",
+				Bundles: []api.GSMBundle{
+					{
+						Name: "test-bundle",
+						DockerConfig: &api.DockerConfigSpec{
+							Registries: []api.RegistryAuthData{
+								{Group: "reg", AuthField: "auth", EmailField: "email", RegistryURL: "quay.io"},
+							},
+						},
+					},
+				},
+			},
+			secrets: map[string][]byte{
+				makeResourceName("dptp", "reg", "auth"):  []byte("val"),
+				makeResourceName("dptp", "reg", "email"): []byte("val"),
+			},
+		},
+		{
+			name: "sync_to_cluster false skips auto-discovery",
+			gsmConfig: api.GSMConfig{
+				Bundles: []api.GSMBundle{
+					{
+						Name:          "csi-bundle",
+						SyncToCluster: false,
+						GSMSecrets: []api.GSMSecretRef{
+							{Collection: "col", Group: "grp"},
+						},
+					},
+				},
+			},
+			secrets: map[string][]byte{},
+		},
+		{
+			name: "deduplication: same secret referenced twice only checked once",
+			gsmConfig: api.GSMConfig{
+				Bundles: []api.GSMBundle{
+					{
+						Name: "bundle1",
+						GSMSecrets: []api.GSMSecretRef{
+							{Collection: "col", Group: "grp", Fields: []api.FieldEntry{{Name: "field1"}}},
+						},
+					},
+					{
+						Name: "bundle2",
+						GSMSecrets: []api.GSMSecretRef{
+							{Collection: "col", Group: "grp", Fields: []api.FieldEntry{{Name: "field1"}}},
+						},
+					},
+				},
+			},
+			secrets: map[string][]byte{
+				makeResourceName("col", "grp", "field1"): []byte("val"),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &fakeGSMClient{secrets: tc.secrets}
+			err := validateGSMItems(context.Background(), client, &tc.gsmConfig, projectConfig)
+			if tc.expectedError == "" {
+				if err != nil {
+					t.Errorf("expected no error, got: %v", err)
+				}
+			} else {
+				if err == nil {
+					t.Errorf("expected error containing %q, got nil", tc.expectedError)
+				} else if !strings.Contains(err.Error(), tc.expectedError) {
+					t.Errorf("expected error containing %q, got: %v", tc.expectedError, err)
+				}
 			}
 		})
 	}

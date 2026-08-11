@@ -27,9 +27,8 @@ type gsmReference struct {
 	PreNormalized bool // true for bundle refs (already in GSM format), false for credential stanzas
 }
 
-// ValidateGSMReferences checks that all GSM secrets referenced by bundles and
-// credential stanzas in the release repo actually exist in GSM.
-// Uses collection index secrets for efficient lookup (one API call per collection).
+// ValidateGSMReferences checks that all GSM secrets referenced by bundles,
+// credential stanzas, and secrets stanzas in the release repo actually exist in GSM.
 func ValidateGSMReferences(
 	ctx context.Context,
 	gsmClient gsmsecrets.SecretManagerClient,
@@ -55,7 +54,7 @@ func ValidateGSMReferences(
 	for _, ref := range seen {
 		dedupedRefs = append(dedupedRefs, ref)
 	}
-	logrus.Infof("Collected %d unique GSM references (%d before dedup) from %d bundles + configs/step-registry",
+	logrus.Infof("Collected %d unique GSM references (%d before dedup) from %d bundles and configs/step-registry",
 		len(dedupedRefs), len(refs), bundleNames.Len())
 
 	// 2. Fetch indexes (one API call per unique collection)
@@ -150,7 +149,6 @@ func ValidateGSMReferences(
 	return nil
 }
 
-// collectAllReferences gathers GSM references from bundles and credential stanzas.
 func collectAllReferences(releaseRepoPath string) ([]gsmReference, sets.Set[string], error) {
 	var refs []gsmReference
 
@@ -163,6 +161,7 @@ func collectAllReferences(releaseRepoPath string) ([]gsmReference, sets.Set[stri
 
 	dptpCollection := gsmConfig.DPTPCollection
 	if dptpCollection == "" {
+		logrus.Infof("No DPTP collection defined in gsm-config.yaml, defaulting to %s", api.DPTPGSMCollection)
 		dptpCollection = api.DPTPGSMCollection
 	}
 
@@ -216,15 +215,15 @@ func collectAllReferences(releaseRepoPath string) ([]gsmReference, sets.Set[stri
 		}
 	}
 
-	// Collect credential stanza references from ci-operator configs
-	configRefs, err := collectConfigCredentialRefs(releaseRepoPath, bundleNames)
+	// Collect credential and secrets stanza references from ci-operator configs
+	configRefs, err := collectConfigRefs(releaseRepoPath, bundleNames)
 	if err != nil {
 		return nil, nil, err
 	}
 	refs = append(refs, configRefs...)
 
 	// Collect credential stanza references from step-registry
-	registryRefs, err := collectStepRegistryCredentialRefs(releaseRepoPath, bundleNames)
+	registryRefs, err := collectStepRegistryRefs(releaseRepoPath, bundleNames)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -233,7 +232,7 @@ func collectAllReferences(releaseRepoPath string) ([]gsmReference, sets.Set[stri
 	return refs, bundleNames, nil
 }
 
-func collectConfigCredentialRefs(releaseRepoPath string, bundleNames sets.Set[string]) ([]gsmReference, error) {
+func collectConfigRefs(releaseRepoPath string, bundleNames sets.Set[string]) ([]gsmReference, error) {
 	configDir := path.Join(releaseRepoPath, "ci-operator", "config")
 	var refs []gsmReference
 
@@ -246,6 +245,8 @@ func collectConfigCredentialRefs(releaseRepoPath string, bundleNames sets.Set[st
 			if test.MultiStageTestConfigurationLiteral != nil {
 				refs = append(refs, extractMultiStageLiteralRefs(test.MultiStageTestConfigurationLiteral, bundleNames, info.Filename)...)
 			}
+			refs = append(refs, extractSecretRefs(bundleNames, info.Filename, test.Secret)...)
+			refs = append(refs, extractSecretRefs(bundleNames, info.Filename, test.Secrets...)...)
 		}
 		return nil
 	}
@@ -256,7 +257,7 @@ func collectConfigCredentialRefs(releaseRepoPath string, bundleNames sets.Set[st
 	return refs, nil
 }
 
-func collectStepRegistryCredentialRefs(releaseRepoPath string, bundleNames sets.Set[string]) ([]gsmReference, error) {
+func collectStepRegistryRefs(releaseRepoPath string, bundleNames sets.Set[string]) ([]gsmReference, error) {
 	registryPath := path.Join(releaseRepoPath, "ci-operator", "step-registry")
 	var refs []gsmReference
 
@@ -370,6 +371,31 @@ func extractCredentialRefs(credentials []api.CredentialReference, bundleNames se
 			Collection: cred.Collection,
 			Group:      cred.Group,
 			Field:      cred.Field,
+			Source:     source,
+		})
+	}
+	return refs
+}
+
+func extractSecretRefs(bundleNames sets.Set[string], source string, secrets ...*api.Secret) []gsmReference {
+	var refs []gsmReference
+	for _, s := range secrets {
+		if s == nil {
+			continue
+		}
+		if s.Bundle != "" {
+			if !bundleNames.Has(s.Bundle) {
+				logrus.Warnf("Secret references unknown bundle %q in %s", s.Bundle, source)
+			}
+			continue
+		}
+		if s.Collection == "" || s.Group == "" {
+			continue
+		}
+		refs = append(refs, gsmReference{
+			Collection: s.Collection,
+			Group:      s.Group,
+			Field:      s.Field,
 			Source:     source,
 		})
 	}

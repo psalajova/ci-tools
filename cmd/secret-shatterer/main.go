@@ -66,7 +66,7 @@ func parseOptions() *options {
 	flagSet.BoolVar(&o.skipCSIFlag, "skip-csi-flag", false, "Skip adding EnableSecretsStoreCSIDriver flag during credential migration")
 	flagSet.BoolVar(&o.addCSIFlag, "add-csi-flag", false, "Add EnableSecretsStoreCSIDriver flag to all ci-operator configs (standalone mode)")
 	flagSet.BoolVar(&o.updateRoverGroups, "update-rover-groups", false, "Update sync-rover-groups/_config.yaml with collection-to-group mappings from vault-collections file")
-	flagSet.BoolVar(&o.validate, "validate", false, "Validate that all GSM secrets referenced by bundles and credential stanzas exist in GSM")
+	flagSet.BoolVar(&o.validate, "validate", false, "Validate that all GSM secrets referenced by bundles, credential stanzas, and secrets stanzas exist in GSM")
 	flagSet.BoolVar(&o.commentOutUnmigrated, "comment-out-unmigrated", false, "Find and comment out unmigrated credential entries (run after --migrate-credentials-only)")
 	flagSet.StringVar(&o.vaultCollectionsFile, "vault-collections-file", "vault-collections-owners.yaml", "Path to vault-collections-owners.yaml with rover group assignments")
 	flagSet.StringVar(&o.vaultCacheFile, "vault-cache-file", "", "Path to cache Vault data on disk (dev only, speeds up repeated runs)")
@@ -130,6 +130,25 @@ func main() {
 	}
 	o.setupLogger()
 
+	if o.validate {
+		logrus.Info("Validating GSM secrets referenced in release repo...")
+		ctx := context.Background()
+		gsmClient, err := secretmanager.NewClient(ctx)
+		if err != nil {
+			logrus.WithError(err).Fatal("Failed to create GSM client")
+		}
+		defer func(gsmClient *secretmanager.Client) {
+			err := gsmClient.Close()
+			if err != nil {
+				logrus.WithError(err).Error("Failed to close GSM client")
+			}
+		}(gsmClient)
+		if err := gsmassmigration.ValidateGSMReferences(ctx, gsmClient, o.gsmProjectNumber, o.releaseRepoPath); err != nil {
+			logrus.WithError(err).Fatal("Validation failed")
+		}
+		return
+	}
+
 	if o.normalizeStepRegistry {
 		logrus.Info("Normalizing step-registry YAML files...")
 		if _, err := gsmassmigration.NormalizeStepRegistry(o.releaseRepoPath, o.dryRun); err != nil {
@@ -153,20 +172,6 @@ func main() {
 		logrus.Info("Updating rover groups config with collection mappings...")
 		if err := gsmassmigration.UpdateRoverGroupsConfig(o.releaseRepoPath, o.vaultCollectionsFile, o.dryRun); err != nil {
 			logrus.WithError(err).Fatal("Failed to update rover groups config")
-		}
-		return
-	}
-
-	if o.validate {
-		logrus.Info("Validating GSM references in release repo...")
-		ctx := context.Background()
-		gsmClient, err := secretmanager.NewClient(ctx)
-		if err != nil {
-			logrus.WithError(err).Fatal("Failed to create GSM client")
-		}
-		defer gsmClient.Close()
-		if err := gsmassmigration.ValidateGSMReferences(ctx, gsmClient, o.gsmProjectNumber, o.releaseRepoPath); err != nil {
-			logrus.WithError(err).Fatal("Validation failed")
 		}
 		return
 	}
