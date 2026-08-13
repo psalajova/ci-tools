@@ -173,13 +173,19 @@ func buildIndexUpdates(migrations []MigrationResult, existingByCollection map[st
 // UpdateCollectionIndexes updates the index secret for each collection that had
 // secrets created during migration. Groups created secrets by collection, reads
 // the current index, merges new entries, and writes back.
+//
+// A collection is skipped (its index is left untouched) if its current index
+// can't be read, or written back after merging. Skipped collections are
+// returned so the caller can report them and re-run the migration for just
+// those collections later -- migration and index updates are idempotent, so
+// re-running is safe once the underlying issue is fixed.
 func UpdateCollectionIndexes(
 	ctx context.Context,
 	gsmClient gsmsecrets.SecretManagerClient,
 	projectNumber string,
 	migrations []MigrationResult,
 	dryRun bool,
-) error {
+) (skippedCollections []string, err error) {
 	// Read existing indexes from GSM
 	existingByCollection := make(map[string][]string)
 	collections := sets.New[string]()
@@ -188,24 +194,37 @@ func UpdateCollectionIndexes(
 			collections.Insert(m.Collection)
 		}
 	}
+
+	readable := sets.New[string]()
+	skipped := sets.New[string]()
 	for collection := range collections {
 		indexSecretName := gsmsecrets.GetIndexSecretName(collection)
 		resourceName := fmt.Sprintf("%s/secrets/%s",
 			gsmsecrets.GetProjectResourceIdNumber(projectNumber),
 			indexSecretName,
 		)
-		payload, err := gsmsecrets.GetSecretPayload(ctx, gsmClient, resourceName)
-		if err != nil {
-			logrus.WithError(err).Warnf("Could not read index for collection %s, starting from empty", collection)
-		} else {
-			existingByCollection[collection] = gsmsecrets.ParseIndexSecretContent(payload)
+		payload, readErr := gsmsecrets.GetSecretPayload(ctx, gsmClient, resourceName)
+		if readErr != nil {
+			//todo uncomment
+			//logrus.WithError(readErr).Errorf("Could not read index for collection %s -- skipping index update for it (secrets were still created; re-run the migration to update its index once this is fixed)", collection)
+			skipped.Insert(collection)
+			continue
+		}
+		existingByCollection[collection] = gsmsecrets.ParseIndexSecretContent(payload)
+		readable.Insert(collection)
+	}
+
+	// Only merge/write updates for collections whose current index we could
+	// actually read -- otherwise we'd overwrite the index based on an empty
+	// read and lose existing entries.
+	readableMigrations := make([]MigrationResult, 0, len(migrations))
+	for _, m := range migrations {
+		if readable.Has(m.Collection) {
+			readableMigrations = append(readableMigrations, m)
 		}
 	}
 
-	updates := buildIndexUpdates(migrations, existingByCollection)
-	if len(updates) == 0 {
-		return nil
-	}
+	updates := buildIndexUpdates(readableMigrations, existingByCollection)
 
 	for collection, payload := range updates {
 		indexSecretName := gsmsecrets.GetIndexSecretName(collection)
@@ -218,11 +237,14 @@ func UpdateCollectionIndexes(
 		annotations := map[string]string{
 			"request-information": "Updated during Vault to GSM migration",
 		}
-		if err := gsmsecrets.CreateOrUpdateSecret(ctx, gsmClient, projectNumber, indexSecretName, payload, nil, annotations); err != nil {
-			return fmt.Errorf("failed to update index for collection %s: %w", collection, err)
+		if writeErr := gsmsecrets.CreateOrUpdateSecret(ctx, gsmClient, projectNumber, indexSecretName, payload, nil, annotations); writeErr != nil {
+			//todo uncomment
+			//logrus.WithError(writeErr).Errorf("Failed to update index for collection %s -- re-run the migration to retry", collection)
+			skipped.Insert(collection)
+			continue
 		}
 		logrus.Infof("Updated index for collection %s", collection)
 	}
 
-	return nil
+	return sets.List(skipped), nil
 }

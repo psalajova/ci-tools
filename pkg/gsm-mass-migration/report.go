@@ -17,6 +17,7 @@ type MigrationReport struct {
 	ConfigEntriesRemovedFromConfig int
 	Errors                         []error
 	NotMigratedSecrets             []string
+	IndexUpdateFailures            []string
 }
 
 // GenerateReport creates a summary report from migration results and credential updates.
@@ -81,11 +82,19 @@ func PrintReport(report MigrationReport) {
 		}
 	}
 
+	if len(report.IndexUpdateFailures) > 0 {
+		logrus.Info("================================================================================")
+		logrus.Errorf("INDEX UPDATE FAILURES (%d) -- secrets were still created in GSM, but the collection index could not be safely read/written, so it was left untouched. Re-run the migration once the underlying issue is resolved; it is safe to re-run in full", len(report.IndexUpdateFailures))
+		for _, collection := range report.IndexUpdateFailures {
+			logrus.Errorf("  %s", collection)
+		}
+	}
+
 	logrus.Info("================================================================================")
 
-	if report.FailedSecrets == 0 {
+	if report.FailedSecrets == 0 && len(report.IndexUpdateFailures) == 0 {
 		logrus.Info("Migration completed successfully!")
 	} else {
-		logrus.Warnf("Migration completed with %d errors", report.FailedSecrets)
+		logrus.Warnf("Migration completed with %d secret failures and %d collections needing an index re-run", report.FailedSecrets, len(report.IndexUpdateFailures))
 	}
 }

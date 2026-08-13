@@ -122,6 +122,7 @@ func (o *options) runMassMigration() error {
 	var allMigrations []gsmassmigration.MigrationResult
 	var credUpdates []gsmassmigration.CredentialUpdate
 	var configUpdateResult *gsmassmigration.ConfigUpdateResult
+	var indexUpdateFailures []string
 
 	// Setup GSM client (only if we're actually creating secrets)
 	var gsmClient *secretmanager.Client
@@ -152,7 +153,7 @@ func (o *options) runMassMigration() error {
 			logrus.Infof("Found %d secrets used by %s/%s", len(selfserviceSecretsToMigrate), o.org, o.repo)
 		} else {
 			selfserviceSecretsToMigrate = o.enumerateSelfserviceSecretsFromCache(cache)
-			logrus.Infof("Found %d selfservice secrets in cache", len(selfserviceSecretsToMigrate))
+			logrus.Infof("Found %d unique selfservice secrets in cache", len(selfserviceSecretsToMigrate))
 		}
 
 		// Phase 3a: Migrate selfservice secrets to GSM (or synthesize results from cache)
@@ -176,9 +177,11 @@ func (o *options) runMassMigration() error {
 				}
 				allMigrations = append(allMigrations, migrations...)
 
-				if err := gsmassmigration.UpdateCollectionIndexes(ctx, gsmClient, o.gsmProjectNumber, migrations, o.dryRun); err != nil {
+				failedCollections, err := gsmassmigration.UpdateCollectionIndexes(ctx, gsmClient, o.gsmProjectNumber, migrations, o.dryRun)
+				if err != nil {
 					return fmt.Errorf("failed to update collection indexes after selfservice migration: %w", err)
 				}
+				indexUpdateFailures = append(indexUpdateFailures, failedCollections...)
 			}
 		} else {
 			logrus.Warn("No selfservice secrets found to migrate")
@@ -257,9 +260,11 @@ func (o *options) runMassMigration() error {
 				}
 				allMigrations = append(allMigrations, migrations...)
 
-				if err := gsmassmigration.UpdateCollectionIndexes(ctx, gsmClient, o.gsmProjectNumber, migrations, o.dryRun); err != nil {
+				failedCollections, err := gsmassmigration.UpdateCollectionIndexes(ctx, gsmClient, o.gsmProjectNumber, migrations, o.dryRun)
+				if err != nil {
 					return fmt.Errorf("failed to update collection indexes after DPTP migration: %w", err)
 				}
+				indexUpdateFailures = append(indexUpdateFailures, failedCollections...)
 			}
 		} else {
 			logrus.Info("Phase 3b: Skipped DPTP secret migration (--skip-gsm-creation)")
@@ -281,10 +286,11 @@ func (o *options) runMassMigration() error {
 		report.BundlesAddedToGSMConfig = configUpdateResult.BundlesAdded
 		report.ConfigEntriesRemovedFromConfig = configUpdateResult.ConfigEntriesRemoved
 	}
+	report.IndexUpdateFailures = indexUpdateFailures
 	gsmassmigration.PrintReport(report)
 
-	if report.FailedSecrets > 0 {
-		return fmt.Errorf("migration completed with %d failures", report.FailedSecrets)
+	if report.FailedSecrets > 0 || len(report.IndexUpdateFailures) > 0 {
+		return fmt.Errorf("migration completed with %d secret failures and %d collections needing an index re-run", report.FailedSecrets, len(report.IndexUpdateFailures))
 	}
 
 	logrus.Infof("Remember to run 'make update' in the release repo (%s) before committing", o.releaseRepoPath)

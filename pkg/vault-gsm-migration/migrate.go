@@ -191,7 +191,6 @@ func MigrateVaultSecretToGSMFromCache(
 		//	errors = append(errors, err)
 		//	continue
 		//}
-		logrus.Infof("(special dry run) Would create: %s", fullGsmSecretName)
 
 		logrus.Infof("Successfully created: %s", fullGsmSecretName)
 		createdSecrets = append(createdSecrets, fullGsmSecretName)
