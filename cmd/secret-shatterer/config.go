@@ -83,12 +83,38 @@ func (o *options) collectCredentialsFromConfigs(credentials *[]credentialRef, se
 			if test.MultiStageTestConfigurationLiteral != nil {
 				o.collectCredentialsFromMultiStageLiteral(test.MultiStageTestConfigurationLiteral, credentials, seen)
 			}
+			// Container test secrets (Secret and Secrets fields) reference K8s secrets
+			// that must also be migrated so their stanzas get rewritten in Phase 4.
+			collectSecretsFromTest(&test, credentials, seen)
 		}
 		return nil
 	}
 
 	if err := config.OperateOnCIOperatorConfigDir(configDir, callback); err != nil {
 		logrus.WithError(err).Warnf("Failed to scan config directory %s", configDir)
+	}
+}
+
+// collectSecretsFromTest collects container test secrets (the Secret and Secrets
+// fields) referenced by a test. Unlike credentials, these have no namespace
+// (Phase 4 rewrites them via a name-only lookup), so we register them with an
+// empty namespace and rely on target-name matching during enumeration.
+func collectSecretsFromTest(test *api.TestStepConfiguration, credentials *[]credentialRef, seen map[string]bool) {
+	var secrets []*api.Secret
+	if test.Secret != nil {
+		secrets = append(secrets, test.Secret)
+	}
+	secrets = append(secrets, test.Secrets...)
+
+	for _, secret := range secrets {
+		if secret == nil || secret.Name == "" {
+			continue
+		}
+		// Skip already-migrated secrets
+		if (secret.Collection != "" && secret.Group != "") || secret.Bundle != "" {
+			continue
+		}
+		addCredential(credentials, seen, secret.Name, "")
 	}
 }
 

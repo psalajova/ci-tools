@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/openshift/ci-tools/pkg/api"
 )
 
 func TestCredentialMigration(t *testing.T) {
@@ -100,6 +103,81 @@ func TestCredentialMigration(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("Failed to walk expected dir: %v", err)
+	}
+}
+
+func TestUpdateSecretsNamespaceDisambiguation(t *testing.T) {
+	testCases := []struct {
+		name          string
+		migrations    []MigrationResult
+		secretName    string
+		expectChanged bool
+		expectedColl  string
+		expectedGroup string
+	}{
+		{
+			name: "prefers ci variant when same name synced to ci and test-credentials",
+			migrations: []MigrationResult{
+				{SecretName: "acm-sonarcloud-token", Collection: "ocm-secrets", Group: "acm-sonarcloud-token", TargetNamespaces: "test-credentials"},
+				{SecretName: "acm-sonarcloud-token", Collection: "ocm-secrets", Group: "acm-sonarcloud-token-ci", TargetNamespaces: "ci"},
+			},
+			secretName:    "acm-sonarcloud-token",
+			expectChanged: true,
+			expectedColl:  "ocm-secrets",
+			expectedGroup: "acm-sonarcloud-token-ci",
+		},
+		{
+			name: "prefers ci variant across different collections",
+			migrations: []MigrationResult{
+				{SecretName: "cs-qe-credentials", Collection: "rosa-e2e", Group: "cs-qe-credentials", TargetNamespaces: "test-credentials"},
+				{SecretName: "cs-qe-credentials", Collection: "ocm-fvt-credentials", Group: "cs-qe-credentials", TargetNamespaces: "ci"},
+			},
+			secretName:    "cs-qe-credentials",
+			expectChanged: true,
+			expectedColl:  "ocm-fvt-credentials",
+			expectedGroup: "cs-qe-credentials",
+		},
+		{
+			name: "falls back to single test-credentials variant when no ci variant exists",
+			migrations: []MigrationResult{
+				{SecretName: "ossm-github", Collection: "openshift-service-mesh", Group: "github-ossm-bot", TargetNamespaces: "test-credentials"},
+			},
+			secretName:    "ossm-github",
+			expectChanged: true,
+			expectedColl:  "openshift-service-mesh",
+			expectedGroup: "github-ossm-bot",
+		},
+		{
+			name:          "unmigrated when no matching vault secret",
+			migrations:    nil,
+			secretName:    "does-not-exist",
+			expectChanged: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			credentialMap := buildCredentialMapping(tc.migrations)
+			secrets := []*api.Secret{{Name: tc.secretName, MountPath: "/x"}}
+
+			updates, changed := updateSecrets(secrets, credentialMap, sets.New[string](), sets.New[string](), "test.yaml")
+			if changed != tc.expectChanged {
+				t.Fatalf("changed = %v, want %v", changed, tc.expectChanged)
+			}
+			if !tc.expectChanged {
+				return
+			}
+			if len(updates) != 1 {
+				t.Fatalf("expected 1 update, got %d", len(updates))
+			}
+			u := updates[0]
+			if u.NewCollection != tc.expectedColl || u.NewGroup != tc.expectedGroup {
+				t.Errorf("got %s/%s, want %s/%s", u.NewCollection, u.NewGroup, tc.expectedColl, tc.expectedGroup)
+			}
+			if !u.IsSecret {
+				t.Errorf("expected IsSecret=true")
+			}
+		})
 	}
 }
 

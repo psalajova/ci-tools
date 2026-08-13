@@ -9,6 +9,7 @@ import (
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	gsmassmigration "github.com/openshift/ci-tools/pkg/gsm-mass-migration"
 	"github.com/openshift/ci-tools/pkg/vaultclient"
@@ -230,7 +231,7 @@ func (o *options) runMassMigration() error {
 		}
 		clusterProfileSecrets = append(clusterProfileSecrets, userSecretOnlyProfiles...)
 
-		// Phase 3b: Migrate DPTP secrets to GSM
+		// Phase 3b: Migrate DPTP secrets (only those that are in _config.yaml as part of cluster profile secrets) to GSM
 		if !o.skipGSMCreation {
 			logrus.Info("Phase 3b: Migrating DPTP secrets to GSM...")
 			dptpSecretsFromCache := cache.FilterDPTPByItems(dptpItemsFromConfig)
@@ -287,7 +288,7 @@ func (o *options) runMassMigration() error {
 		report.ConfigEntriesRemovedFromConfig = configUpdateResult.ConfigEntriesRemoved
 	}
 	report.IndexUpdateFailures = indexUpdateFailures
-	gsmassmigration.PrintReport(report)
+	gsmassmigration.PrintReport(report, o.dryRun)
 
 	if report.FailedSecrets > 0 || len(report.IndexUpdateFailures) > 0 {
 		return fmt.Errorf("migration completed with %d secret failures and %d collections needing an index re-run", report.FailedSecrets, len(report.IndexUpdateFailures))
@@ -350,40 +351,65 @@ func (o *options) enumerateSelfserviceSecretsFromCache(cache *gsmassmigration.Va
 	return secrets
 }
 
-// enumerateTargetedSecrets finds secrets used by a specific org/repo by querying configs and OCP
+// enumerateTargetedSecrets finds secrets used by a specific org/repo by resolving the
+// credential/secret names referenced in that org/repo against the Vault cache. This is
+// the same source of truth as mass mode (enumerateSelfserviceSecretsFromCache); the only
+// difference is that targeted mode restricts the set to names actually used by org/repo.
 func (o *options) enumerateTargetedSecrets(cache *gsmassmigration.VaultCache) ([]gsmassmigration.VaultSecretPath, error) {
-	// Collect credential names and namespaces from configs/step-registry
+	// Collect credential and container-secret names/namespaces from configs/step-registry
 	credentials := o.collectCredentialsFromOrgRepo()
 	logrus.Infof("Found %d unique old-stanza credentials referenced by %s/%s", len(credentials), o.org, o.repo)
 
 	var secretPaths []gsmassmigration.VaultSecretPath
+	seenPaths := sets.New[string]()
 
 	for _, cred := range credentials {
-		// Query OCP to get the vault source path using the actual namespace from the config
-		vaultPath, err := gsmassmigration.GetVaultPathFromOCPSecret(cred.name, cred.namespace)
-		if err != nil {
-			logrus.WithError(err).Warnf("Could not find vault path for credential %s/%s, skipping", cred.namespace, cred.name)
+		// A K8s secret name maps to a Vault secret's secretsync/target-name.
+		matches := cache.GetByTargetName(cred.name)
+		if len(matches) == 0 {
+			logrus.Warnf("No Vault secret in cache with target-name %q (namespace %s) referenced by %s/%s, skipping", cred.name, cred.namespace, o.org, o.repo)
 			continue
 		}
 
-		// Parse the vault path to extract collection/group
-		collection, group, err := gsmassmigration.ParseVaultPath(vaultPath)
-		if err != nil {
-			logrus.WithError(err).Warnf("Invalid vault path for %s: %s, skipping", cred.name, vaultPath)
-			continue
+		for _, cached := range matches {
+			if cached.IsEmpty || cached.IsPlaceholder {
+				continue
+			}
+			// For credential stanzas (which carry an explicit namespace), require the
+			// referenced namespace to be among the Vault secret's target namespaces so we
+			// don't match a same-named secret synced elsewhere. Container test secrets have
+			// no namespace (cred.namespace == "") and are matched by target-name only,
+			// mirroring the name-only lookup used when their stanzas are rewritten.
+			if cred.namespace != "" && cached.TargetNamespace != "" && !namespaceMatches(cred.namespace, cached.TargetNamespace) {
+				continue
+			}
+			if seenPaths.Has(cached.Path) {
+				continue
+			}
+			seenPaths.Insert(cached.Path)
+
+			secretPaths = append(secretPaths, gsmassmigration.VaultSecretPath{
+				FullPath:   cached.Path,
+				Collection: cached.Collection,
+				Group:      cached.Group,
+			})
+
+			logrus.Debugf("Credential %s/%s → vault path %s (collection=%s, group=%s)",
+				cred.namespace, cred.name, cached.Path, cached.Collection, cached.Group)
 		}
-
-		secretPaths = append(secretPaths, gsmassmigration.VaultSecretPath{
-			FullPath:   vaultPath,
-			Collection: collection,
-			Group:      group,
-		})
-
-		logrus.Debugf("Credential %s/%s → vault path %s (collection=%s, group=%s)",
-			cred.namespace, cred.name, vaultPath, collection, group)
 	}
 
 	return secretPaths, nil
+}
+
+// namespaceMatches reports whether ns is one of the comma-separated target namespaces.
+func namespaceMatches(ns, targetNamespaces string) bool {
+	for tn := range strings.SplitSeq(targetNamespaces, ",") {
+		if strings.TrimSpace(tn) == ns {
+			return true
+		}
+	}
+	return false
 }
 
 // generateAndUpdateBundlesFromCache generates bundles using cached Vault data

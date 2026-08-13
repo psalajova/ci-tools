@@ -18,6 +18,12 @@ import (
 	gsmvalidation "github.com/openshift/ci-tools/pkg/gsm-validation"
 )
 
+// prowPodNamespace is the namespace ci-operator prow job pods run in (prow's
+// pod_namespace). Container test secrets (the secrets:/secret: fields) mount K8s
+// secrets by name from this namespace, so it disambiguates same-named secrets
+// synced to multiple namespaces.
+const prowPodNamespace = "ci"
+
 // UpdateCredentialStanzas walks CI operator configs and step registry to update credential references.
 // Replaces namespace/name with collection/group for migrated Vault secrets,
 // and namespace/name with bundle: for credentials matching gsm-config.yaml bundles.
@@ -351,8 +357,16 @@ func updateSecrets(secrets []*api.Secret, credentialMap map[credentialKey]VaultS
 			continue
 		}
 
-		// Vault secret match -- name-only lookup (secrets have no namespace)
-		vaultSecret, exists := credentialMap[credentialKey{name: secret.Name}]
+		// Vault secret match. Container test secrets have no namespace: the K8s secret
+		// is read from the namespace the ci-operator prow job pod runs in (prow's
+		// pod_namespace, "ci"). When the same K8s name is synced to multiple namespaces
+		// by different Vault secrets (e.g. an "-ci" variant), the "ci" copy is what the
+		// job actually mounts, so prefer it. Fall back to a name-only lookup for secrets
+		// synced to a single namespace.
+		vaultSecret, exists := credentialMap[credentialKey{name: secret.Name, namespace: prowPodNamespace}]
+		if !exists {
+			vaultSecret, exists = credentialMap[credentialKey{name: secret.Name}]
+		}
 		if !exists {
 			logrus.Warnf("UNMIGRATED secret: name=%s mount_path=%s file=%s (no matching Vault secret found)",
 				secret.Name, secret.MountPath, filePath)

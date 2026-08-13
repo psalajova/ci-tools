@@ -54,7 +54,7 @@ func GenerateReport(migrations []MigrationResult, credUpdates []CredentialUpdate
 }
 
 // PrintReport outputs a human-readable summary of the migration
-func PrintReport(report MigrationReport) {
+func PrintReport(report MigrationReport, dryRun bool) {
 	logrus.Info("================================================================================")
 	logrus.Info("                         MIGRATION SUMMARY                                      ")
 	logrus.Info("================================================================================")
@@ -82,19 +82,21 @@ func PrintReport(report MigrationReport) {
 		}
 	}
 
-	if len(report.IndexUpdateFailures) > 0 {
-		logrus.Info("================================================================================")
-		logrus.Errorf("INDEX UPDATE FAILURES (%d) -- secrets were still created in GSM, but the collection index could not be safely read/written, so it was left untouched. Re-run the migration once the underlying issue is resolved; it is safe to re-run in full", len(report.IndexUpdateFailures))
-		for _, collection := range report.IndexUpdateFailures {
-			logrus.Errorf("  %s", collection)
+	if !dryRun {
+		if len(report.IndexUpdateFailures) > 0 {
+			logrus.Info("================================================================================")
+			logrus.Errorf("INDEX UPDATE FAILURES (%d) -- secrets were still created in GSM, but the collection index could not be safely read/written, so it was left untouched. Re-run the migration once the underlying issue is resolved; it is safe to re-run in full", len(report.IndexUpdateFailures))
+			for _, collection := range report.IndexUpdateFailures {
+				logrus.Errorf("  %s", collection)
+			}
 		}
-	}
 
-	logrus.Info("================================================================================")
+		logrus.Info("================================================================================")
 
-	if report.FailedSecrets == 0 && len(report.IndexUpdateFailures) == 0 {
-		logrus.Info("Migration completed successfully!")
-	} else {
-		logrus.Warnf("Migration completed with %d secret failures and %d collections needing an index re-run", report.FailedSecrets, len(report.IndexUpdateFailures))
+		if report.FailedSecrets == 0 && len(report.IndexUpdateFailures) == 0 {
+			logrus.Info("Migration completed successfully!")
+		} else {
+			logrus.Warnf("Migration completed with %d secret failures and %d collections needing an index re-run", report.FailedSecrets, len(report.IndexUpdateFailures))
+		}
 	}
 }
