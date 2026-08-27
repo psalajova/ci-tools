@@ -24,7 +24,7 @@ func GenerateMultiSourceBundles(
 	dryRun bool,
 ) (int, error) {
 	// Build set of cluster profile secret names to exclude (handled separately)
-	cpNames, err := buildCompleteClusterProfileSecretMap(releaseRepoPath)
+	cpNames, _, _, err := buildCompleteClusterProfileSecretMap(releaseRepoPath)
 	if err != nil {
 		return 0, fmt.Errorf("failed to build cluster profile map: %w", err)
 	}

@@ -31,23 +31,28 @@ type ClusterProfileSecret struct {
 }
 
 // buildCompleteClusterProfileSecretMap builds a complete map of all valid cluster profile secret names
-// from cluster-profiles-config.yaml (the single source of truth for cluster profiles).
+// from cluster-profiles-config.yaml (the single source of truth for cluster profiles), along with the
+// individual (non-set) profile names that back each secret and the number of set entries encountered.
+// Sets don't have their own secret; they just alias a group of individually-named profiles.
 // TODO: rework for new ClusterProfiles API (cluster profiles moved from ci-tools to cluster-profiles-config.yaml)
-func buildCompleteClusterProfileSecretMap(releaseRepoPath string) (map[string]bool, error) {
+func buildCompleteClusterProfileSecretMap(releaseRepoPath string) (map[string]bool, map[string][]string, int, error) {
 	configPath := filepath.Join(releaseRepoPath, "ci-operator/step-registry/cluster-profiles/cluster-profiles-config.yaml")
 	content, err := os.ReadFile(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read cluster-profiles-config.yaml: %w", err)
+		return nil, nil, 0, fmt.Errorf("failed to read cluster-profiles-config.yaml: %w", err)
 	}
 
 	var profilesConfig api.ClusterProfiles
 	if err := yaml.Unmarshal(content, &profilesConfig); err != nil {
-		return nil, fmt.Errorf("failed to parse cluster-profiles-config.yaml: %w", err)
+		return nil, nil, 0, fmt.Errorf("failed to parse cluster-profiles-config.yaml: %w", err)
 	}
 
 	secretNames := make(map[string]bool)
+	profileNamesBySecret := make(map[string][]string)
+	setCount := 0
 	for _, profile := range profilesConfig.Items {
 		if profile.IsASet() {
+			setCount++
 			continue
 		}
 		secretName := profile.Secret
@@ -55,10 +60,11 @@ func buildCompleteClusterProfileSecretMap(releaseRepoPath string) (map[string]bo
 			secretName = "cluster-secrets-" + profile.Name
 		}
 		secretNames[secretName] = true
+		profileNamesBySecret[secretName] = append(profileNamesBySecret[secretName], profile.Name)
 	}
 
-	logrus.Debugf("Built complete cluster profile secret map with %d entries", len(secretNames))
-	return secretNames, nil
+	logrus.Debugf("Built complete cluster profile secret map with %d entries (%d individual profiles, %d sets)", len(secretNames), len(profilesConfig.Items)-setCount, setCount)
+	return secretNames, profileNamesBySecret, setCount, nil
 }
 
 // ExtractClusterProfiles reads _config.yaml and extracts cluster profile secrets.
@@ -69,7 +75,7 @@ func ExtractClusterProfiles(releaseRepoPath string) ([]ClusterProfileSecret, map
 
 	logrus.Infof("Reading cluster profiles from %s", configPath)
 
-	validSecretNames, err := buildCompleteClusterProfileSecretMap(releaseRepoPath)
+	validSecretNames, profileNamesBySecret, setCount, err := buildCompleteClusterProfileSecretMap(releaseRepoPath)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to build cluster profile secret map: %w", err)
 	}
@@ -192,7 +198,12 @@ func ExtractClusterProfiles(releaseRepoPath string) ([]ClusterProfileSecret, map
 		logrus.Debugf("DPTP items extracted from _config.yaml: %v", itemsList)
 	}
 
-	logrus.Infof("Found %d cluster profiles, %d unique DPTP items", len(profiles), len(dptpItems))
+	individualProfileCount := 0
+	for _, p := range profiles {
+		individualProfileCount += len(profileNamesBySecret[p.Name])
+	}
+
+	logrus.Infof("Found %d cluster profile secrets covering %d individual cluster profiles (%d sets excluded), %d unique DPTP items", len(profiles), individualProfileCount, setCount, len(dptpItems))
 	return profiles, config.ClusterGroups, dptpItems, nil
 }
 
@@ -200,7 +211,7 @@ func ExtractClusterProfiles(releaseRepoPath string) ([]ClusterProfileSecret, map
 // but are assembled entirely from user selfservice Vault secrets (via secretsync/target-name).
 // These profiles need bundles with only gsm_secrets (no dockerconfig).
 func DiscoverUserSecretOnlyProfiles(releaseRepoPath string, cache *VaultCache, alreadyFound []ClusterProfileSecret) ([]ClusterProfileSecret, error) {
-	validSecretNames, err := buildCompleteClusterProfileSecretMap(releaseRepoPath)
+	validSecretNames, _, _, err := buildCompleteClusterProfileSecretMap(releaseRepoPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build cluster profile secret map: %w", err)
 	}

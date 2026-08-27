@@ -211,7 +211,7 @@ func main() {
 		return
 	}
 
-	logrus.Info("Starting Vault to GSM mass migration...")
+	logrus.Debug("Starting Vault to GSM mass migration...")
 
 	if err := o.runMassMigration(); err != nil {
 		logrus.WithError(err).Fatal("Migration failed")

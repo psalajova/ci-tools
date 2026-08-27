@@ -140,10 +140,10 @@ func (o *options) runMassMigration() error {
 
 	// === Credential Path ===
 	if o.migrateAll || o.migrateCredentialsOnly {
-		logrus.Info("=== Credential Migration Path ===")
+		logrus.Debug("=== Credential Migration Path ===")
 
 		// Phase 1: Find credentials to migrate
-		logrus.Info("Phase 1: Finding credentials to migrate...")
+		logrus.Debug("Phase 1: Finding credentials to migrate...")
 		var selfserviceSecretsToMigrate []gsmassmigration.VaultSecretPath
 
 		if o.targetedMode {
@@ -160,10 +160,10 @@ func (o *options) runMassMigration() error {
 		// Phase 3a: Migrate selfservice secrets to GSM (or synthesize results from cache)
 		if len(selfserviceSecretsToMigrate) > 0 {
 			if o.skipGSMCreation {
-				logrus.Info("Phase 3a: Synthesizing migration results from Vault cache...")
+				logrus.Debug("Phase 3a: Synthesizing migration results from Vault cache...")
 				allMigrations = append(allMigrations, synthesizeMigrationResults(cache, selfserviceSecretsToMigrate)...)
 			} else {
-				logrus.Info("Phase 3a: Migrating selfservice secrets to GSM...")
+				logrus.Debug("Phase 3a: Migrating selfservice secrets to GSM...")
 				migrations, err := gsmassmigration.MigrateSecrets(
 					ctx,
 					cache,
@@ -189,7 +189,7 @@ func (o *options) runMassMigration() error {
 		}
 
 		// Phase 3c: Generate bundles for multi-source credentials (multiple vault paths -> one K8s secret)
-		logrus.Info("Phase 3c: Generating bundles for multi-source credentials...")
+		logrus.Debug("Phase 3c: Generating bundles for multi-source credentials...")
 		multiSourceAdded, err := gsmassmigration.GenerateMultiSourceBundles(cache, o.releaseRepoPath, o.dryRun)
 		if err != nil {
 			return fmt.Errorf("failed to generate multi-source bundles: %w", err)
@@ -199,7 +199,7 @@ func (o *options) runMassMigration() error {
 		}
 
 		// Phase 4: Update credential stanzas
-		logrus.Info("Phase 4: Updating credential stanzas in configs and step-registry...")
+		logrus.Debug("Phase 4: Updating credential stanzas in configs and step-registry...")
 		credUpdates, err = gsmassmigration.UpdateCredentialStanzas(
 			o.releaseRepoPath,
 			allMigrations,
@@ -213,18 +213,17 @@ func (o *options) runMassMigration() error {
 
 	// === Cluster Profile Path ===
 	if o.migrateAll || o.migrateClusterProfilesOnly {
-		logrus.Info("=== Cluster Profile Migration Path ===")
+		logrus.Debug("=== Cluster Profile Migration Path ===")
 
 		// Phase 2a: Extract cluster profiles from _config.yaml
-		logrus.Info("Phase 2a: Extracting cluster profiles from _config.yaml...")
+		logrus.Debug("Phase 2a: Extracting cluster profiles from _config.yaml...")
 		clusterProfileSecrets, _, dptpItemsFromConfig, err := gsmassmigration.ExtractClusterProfiles(o.releaseRepoPath)
 		if err != nil {
 			return fmt.Errorf("failed to extract cluster profiles: %w", err)
 		}
-		logrus.Infof("Found %d cluster profile definitions, %d unique DPTP items", len(clusterProfileSecrets), len(dptpItemsFromConfig))
 
 		// Phase 2a-2: Discover user-secret-only profiles (not in _config.yaml)
-		logrus.Info("Phase 2a-2: Discovering user-secret-only cluster profiles from Vault cache...")
+		logrus.Debug("Phase 2a-2: Discovering user-secret-only cluster profiles from Vault cache...")
 		userSecretOnlyProfiles, err := gsmassmigration.DiscoverUserSecretOnlyProfiles(o.releaseRepoPath, cache, clusterProfileSecrets)
 		if err != nil {
 			return fmt.Errorf("failed to discover user-secret-only profiles: %w", err)
@@ -233,7 +232,7 @@ func (o *options) runMassMigration() error {
 
 		// Phase 3b: Migrate DPTP secrets (only those that are in _config.yaml as part of cluster profile secrets) to GSM
 		if !o.skipGSMCreation {
-			logrus.Info("Phase 3b: Migrating DPTP secrets to GSM...")
+			logrus.Debug("Phase 3b: Migrating DPTP secrets to GSM...")
 			dptpSecretsFromCache := cache.FilterDPTPByItems(dptpItemsFromConfig)
 			logrus.Infof("Found %d DPTP secrets to migrate", len(dptpSecretsFromCache))
 
@@ -268,11 +267,11 @@ func (o *options) runMassMigration() error {
 				indexUpdateFailures = append(indexUpdateFailures, failedCollections...)
 			}
 		} else {
-			logrus.Info("Phase 3b: Skipped DPTP secret migration (--skip-gsm-creation)")
+			logrus.Debug("Phase 3b: Skipped DPTP secret migration (--skip-gsm-creation)")
 		}
 
 		// Phase 2b: Generate bundles and update configs
-		logrus.Info("Phase 2b: Generating bundles for cluster profiles...")
+		logrus.Debug("Phase 2b: Generating bundles for cluster profiles...")
 		configResult, err := o.generateAndUpdateBundlesFromCache(clusterProfileSecrets, cache)
 		if err != nil {
 			return fmt.Errorf("failed to generate bundles: %w", err)
@@ -281,7 +280,7 @@ func (o *options) runMassMigration() error {
 	}
 
 	// Phase 5: Generate report (ALWAYS runs)
-	logrus.Info("Phase 5: Generating migration report...")
+	logrus.Debug("Phase 5: Generating migration report...")
 	report := gsmassmigration.GenerateReport(allMigrations, credUpdates, cache)
 	if configUpdateResult != nil {
 		report.BundlesAddedToGSMConfig = configUpdateResult.BundlesAdded
