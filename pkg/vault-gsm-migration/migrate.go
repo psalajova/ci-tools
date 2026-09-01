@@ -170,11 +170,12 @@ func MigrateVaultSecretToGSMFromCache(
 		//annotations := map[string]string{
 		//	"request-information": "created during the initial migration from Vault to GSM",
 		//}
-		//var labels map[string]string
+		//labels := map[string]string{
+		//	"source":         "vault-migration",
+		//	"migration-date": "2026-09-07",
+		//}
 		//if dptp {
-		//	labels = map[string]string{
-		//		"jira-project": "dptp",
-		//	}
+		//	labels["jira-project"] = "dptp"
 		//}
 		//err := gsmsecrets.CreateOrUpdateSecret(
 		//	ctx,
