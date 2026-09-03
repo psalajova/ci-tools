@@ -307,7 +307,7 @@ func updateCredentials(credentials []api.CredentialReference, credentialMap map[
 		}
 		if !exists {
 			if cred.Name != "" && cred.Namespace != "" {
-				logrus.Warnf("UNMIGRATED credential: name=%s namespace=%s mount_path=%s file=%s (no matching Vault secret found)",
+				logrus.Debugf("UNMIGRATED credential: name=%s namespace=%s mount_path=%s file=%s (no matching Vault secret found)",
 					cred.Name, cred.Namespace, cred.MountPath, filePath)
 			}
 			continue
@@ -368,7 +368,7 @@ func updateSecrets(secrets []*api.Secret, credentialMap map[credentialKey]VaultS
 			vaultSecret, exists = credentialMap[credentialKey{name: secret.Name}]
 		}
 		if !exists {
-			logrus.Warnf("UNMIGRATED secret: name=%s mount_path=%s file=%s (no matching Vault secret found)",
+			logrus.Debugf("UNMIGRATED secret: name=%s mount_path=%s file=%s (no matching Vault secret found)",
 				secret.Name, secret.MountPath, filePath)
 			continue
 		}
