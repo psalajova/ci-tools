@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/openshift/ci-tools/pkg/api"
 	gsmvalidation "github.com/openshift/ci-tools/pkg/gsm-validation"
@@ -18,10 +19,16 @@ import (
 //
 // Returns the generated bundles and the set of target names that got bundles
 // (so the credential migration can convert them to bundle: references).
+//
+// targetNames restricts bundle generation to secrets whose target name is in the
+// set (used by targeted mode to only touch bundles the target org/repo references).
+// A nil set means no restriction (mass migration): every multi-source secret in the
+// cache is considered.
 func GenerateMultiSourceBundles(
 	cache *VaultCache,
 	releaseRepoPath string,
 	dryRun bool,
+	targetNames sets.Set[string],
 ) (int, error) {
 	// Build set of cluster profile secret names to exclude (handled separately)
 	cpNames, _, _, err := buildCompleteClusterProfileSecretMap(releaseRepoPath)
@@ -35,6 +42,9 @@ func GenerateMultiSourceBundles(
 	byTarget := make(map[targetKey][]*CachedVaultSecret)
 	for targetName, secrets := range cache.ByTargetName {
 		if cpNames[targetName] {
+			continue
+		}
+		if targetNames != nil && !targetNames.Has(targetName) {
 			continue
 		}
 		for _, s := range secrets {

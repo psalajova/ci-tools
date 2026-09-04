@@ -188,9 +188,24 @@ func (o *options) runMassMigration() error {
 			logrus.Warn("No selfservice secrets found to migrate")
 		}
 
+		// In targeted mode, restrict the bundle-generation and stanza-rewriting steps
+		// to the target org/repo. In mass mode these stay nil/empty so the whole
+		// release repo is processed (original behavior).
+		var bundleTargetNames sets.Set[string]
+		var credentialScope *gsmassmigration.TargetedScope
+		if o.targetedMode {
+			bundleTargetNames = sets.New[string]()
+			for _, m := range allMigrations {
+				if m.SecretName != "" {
+					bundleTargetNames.Insert(m.SecretName)
+				}
+			}
+			credentialScope = &gsmassmigration.TargetedScope{ConfigSubdir: o.org + "/" + o.repo}
+		}
+
 		// Phase 3c: Generate bundles for multi-source credentials (multiple vault paths -> one K8s secret)
 		logrus.Debug("Phase 3c: Generating bundles for multi-source credentials...")
-		multiSourceAdded, err := gsmassmigration.GenerateMultiSourceBundles(cache, o.releaseRepoPath, o.dryRun)
+		multiSourceAdded, err := gsmassmigration.GenerateMultiSourceBundles(cache, o.releaseRepoPath, o.dryRun, bundleTargetNames)
 		if err != nil {
 			return fmt.Errorf("failed to generate multi-source bundles: %w", err)
 		}
@@ -205,6 +220,7 @@ func (o *options) runMassMigration() error {
 			allMigrations,
 			o.skipCSIFlag,
 			o.dryRun,
+			credentialScope,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to update credential stanzas: %w", err)

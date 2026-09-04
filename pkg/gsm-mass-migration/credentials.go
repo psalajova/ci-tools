@@ -24,15 +24,31 @@ import (
 // synced to multiple namespaces.
 const prowPodNamespace = "ci"
 
+// TargetedScope restricts credential-stanza rewriting to a single org/repo. A nil
+// *TargetedScope means mass migration (the whole release repo is rewritten), which
+// preserves the original behavior.
+type TargetedScope struct {
+	// ConfigSubdir limits config rewriting to ci-operator/config/<ConfigSubdir>
+	// (e.g. "wildfly/wildfly-charts"). Empty means all configs.
+	ConfigSubdir string
+}
+
 // UpdateCredentialStanzas walks CI operator configs and step registry to update credential references.
 // Replaces namespace/name with collection/group for migrated Vault secrets,
 // and namespace/name with bundle: for credentials matching gsm-config.yaml bundles.
 // Returns a list of CredentialUpdate entries tracking what was changed.
+//
+// When scope is non-nil (targeted mode) config rewriting is limited to
+// scope.ConfigSubdir, and the step-registry rewrite only touches stanzas that
+// reference the migrated secrets (bundle references are left untouched, since a
+// step-registry entry is shared by many repos). When scope is nil (mass mode)
+// the whole release repo is rewritten and bundle references are converted too.
 func UpdateCredentialStanzas(
 	releaseRepoPath string,
 	migrations []MigrationResult,
 	skipCSIFlag bool,
 	dryRun bool,
+	scope *TargetedScope,
 ) ([]CredentialUpdate, error) {
 	// Build mapping: secretName → (collection, group)
 	credentialMap := buildCredentialMapping(migrations)
@@ -46,19 +62,34 @@ func UpdateCredentialStanzas(
 	bundleNames := extractBundleNamesFromText(string(gsmContent))
 	syncBundles := extractSyncBundleNames(gsmContent)
 
-	logrus.Infof("Updating credential stanzas for %d migrated secrets and %d known bundles (%d sync_to_cluster)", len(credentialMap), bundleNames.Len(), syncBundles.Len())
+	configSubdir := ""
+	if scope != nil {
+		configSubdir = scope.ConfigSubdir
+	}
+
+	if scope != nil {
+		logrus.Infof("Updating credential stanzas in targeted scope %q: %d migrated secrets, %d known bundles matched in configs only (step-registry limited to migrated secrets)", configSubdir, len(credentialMap), bundleNames.Len())
+	} else {
+		logrus.Infof("Updating credential stanzas for %d migrated secrets and %d known bundles (%d sync_to_cluster)", len(credentialMap), bundleNames.Len(), syncBundles.Len())
+	}
 
 	var allUpdates []CredentialUpdate
 
-	// Update configs in ci-operator/config/*
-	configUpdates, err := updateConfigs(releaseRepoPath, credentialMap, bundleNames, syncBundles, skipCSIFlag, dryRun)
+	// Update configs in ci-operator/config/* (scoped to configSubdir in targeted mode)
+	configUpdates, err := updateConfigs(releaseRepoPath, configSubdir, credentialMap, bundleNames, syncBundles, skipCSIFlag, dryRun)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update configs: %w", err)
 	}
 	allUpdates = append(allUpdates, configUpdates...)
 
-	// Update ci-operator/step-registry/*
-	registryUpdates, err := updateStepRegistry(releaseRepoPath, credentialMap, bundleNames, syncBundles, dryRun)
+	// Update ci-operator/step-registry/*. In targeted mode only migrated secrets are
+	// rewritten (empty bundle sets), because a step-registry entry is shared across
+	// repos and converting its bundle references would affect other repos.
+	registryBundleNames, registrySyncBundles := bundleNames, syncBundles
+	if scope != nil {
+		registryBundleNames, registrySyncBundles = sets.New[string](), sets.New[string]()
+	}
+	registryUpdates, err := updateStepRegistry(releaseRepoPath, credentialMap, registryBundleNames, registrySyncBundles, dryRun)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update step-registry: %w", err)
 	}
@@ -110,9 +141,10 @@ func buildCredentialMapping(migrations []MigrationResult) map[credentialKey]Vaul
 	return mapping
 }
 
-// updateConfigs walks ci-operator/config/* and collects credential replacements, then applies them via text manipulation
-func updateConfigs(releaseRepoPath string, credentialMap map[credentialKey]VaultSecretPath, bundleNames, syncBundles sets.Set[string], skipCSIFlag bool, dryRun bool) ([]CredentialUpdate, error) {
-	configDir := path.Join(releaseRepoPath, "ci-operator", "config")
+// updateConfigs walks ci-operator/config/* and collects credential replacements, then applies them via text manipulation.
+// configSubdir (e.g. "org/repo") restricts the walk to a subtree; empty means all configs.
+func updateConfigs(releaseRepoPath, configSubdir string, credentialMap map[credentialKey]VaultSecretPath, bundleNames, syncBundles sets.Set[string], skipCSIFlag bool, dryRun bool) ([]CredentialUpdate, error) {
+	configDir := path.Join(releaseRepoPath, "ci-operator", "config", configSubdir)
 	var updates []CredentialUpdate
 
 	callback := func(cfg *api.ReleaseBuildConfiguration, info *config.Info) error {
